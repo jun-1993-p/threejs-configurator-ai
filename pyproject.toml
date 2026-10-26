@@ -1,0 +1,27 @@
+[project]
+name = "threejs-configurator-ai"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "jsonschema",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "httpx",
+    "mypy",
+    "types-jsonschema",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["addin/tests", "server/tests"]
+pythonpath = ["addin/ConfiguratorUploader", "."]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "addin/ConfiguratorUploader"
+exclude = ["addin/ConfiguratorUploader/ConfiguratorUploader\\.py", "addin/ConfiguratorUploader/uploader/fusion_model\\.py"]

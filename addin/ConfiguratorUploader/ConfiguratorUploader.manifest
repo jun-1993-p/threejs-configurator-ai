@@ -1,0 +1,12 @@
+{
+	"autodeskProduct": "Fusion360",
+	"type": "addin",
+	"id": "6d7c2f0e-5b1a-4c5e-9a3f-2e8b4d1c7a90",
+	"author": "jun-1993-p",
+	"description": {
+		"": "구성기용 모델·스윕을 서버로 업로드"
+	},
+	"version": "0.1.0",
+	"runOnStartup": false,
+	"supportedOS": "windows|mac"
+}

@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "upload-bundle.schema.json",
+  "title": "업로드 묶음",
+  "description": "CAD 애드인이 서버로 보내는 모델의 파라미터·부품·스윕. 길이 단위는 mm.",
+  "type": "object",
+  "required": ["schema_version", "units", "grid", "parameters", "parts", "baseline", "sweeps"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "units": { "const": "mm" },
+    "grid": {
+      "description": "면마다 찍는 (u,v) 격자. 면 하나에 n×n 점.",
+      "type": "object",
+      "required": ["n"],
+      "additionalProperties": false,
+      "properties": { "n": { "type": "integer", "minimum": 2 } }
+    },
+    "parameters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "value", "unit", "expression", "is_user"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "value": { "type": "number" },
+          "unit": { "type": "string" },
+          "expression": { "type": "string" },
+          "is_user": { "type": "boolean" }
+        }
+      }
+    },
+    "parts": {
+      "description": "부품. Fusion 컴포넌트 단위, 컴포넌트가 없는 바디는 바디 단위(ADR-0006). faces는 기본 형상 면 목록의 위치.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "kind", "faces"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "kind": { "enum": ["component", "body"] },
+          "faces": { "type": "array", "items": { "type": "integer", "minimum": 0 } }
+        }
+      }
+    },
+    "baseline": {
+      "type": "object",
+      "required": ["faces"],
+      "additionalProperties": false,
+      "properties": { "faces": { "$ref": "#/$defs/faces" } }
+    },
+    "sweeps": {
+      "description": "사용자 파라미터마다 하나씩인 단독 스윕.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["parameter", "range", "samples"],
+        "additionalProperties": false,
+        "properties": {
+          "parameter": { "type": "string", "minLength": 1 },
+          "range": {
+            "type": "object",
+            "required": ["min", "max"],
+            "additionalProperties": false,
+            "properties": { "min": { "type": "number" }, "max": { "type": "number" } }
+          },
+          "samples": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["value", "status", "faces"],
+              "additionalProperties": false,
+              "properties": {
+                "value": { "type": "number" },
+                "status": { "enum": ["ok", "recompute_failed"] },
+                "faces": { "$ref": "#/$defs/faces" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "faces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["body", "surface", "points"],
+        "additionalProperties": false,
+        "properties": {
+          "body": { "type": "string", "minLength": 1 },
+          "surface": { "type": "string" },
+          "points": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": { "type": "number" },
+              "minItems": 3,
+              "maxItems": 3
+            }
+          }
+        }
+      }
+    }
+  }
+}
