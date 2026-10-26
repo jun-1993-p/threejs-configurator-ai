@@ -1,0 +1,56 @@
+# --- Python (CAD 애드인, 서버) ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Node / JS (변형 엔진, 고정 코어, 검증기) ---
+node_modules/
+dist/
+build/
+coverage/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- 비밀값 (LiteLLM, 외부 API 키) ---
+.env
+.env.*
+!.env.example
+
+# --- 실제 상품 데이터 (Public 저장소이므로 올리지 않음) ---
+*.f3d
+*.f3z
+*.step
+*.stp
+*.iges
+*.igs
+*.stl
+*.obj
+*.3mf
+fixtures/private/
+
+# --- 로컬 저장소·실행 산출물 ---
+data/
+*.lance/
+*.jsonl
+logs/
+*.log
+
+# --- 에디터·OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Claude Code 로컬 설정 ---
+.claude/settings.local.json
