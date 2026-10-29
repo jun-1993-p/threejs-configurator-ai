@@ -127,10 +127,31 @@ def _shape_json(model: FusionModel, baseline: bool = False) -> dict[str, Any]:
     return shape
 
 
-def _sample(model: FusionModel, parameter: ParameterInfo, value: float) -> dict[str, Any]:
-    recomputed = model.set_parameter(parameter.name, value)
+def _shape_or_failure(model: FusionModel, recomputed: bool) -> dict[str, Any]:
+    """샘플의 재계산 상태와 형상. 재계산에 실패하면 형상은 비운다."""
     shape = _shape_json(model) if recomputed else {"faces": [], "edges": []}
-    return {"value": value, "status": "ok" if recomputed else "recompute_failed", **shape}
+    return {"status": "ok" if recomputed else "recompute_failed", **shape}
+
+
+def _sample(model: FusionModel, parameter: ParameterInfo, value: float) -> dict[str, Any]:
+    return {"value": value, **_shape_or_failure(model, model.set_parameter(parameter.name, value))}
+
+
+def cross_check_sample(model: FusionModel, values: dict[str, float]) -> dict[str, Any]:
+    """교차 검증 샘플: 여러 파라미터를 함께 바꾼 형상. 형식은 단독 스윕 샘플과 같고 value 대신 values를 담는다.
+
+    다 뽑으면 바꾼 파라미터의 원래 수식을 되돌린다(ADR-0003).
+    """
+    parameters = {p.name: p for p in model.parameters()}
+    unknown = [name for name in values if name not in parameters]
+    if unknown:
+        raise ValueError(f"모델에 없는 파라미터: {', '.join(unknown)}")
+    # 모두 바꾼 뒤에 재계산 결과를 본다. 앞에서 실패해도 나머지를 마저 바꿔야 되돌릴 목록이 맞는다.
+    recomputed = all([model.set_parameter(name, value) for name, value in values.items()])
+    sample = {"values": dict(values), **_shape_or_failure(model, recomputed)}
+    for name in values:
+        model.restore_parameter(parameters[name])
+    return sample
 
 
 def _sweep(model: FusionModel, parameter: ParameterInfo) -> dict[str, Any]:

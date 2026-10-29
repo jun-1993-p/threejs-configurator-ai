@@ -2,8 +2,9 @@ import json
 from pathlib import Path
 
 import jsonschema
+import pytest
 from fakes import FakeModel, FakeServer, FakeMeasuringModel
-from uploader.core import BodyInfo, run_upload
+from uploader.core import BodyInfo, run_upload, cross_check_sample
 
 SCHEMA_PATH = Path(__file__).parents[2] / "schema" / "upload-bundle.schema.json"
 
@@ -214,3 +215,36 @@ def test_이름과_측정값이_담긴_묶음도_스키마를_통과한다() -> 
     run_upload(FakeMeasuringModel(failing_values={"W": {1200.0}}), server, lambda _: None, source="solidcraft")
 
     jsonschema.validate(server.uploaded[0], schema)
+
+
+def test_교차_검증_샘플은_두_파라미터를_함께_바꾼_형상을_샘플과_같은_형식으로_뽑고_수식을_되돌린다() -> None:
+    model = FakeModel()
+
+    sample = cross_check_sample(model, {"W": 600.0, "D": 250.0})
+
+    assert sample["values"] == {"W": 600.0, "D": 250.0}
+    assert sample["status"] == "ok"
+    xs = [p[0] for f in sample["faces"] for p in f["points"]]
+    ys = [p[1] for f in sample["faces"] for p in f["points"]]
+    assert max(xs) == 600.0 and max(ys) == 250.0
+    assert "triangles" not in sample["faces"][0]
+    assert model.expressions == {"W": "800 mm", "D": "W / 2", "d12": "18 mm"}
+
+
+def test_교차_검증_샘플에서_하나라도_재계산이_실패하면_실패로_기록한다() -> None:
+    model = FakeModel(failing_values={"D": {250.0}})
+
+    sample = cross_check_sample(model, {"W": 600.0, "D": 250.0})
+
+    assert sample["status"] == "recompute_failed"
+    assert sample["faces"] == []
+    assert model.expressions["D"] == "W / 2"
+
+
+def test_교차_검증_샘플에_모델에_없는_파라미터가_있으면_아무것도_바꾸지_않고_거절한다() -> None:
+    model = FakeModel()
+
+    with pytest.raises(ValueError, match="H"):
+        cross_check_sample(model, {"W": 600.0, "H": 500.0})
+
+    assert model.set_calls == []

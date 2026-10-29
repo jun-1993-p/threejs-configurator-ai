@@ -145,6 +145,12 @@ class SolidCraftModel:
         self._cache = (key, state)
         return state
 
+    def fix_baseline_layouts(self, grid_n: int) -> None:
+        """기본 형상에서 면마다 점 배치를 정해 둔다. 파라미터를 바꾸기 전에 불러야 합성 녹화본과 점 순서가 같다."""
+        if self._overrides:
+            raise RuntimeError("파라미터를 바꾸기 전에 불러야 합니다")
+        self.sample_faces(grid_n)
+
     def sample_faces(self, grid_n: int) -> list[FaceSample]:
         state = self._state()
         samples = []

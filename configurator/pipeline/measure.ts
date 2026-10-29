@@ -25,3 +25,6 @@ export function boundsOf(each: (visit: (x: number, y: number, z: number) => void
   });
   return { lo, hi };
 }
+
+/** 바운딩 박스 대각선 길이 */
+export const diagonal = ({ lo, hi }: Bounds) => Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]);

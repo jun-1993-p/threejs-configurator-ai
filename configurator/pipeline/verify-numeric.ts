@@ -2,7 +2,7 @@
 // 검증기는 구성기와 같은 변형 엔진(src/engine.ts)을 그대로 불러, 실제로 내보낼 결과를 잰다.
 import { createMorph, faceKey, type Axis, type Morph, type MorphFace, type SampleFace, type Spec, type SweepData, type Vector } from "../src/engine.ts";
 import type { Feedback } from "./feedback.ts";
-import { boundsOf, coordinateOf, DIMENSIONS, round, type Bounds } from "./measure.ts";
+import { boundsOf, coordinateOf, diagonal, DIMENSIONS, round, type Bounds } from "./measure.ts";
 import type { UploadBundle } from "./upload-bundle.ts";
 
 /** 부품 치수(W·D·H와 두께) 오차의 합격선, mm */
@@ -157,8 +157,6 @@ const bounds = (faces: MorphFace[], positions: Float64Array): Bounds =>
       for (let i = face.start; i < face.start + face.count; i++) visit(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
     }
   });
-
-const diagonal = ({ lo, hi }: Bounds) => Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]);
 
 /** 면들에서 같은 꼭짓점끼리 잰 거리의 최댓값 */
 function maxDistance(faces: MorphFace[], a: Float64Array, b: Float64Array): number {

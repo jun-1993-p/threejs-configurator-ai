@@ -1,7 +1,7 @@
-// 시험 도우미: 서랍장 합성 녹화본과, 검증점 형상을 조금 바꾼 사본을 만든다. 시험 파일이 아니다.
+// 시험 도우미: 서랍장 합성 녹화본과 교차 검증 샘플, 검증점 형상을 조금 바꾼 사본을 만든다. 시험 파일이 아니다.
 import { readFileSync } from "node:fs";
 
-import type { Spec } from "../src/engine.ts";
+import type { SampleFace, Spec } from "../src/engine.ts";
 import type { UploadBundle } from "../pipeline/upload-bundle.ts";
 
 const fixtures = new URL("../../fixtures/synthetic/", import.meta.url);
@@ -70,3 +70,13 @@ export function movePart(parameter: string, base: number, part: string, axis: ke
   }
   return bundle;
 }
+
+/** 교차 검증 샘플: 파라미터 여럿을 함께 바꾼 Fusion 형상. 형식은 단독 스윕 샘플과 같고 value 대신 values를 쓴다. */
+export interface CrossCheckSample {
+  values: Record<string, number>;
+  status: "ok" | "recompute_failed";
+  faces: SampleFace[];
+}
+
+/** 서랍장 교차 검증 샘플 합성 녹화본(전체 폭 × 전체 높이). synthetic/make_cross_checks.py로 만든다. */
+export const crossChecks: CrossCheckSample[] = JSON.parse(readFileSync(new URL("drawer.cross-checks.json", fixtures), "utf-8")).samples;

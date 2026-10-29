@@ -4,6 +4,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 import { createMorph, type Morph, type SampleFace, type Spec, type SweepData } from "../src/engine.ts";
+import { boundsOf, diagonal } from "../pipeline/measure.ts";
+import { shapeTolerance } from "../pipeline/verify-numeric.ts";
+import { crossChecks } from "./recording.ts";
 
 const fixtures = new URL("../../fixtures/synthetic/", import.meta.url);
 const recording: SweepData = JSON.parse(readFileSync(new URL("drawer.json", fixtures), "utf-8"));
@@ -58,4 +61,55 @@ test("샘플 사이 값에서는 폭만 그 값으로 바뀐다", () => {
 test("값을 주지 않은 슬라이더는 명세의 default를 쓴다", () => {
   const morph = createMorph(spec, recording);
   assert.deepEqual(partBounds(morph, morph.positions({}), "Carcass"), [[-300, 300], [0, 450], [0, 700]]);
+});
+
+/** 서로 영향이 없는 두 슬라이더: 전체 폭(몸통·서랍의 X)과 전체 높이(몸통의 Z) */
+const widthHeightSpec: Spec = {
+  ...spec,
+  sliders: [
+    spec.sliders[0],
+    {
+      ...spec.sliders[0],
+      id: "body_h",
+      name: "전체 높이",
+      axis: "H",
+      min: 500, max: 1000, default: 700,
+      source: "치수규칙/서랍장/높이",
+      affects: { shape: ["Carcass"], move: [] },
+    },
+  ],
+};
+
+test("슬라이더 하나만 움직이면 단독 스윕 보간과 결과가 같다", () => {
+  for (const slider of widthHeightSpec.sliders) {
+    const single = createMorph({ ...widthHeightSpec, sliders: [slider] }, recording);
+    const multi = createMorph(widthHeightSpec, recording);
+    for (const value of [slider.min, (slider.min + slider.default) / 2 + 1, slider.max - 23]) {
+      assert.deepEqual(multi.positions({ [slider.id]: value }), single.positions({ [slider.id]: value }), `${slider.id}=${value}`);
+    }
+  }
+});
+
+test("두 슬라이더를 함께 움직이면 이동량을 더한 결과가 교차 검증 샘플과 형상 오차 합격선 안에서 맞는다", () => {
+  const morph = createMorph(widthHeightSpec, recording);
+  assert.ok(crossChecks.length >= 2);
+  for (const sample of crossChecks) {
+    assert.equal(sample.status, "ok");
+    // 고객이 고를 수 있는 값이어야 한다
+    for (const slider of widthHeightSpec.sliders) {
+      const value = sample.values[slider.id];
+      assert.ok(slider.min <= value && value <= slider.max, `${slider.id}=${value}가 슬라이더 범위 밖`);
+    }
+    const expected = recordedPositions(morph, sample.faces);
+    // 형상 오차 합격선(ADR-0012): 1 mm와 Fusion 형상 대각선의 0.1% 중 큰 값
+    const tolerance = shapeTolerance(
+      diagonal(
+        boundsOf((visit) => {
+          for (let i = 0; i < expected.length; i += 3) visit(expected[i], expected[i + 1], expected[i + 2]);
+        }),
+      ),
+    );
+    const error = maxDistance(morph.positions(sample.values), expected);
+    assert.ok(error <= tolerance, `${JSON.stringify(sample.values)}: 오차 ${error} mm > ${tolerance} mm`);
+  }
 });
