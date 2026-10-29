@@ -3,6 +3,8 @@
 Fusion API의 길이는 내부 단위(cm)이므로 묶음에는 mm로 바꿔 담는다.
 """
 
+from collections.abc import Sequence
+
 import adsk.core
 import adsk.fusion
 
@@ -78,6 +80,10 @@ class FusionDesignModel:
 
     def restore_parameter(self, parameter: ParameterInfo) -> None:
         self._design.allParameters.itemByName(parameter.name).expression = parameter.expression
+
+    def parameter_values(self, names: Sequence[str]) -> dict[str, float]:
+        # 개수형 파라미터에 쓴다. 단위가 없어 내부 값이 곧 묶음의 값이다.
+        return {name: self._design.allParameters.itemByName(name).value for name in names}
 
     def _error_count(self) -> int:
         # 직접 모델링 디자인에는 타임라인이 없다.

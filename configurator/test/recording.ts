@@ -9,6 +9,12 @@ const fixtures = new URL("../../fixtures/synthetic/", import.meta.url);
 export const recording: UploadBundle = JSON.parse(readFileSync(new URL("drawer.json", fixtures), "utf-8"));
 export const drawerSpec: Spec = JSON.parse(readFileSync(new URL("drawer.spec.json", fixtures), "utf-8"));
 
+/**
+ * 서랍 속 비우기 면 지정점이 처음 모델의 (0, 215, 220)인 서랍장 합성 녹화본(solidcraft-test/drawer-shell-point.sc).
+ * 서랍 깊이가 215 아래면 면 하나가 사라지므로, 애드인이 전체 깊이와 서랍 깊이의 min 쪽 범위를 모델링 오류 의심으로 줄였다.
+ */
+export const shellPointRecording: UploadBundle = JSON.parse(readFileSync(new URL("drawer-shell-point.json", fixtures), "utf-8"));
+
 export const AXIS = { X: 0, Y: 1, Z: 2 } as const;
 
 type Check = UploadBundle["sweeps"][number]["checks"][number];

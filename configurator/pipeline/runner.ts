@@ -3,7 +3,17 @@
 import { samePair, type GridSweep, type Pair, type Spec, type SweepData } from "../src/engine.ts";
 import { assembleProduct, type ProductFiles } from "./assemble.ts";
 import type { Feedback } from "./feedback.ts";
-import { FRONTS, checkCandidates, checkSampleResponse, checkSpec, checkUploadBundle, specReferenceChecker, styleChoiceChecker, type Check } from "./schemas.ts";
+import {
+  FRONTS,
+  candidateReferenceChecker,
+  checkCandidates,
+  checkSampleResponse,
+  checkSpec,
+  checkUploadBundle,
+  specReferenceChecker,
+  styleChoiceChecker,
+  type Check,
+} from "./schemas.ts";
 import type { UploadBundle } from "./upload-bundle.ts";
 import { verifyAxisResponse } from "./verify-axis.ts";
 import {
@@ -19,6 +29,7 @@ import {
   type PairFailure,
 } from "./verify-cross.ts";
 import { verifyNumeric } from "./verify-numeric.ts";
+import { uploadRangeFeedback, verifyRange } from "./verify-range.ts";
 
 /** 단계 이름. 순서는 runPipeline의 코드가 정한다. */
 export type Stage =
@@ -228,6 +239,12 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
     return errors;
   };
 
+  // 후보의 부모 파라미터는 업로드 묶음에서 슬라이더로 쓸 수 있는 파라미터여야 한다(개수형 제외).
+  const checkBundleCandidates: Check = (value) => {
+    const errors = checkCandidates(value);
+    return errors.length > 0 ? errors : candidateReferenceChecker(uploaded)(value as Candidate[]);
+  };
+
   /** 받은 격자 보강. key는 요청한 값 묶음이라, 명세의 범위나 기본값이 바뀌면 그 격자는 쓰지 않는다. */
   interface Reinforcement {
     pair: Pair;
@@ -252,8 +269,10 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
 
     // 수치 검증은 결과물에 담긴 스윕 데이터로 잰다. 통과하면 축 반응을 녹화된 단독 스윕으로 보고,
     // 그것도 통과하면 애드인에 교차 검증 샘플을 받아 슬라이더 덧셈을 본다. AI 판정(티켓 19)이 뒤에 붙는다.
+    // 슬라이더가 애드인이 줄인 스윕 범위를 넘으면 엔진이 그 밖을 끝 샘플에 붙이므로, 재기 전에 범위부터 좁히게 한다.
     const sweeps: SweepData = JSON.parse(files["sweeps.json"]);
-    let feedback = verifyNumeric(spec, sweeps, uploaded);
+    let feedback = verifyRange(spec, uploaded);
+    if (feedback.length === 0) feedback = verifyNumeric(spec, sweeps, uploaded);
     if (feedback.length === 0) feedback = verifyAxisResponse(spec, uploaded);
     if (feedback.length > 0 || spec.sliders.length < 2) return { files, feedback, failedPairs: [] };
 
@@ -336,14 +355,16 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
   try {
     const bundleErrors = checkUploadBundle(bundle);
     if (bundleErrors.length > 0) throw new PipelineStop("upload", `업로드 묶음 형식 오류: ${bundleErrors.join("; ")}`);
-    await log("upload");
+    // 애드인이 범위 끝의 위상 변화로 줄인 스윕 범위. 모델링 오류 의심은 운영자가 모델을 확인할 일이라 처리 기록에 남긴다.
+    const rangeFeedback = uploadRangeFeedback(uploaded);
+    await log("upload", rangeFeedback.length > 0 ? { feedback: rangeFeedback } : undefined);
 
     await log("intake", intake);
 
     // 후보 제시로 돌아오는 고리. 회차마다 사람이 후보를 고르므로 사람 없이 끝없이 돌지는 않는다.
     const failures: CandidateFailure[] = [];
     for (;;) {
-      const candidates = await askUntilValid<Candidate[]>("candidates", checkCandidates, (schemaErrors) =>
+      const candidates = await askUntilValid<Candidate[]>("candidates", checkBundleCandidates, (schemaErrors) =>
         ai.proposeCandidates({ bundle, intake, failures: structuredClone(failures), schemaErrors }),
       );
       await log("candidates", candidates.map((c) => c.id));

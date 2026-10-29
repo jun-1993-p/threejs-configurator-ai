@@ -13,7 +13,7 @@ import json
 import os
 import subprocess
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -113,6 +113,15 @@ class SolidCraftModel:
     def restore_parameter(self, parameter: ParameterInfo) -> None:
         self._overrides.pop(parameter.name, None)
 
+    def parameter_values(self, names: Sequence[str]) -> dict[str, float]:
+        """바꾼 파라미터를 적용한 뒤의 값. 개수형 파라미터가 있는 모델에서만 불리므로 형상과 따로 묻는다."""
+        commands: list[dict[str, Any]] = [
+            {"command": "parameters.change", "params": {"name": n, "expression": e}} for n, e in self._overrides.items()
+        ]
+        commands.append({"command": "parameters.list", "params": {}})
+        listed = {p["name"]: float(p["value"]) for p in self._run(commands)[-1]["parameters"]}
+        return {name: listed[name] for name in names}
+
     def _state(self) -> dict[str, Any]:
         key = tuple(self._overrides.items())
         if self._cache is not None and self._cache[0] == key:
@@ -182,6 +191,10 @@ class SolidCraftModel:
                 if key not in self._layouts:
                     self._layouts[key] = build_layout(surface, bound, spacing)
                 layout = self._layouts[key]
+                if not {spec.edge for spec in layout.specs if spec.kind == "boundary"} <= bound.keys():
+                    # 이름은 같아도 경계 모서리가 달라진 면(위상 변화)은 이 샘플에서만 쓰는 배치로 놓는다.
+                    # 모서리 이름이 바뀌므로 애드인이 면 구성 변화로 보고 범위를 줄일 때 버린다.
+                    layout = build_layout(surface, bound, spacing)
                 samples.append(
                     FaceSample(
                         body=body,

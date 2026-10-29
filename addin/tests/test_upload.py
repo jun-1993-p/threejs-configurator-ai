@@ -1,11 +1,13 @@
 import json
+from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 import jsonschema
 import pytest
 from fakes import FakeModel, FakeServer, FakeMeasuringModel
 from server.bundle import sample_response_errors
-from uploader.core import BodyInfo, cross_check_sample, run_upload, serve_sample_request
+from uploader.core import BodyInfo, EdgeSample, FaceSample, ParameterInfo, cross_check_sample, run_upload, serve_sample_request
 
 SCHEMA_PATH = Path(__file__).parents[2] / "schema" / "upload-bundle.schema.json"
 
@@ -23,16 +25,16 @@ def test_서버_연결_시험이_실패하면_스윕하지_않고_운영자에�
     assert any("서버" in m for m in messages)
 
 
-def test_업로드_묶음에_파라미터마다_이름_값_수식_사용자_파라미터_여부가_담긴다() -> None:
+def test_업로드_묶음에_파라미터마다_이름_값_수식_사용자_파라미터_여부_개수형_여부가_담긴다() -> None:
     server = FakeServer()
 
     upload_id = run_upload(FakeModel(), server, lambda _: None)
 
     assert upload_id == "upload-1"
     assert server.uploaded[0]["parameters"] == [
-        {"name": "W", "value": 800.0, "unit": "mm", "expression": "800 mm", "is_user": True},
-        {"name": "D", "value": 400.0, "unit": "mm", "expression": "W / 2", "is_user": True},
-        {"name": "d12", "value": 18.0, "unit": "mm", "expression": "18 mm", "is_user": False},
+        {"name": "W", "value": 800.0, "unit": "mm", "expression": "800 mm", "is_user": True, "is_count": False},
+        {"name": "D", "value": 400.0, "unit": "mm", "expression": "W / 2", "is_user": True, "is_count": False},
+        {"name": "d12", "value": 18.0, "unit": "mm", "expression": "18 mm", "is_user": False, "is_count": False},
     ]
 
 
@@ -303,3 +305,147 @@ def test_추가_샘플을_뽑지_못하면_답_대신_실패_이유를_서버에
     upload_id, request_id, reason = server.failures[0]
     assert (upload_id, request_id) == ("upload-1", "r1")
     assert "H" in reason
+
+
+class _ShelfModel(FakeModel):
+    """폭 W가 1100 이상이면 선반 수(개수형 자식 shelves)가 2에서 3이 되고 선반 면이 하나 늘어나는 모델."""
+
+    def __init__(self, count_user: bool = False) -> None:
+        super().__init__(
+            parameters=[
+                ParameterInfo(name="W", value=800.0, unit="mm", expression="800 mm", is_user=True),
+                ParameterInfo(name="D", value=400.0, unit="mm", expression="400 mm", is_user=True),
+                ParameterInfo(name="shelves", value=2.0, unit="", expression="W >= 1100 ? 3 : 2", is_user=count_user),
+            ]
+        )
+
+    def _follow(self) -> None:
+        self.values["shelves"] = 3.0 if self.values["W"] >= 1100 else 2.0
+
+    def set_parameter(self, name: str, value: float) -> bool:
+        ok = super().set_parameter(name, value)
+        self._follow()
+        return ok
+
+    def restore_parameter(self, parameter: ParameterInfo) -> None:
+        super().restore_parameter(parameter)
+        self._follow()
+
+    def sample_faces(self, grid_n: int) -> list[FaceSample]:
+        faces = super().sample_faces(grid_n)
+        if self.values["shelves"] != 2:
+            faces.append(replace(faces[0], name="F2:shelf"))
+        return faces
+
+
+def run_upload_bundle(model: FakeModel) -> dict[str, Any]:
+    server = FakeServer()
+    run_upload(model, server, lambda _: None)
+    return server.uploaded[0]
+
+
+def test_단위가_없는_정수_파라미터는_개수형으로_담기고_사용자_파라미터여도_스윕하지_않는다() -> None:
+    server = FakeServer()
+
+    run_upload(_ShelfModel(count_user=True), server, lambda _: None)
+
+    bundle = server.uploaded[0]
+    assert [(p["name"], p["is_count"]) for p in bundle["parameters"]] == [("W", False), ("D", False), ("shelves", True)]
+    assert [s["parameter"] for s in bundle["sweeps"]] == ["W", "D"]
+
+
+def test_개수형_파라미터가_있으면_샘플마다_그_값을_담는다() -> None:
+    d = run_upload_bundle(_ShelfModel())["sweeps"][1]
+
+    assert [s["counts"] for s in d["samples"]] == [{"shelves": 2.0}] * 5
+    assert "counts" not in run_upload_bundle(FakeModel())["sweeps"][0]["samples"][0]
+
+
+def test_면_구성이_바뀌지_않으면_범위를_줄이지_않는다() -> None:
+    w = run_upload_bundle(FakeModel())["sweeps"][0]
+
+    assert w["range"] == {"min": 400.0, "max": 1200.0}
+    assert "reductions" not in w
+
+
+def test_범위_끝에서_개수형_값과_함께_면_구성이_바뀌면_바뀌기_전_샘플까지_범위를_줄이고_까닭을_남긴다() -> None:
+    # 검증점 1100에서 선반 수가 3이 된다. 범위 끝은 그 앞 샘플 1000이고, 바뀐 쪽 샘플·검증점은 담지 않는다.
+    w = run_upload_bundle(_ShelfModel())["sweeps"][0]
+
+    assert w["range"] == {"min": 400.0, "max": 1000.0}
+    assert [s["value"] for s in w["samples"]] == [400.0, 600.0, 800.0, 1000.0]
+    assert [c["value"] for c in w["checks"]] == [500.0, 700.0, 900.0]
+    assert w["reductions"] == [
+        {
+            "side": "max",
+            "at": 1100.0,
+            "reason": "range_shrunk",
+            "removed_faces": [],
+            "added_faces": [{"body": "Body1", "name": "F2:shelf"}],
+            "removed_edges": [],
+            "added_edges": [],
+            "counts": {"shelves": [2.0, 3.0]},
+        }
+    ]
+
+
+def test_개수형_값이_그대로인데_면_구성이_바뀌면_모델링_오류_의심으로_범위를_줄인다() -> None:
+    class _LostFace(_ShelfModel):
+        """깊이 D가 250보다 작으면 선반 수와 상관없이 면 하나가 사라진다(속 비우기 면 지정점이 면 밖으로 나간 모델처럼)."""
+
+        def sample_faces(self, grid_n: int) -> list[FaceSample]:
+            faces = super().sample_faces(grid_n)
+            return faces[:-1] if self.values["D"] < 250 else faces
+
+    d = run_upload_bundle(_LostFace())["sweeps"][1]
+
+    assert d["range"] == {"min": 300.0, "max": 600.0}
+    assert d["reductions"] == [
+        {
+            "side": "min",
+            "at": 200.0,
+            "reason": "modeling_error_suspected",
+            "removed_faces": [{"body": "Body3", "name": "F1:top"}],
+            "added_faces": [],
+            "removed_edges": [],
+            "added_edges": [],
+            "counts": {},
+        }
+    ]
+
+
+def test_개수형_파라미터가_없는_모델에서_면_구성이_바뀌면_모델링_오류_의심이다() -> None:
+    class _LostFace(FakeModel):
+        def sample_faces(self, grid_n: int) -> list[FaceSample]:
+            faces = super().sample_faces(grid_n)
+            return faces[:-1] if self.values["W"] < 500 else faces
+
+    w = run_upload_bundle(_LostFace())["sweeps"][0]
+
+    assert w["range"] == {"min": 600.0, "max": 1200.0}
+    assert [r["reason"] for r in w["reductions"]] == ["modeling_error_suspected"]
+
+
+def test_면_이름이_그대로여도_모서리가_바뀌면_면_구성이_바뀐_것으로_보고_범위를_줄인다() -> None:
+    class _SplitEdge(FakeModel):
+        """W가 1100 이상이면 Body1의 모서리가 둘로 나뉜다(경계가 나뉘어 꼭짓점 짝이 깨진다)."""
+
+        def sample_edges(self) -> list[EdgeSample]:
+            edges = super().sample_edges()
+            if self.values["W"] >= 1100:
+                edges[0] = replace(edges[0], name="F1:top|F1:side~1")
+            return edges
+
+    w = run_upload_bundle(_SplitEdge())["sweeps"][0]
+
+    assert w["range"] == {"min": 400.0, "max": 1000.0}
+    [reduction] = w["reductions"]
+    assert reduction["removed_edges"] == [{"body": "Body1", "name": "F1:top|F1:side"}]
+    assert reduction["added_edges"] == [{"body": "Body1", "name": "F1:top|F1:side~1"}]
+    assert reduction["removed_faces"] == [] and reduction["added_faces"] == []
+
+
+def test_범위를_줄인_업로드_묶음도_스키마를_통과한다() -> None:
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+
+    jsonschema.validate(run_upload_bundle(_ShelfModel(count_user=True)), schema)

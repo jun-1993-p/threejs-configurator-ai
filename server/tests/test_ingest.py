@@ -44,7 +44,7 @@ def _bundle() -> dict[str, Any]:
         "units": "mm",
         "grid": {"n": 2},
         "parameters": [
-            {"name": "W", "value": 800, "unit": "mm", "expression": "800 mm", "is_user": True}
+            {"name": "W", "value": 800, "unit": "mm", "expression": "800 mm", "is_user": True, "is_count": False}
         ],
         "parts": [{"name": "상판", "kind": "component", "faces": [0]}],
         "baseline": {"faces": [_face("Body1", baseline=True)], "edges": _edges("Body1")},
@@ -142,6 +142,13 @@ def test_이름이_같아도_법선이_뒤집힌_면은_짝으로_보지_않는�
     bundle["sweeps"][0]["samples"][0]["faces"][0]["geometry"]["normal"] = [0, 0, -1]
 
     assert sample_topology(bundle)[0] == ("W", 400, "changed")
+
+
+def test_개수형_파라미터의_스윕이_있으면_거절한다() -> None:
+    bundle = _bundle()
+    bundle["parameters"][0].update(unit="", value=3, expression="3", is_count=True)
+
+    assert any("개수형" in e for e in bundle_errors(bundle))
 
 
 def test_이름과_표면이_맞으면_같은_위상이다() -> None:

@@ -48,7 +48,7 @@ export function shapeComparer(spec: Spec, sweeps: SweepData, bundle: UploadBundl
   const parts = [...new Set(morph.faces.map((f) => f.part))];
   const panels = panelPairs(morph, bundle);
   return (values, faces, context) => {
-    // 위상 묶음(티켓 10·11)이 들어오면 묶음마다의 면 구성과 비교해야 한다. 지금은 엔진도 기본 형상의 면 구성만 받는다.
+    // 위상 묶음(티켓 11)이 들어오면 묶음마다의 면 구성과 비교해야 한다. 지금은 엔진도 기본 형상의 면 구성만 받는다.
     const fusion = recordedPositions(morph, faces);
     if (!fusion) return undefined;
     const engine = morph.positions(values);

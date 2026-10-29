@@ -73,3 +73,20 @@ export function specReferenceChecker(bundle: { parts: { name: string }[]; sweeps
       ...affects.shape.filter((part) => affects.move.includes(part)).map((part) => `/sliders/${i}/affects: ${part}가 shape와 move에 함께 있습니다`),
     ]);
 }
+
+/**
+ * 후보가 노출할 부모 파라미터가 슬라이더로 쓸 수 있는 것인지. 스윕한 파라미터여야 하고, 개수형 파라미터는
+ * 섞을 수 없으므로 후보가 될 수 없다(ADR-0005). 애드인은 개수형을 스윕하지 않지만 이유를 따로 알린다.
+ */
+export function candidateReferenceChecker(bundle: { parameters: { name: string; is_count: boolean }[]; sweeps: { parameter: string }[] }) {
+  const counts = new Set(bundle.parameters.filter((p) => p.is_count).map((p) => p.name));
+  const swept = new Set(bundle.sweeps.map((s) => s.parameter));
+  return (candidates: { parents: string[] }[]): string[] =>
+    candidates.flatMap(({ parents }, i) =>
+      parents.flatMap((parent, k) => {
+        const at = `/${i}/parents/${k}`;
+        if (counts.has(parent)) return [`${at}: ${parent}는 개수형 파라미터라 슬라이더 후보가 될 수 없습니다`];
+        return swept.has(parent) ? [] : [`${at}: ${parent}는 스윕한 파라미터가 아닙니다`];
+      }),
+    );
+}

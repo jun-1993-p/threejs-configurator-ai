@@ -92,7 +92,10 @@
   | `ai_judgment` | AI 판정(이미지 경로와 이유 한 줄 포함) |
   | `grid_limit` | 격자 보강이 필요한 쌍이 상품당 2쌍을 넘음 |
 
-- `part`: 부품과 무관한 실패(검증점 재계산 실패·위상 변화)는 빈 문자열이다.
+- `part`: 부품과 무관한 실패(검증점 재계산 실패, 검증점의 `topology_change`)는 빈 문자열이다. 범위 축소(`range_shrunk`·`modeling_error_suspected`)는 바뀐 면이 속한 부품이다.
+- `range_shrunk`·`modeling_error_suspected`: 애드인이 범위 끝 쪽의 위상 변화(면 또는 모서리 구성)로 스윕 범위를 줄인 기록(업로드 묶음 `sweeps[].reductions`, `reason`이 이 `kind`와 같다)에서 나온다(ADR-0005). 개수형 파라미터 값도 함께 바뀌었으면 `range_shrunk`, 그대로면 `modeling_error_suspected`다.
+  - 업로드 단계: 처리 기록으로 운영자에게 알린다. 명세가 없으므로 `path`는 빈 문자열이고, `slider`에는 그 파라미터 이름(슬라이더가 된다면 그 id)이 들어간다.
+  - 검증 단계: 명세 범위가 줄어든 쪽을 넘으면 수치 검증 전에 `sliders[i].min`/`max`에 다시 낸다. `expected`는 줄어든 범위 끝(`{ "min": 337.5 }`)이다.
 - `slider`: 한 슬라이더의 실패가 아니면(`grid_limit`) 빈 문자열이고, 이때 `path`는 `sliders`다.
 - `hint`: 규칙으로 만든다(AI가 쓰지 않음).
 

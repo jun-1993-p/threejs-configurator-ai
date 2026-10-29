@@ -11,7 +11,7 @@ import type { Feedback } from "../pipeline/feedback.ts";
 import { FUSION_NEEDED, FUSION_RECONNECTED, runPipeline, type Candidate, type FusionPort, type HumanPort, type Intake, type SampleRequest } from "../pipeline/runner.ts";
 import { scriptedAi, type Script } from "../pipeline/scripted-ai.ts";
 import { memoryStore } from "../pipeline/memory-store.ts";
-import { crossCorners, crossDepth, crossThree, depthSpec, gridDepth, gridDepthChecks, pushMaxSide, threeSpec, widthHeightSpec } from "./recording.ts";
+import { crossCorners, crossDepth, crossThree, depthSpec, gridDepth, gridDepthChecks, pushMaxSide, shellPointRecording, threeSpec, widthHeightSpec } from "./recording.ts";
 import type { CrossSample } from "../pipeline/verify-cross.ts";
 
 const fixtures = new URL("../../fixtures/synthetic/", import.meta.url);
@@ -483,4 +483,60 @@ test("격자 샘플 하나라도 재계산에 실패하면 그 쌍은 보강하�
   assert.match(failed[0].hint, /격자 보강 샘플/);
   assert.ok(!verificationLog(store).some((d) => JSON.stringify(d).includes('"grid"')));
   assert.equal(JSON.parse(store.submissions[0].files["sweeps.json"]).grids, undefined);
+});
+
+/** 전체 깊이 하나로 된 명세. 범위 300~600은 속 비우기 면 지정점 녹화본에서 줄어든 스윕 범위(337.5~675)를 min 쪽에서 넘는다. */
+const bodyDepthSpec: Spec = { ...spec, sliders: [depthSpec.sliders[0]] };
+const depthCandidates: Candidate[] = candidates.map((c) => ({ ...c, parents: ["body_d"] }));
+
+test("업로드 묶음에 모델링 오류 의심으로 줄어든 범위가 있으면 업로드 단계 처리 기록으로 운영자에게 알린다", async () => {
+  const { store, ports } = setup({ candidates: [depthCandidates], spec: [{ ...bodyDepthSpec, sliders: [{ ...bodyDepthSpec.sliders[0], min: 337.5 }] }] });
+
+  const result = await runPipeline({ bundle: shellPointRecording, intake: depthIntake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  const upload = store.log.find((e) => e.stage === "upload")!;
+  const feedback = (upload.detail as { feedback: Feedback[] }).feedback;
+  assert.deepEqual(
+    feedback.map((f) => [f.slider, f.kind]),
+    [
+      ["body_d", "modeling_error_suspected"],
+      ["drawer_d", "modeling_error_suspected"],
+    ],
+  );
+  // 범위가 줄지 않은 녹화본은 업로드 기록에 피드백이 없다
+  const plain = setup();
+  await runPipeline({ bundle, intake, human: approveFirst, ports: plain.ports });
+  assert.equal(plain.store.log.find((e) => e.stage === "upload")!.detail, undefined);
+});
+
+test("명세 범위가 줄어든 스윕 범위를 넘으면 그 까닭을 담은 피드백으로 다시 쓰고, 좁힌 명세로 제출한다", async () => {
+  const narrowed: Spec = { ...bodyDepthSpec, sliders: [{ ...bodyDepthSpec.sliders[0], min: 337.5 }] };
+  const { ai, store, ports } = setup({ candidates: [depthCandidates], spec: [bodyDepthSpec, narrowed] });
+
+  const result = await runPipeline({ bundle: shellPointRecording, intake: depthIntake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  const [, second] = ai.calls.spec as { feedback: Feedback[] }[];
+  assert.deepEqual(
+    second.feedback.map(({ path, slider, part, kind, expected }) => ({ path, slider, part, kind, expected })),
+    [{ path: "sliders[0].min", slider: "body_d", part: "DrawerBox", kind: "modeling_error_suspected", expected: { min: 337.5 } }],
+  );
+  assert.deepEqual(JSON.parse(store.submissions[0].files["spec.json"]), narrowed);
+});
+
+test("후보가 개수형 파라미터나 스윕하지 않은 파라미터를 노출하면 이유를 붙여 후보를 다시 묻는다", async () => {
+  const withCount = structuredClone(bundle);
+  withCount.parameters.push({ name: "shelves", value: 2, unit: "", expression: "2", is_user: true, is_count: true });
+  const counted = candidates.map((c, i) => ({ ...c, parents: [i === 0 ? "shelves" : "d5"] }));
+  const { ai, ports } = setup({ candidates: [counted, candidates] });
+
+  const result = await runPipeline({ bundle: withCount, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  const errors = (ai.calls.candidates[1] as { schemaErrors: string[] }).schemaErrors;
+  assert.deepEqual(errors, [
+    "/0/parents/0: shelves는 개수형 파라미터라 슬라이더 후보가 될 수 없습니다",
+    "/1/parents/0: d5는 스윕한 파라미터가 아닙니다",
+  ]);
 });

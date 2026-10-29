@@ -1,5 +1,6 @@
 """Fusion 어댑터와 서버의 가짜 구현. 실제 Fusion 없이 애드인 핵심을 시험한다."""
 
+from collections.abc import Sequence
 from typing import Any
 
 from uploader.core import BodyInfo, BodyMeasure, EdgeSample, FaceSample, ParameterInfo
@@ -44,6 +45,9 @@ class FakeModel:
     def restore_parameter(self, parameter: ParameterInfo) -> None:
         self.values[parameter.name] = parameter.value
         self.expressions[parameter.name] = parameter.expression
+
+    def parameter_values(self, names: Sequence[str]) -> dict[str, float]:
+        return {name: self.values[name] for name in names}
 
     def sample_faces(self, grid_n: int) -> list[FaceSample]:
         w, d = self.values["W"], self.values["D"]

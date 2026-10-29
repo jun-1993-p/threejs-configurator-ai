@@ -92,6 +92,10 @@ def bundle_errors(bundle: dict[str, Any]) -> list[str]:
     errors = _schema_errors(_validator, bundle)
     if errors:
         return errors
+    counts = {p["name"] for p in bundle["parameters"] if p["is_count"]}
+    for sweep in bundle["sweeps"]:
+        if sweep["parameter"] in counts:
+            errors.append(f"{sweep['parameter']}: 개수형 파라미터는 스윕하지 않습니다(ADR-0005)")
     baseline = bundle["baseline"]["faces"]
     for face in baseline:
         n = len(face["points"])

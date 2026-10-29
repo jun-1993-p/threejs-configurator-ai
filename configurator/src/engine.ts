@@ -230,6 +230,6 @@ function addResidual(out: Float64Array, grid: GridTrack, [va, vb]: [number, numb
 }
 
 function topologyChanged(id: string, value: number) {
-  // 위상 묶음(ADR-0005)은 티켓 10·11에서 다룬다. 그 전까지는 면 구성이 다른 샘플을 받지 않는다.
+  // 위상 묶음(ADR-0005)은 티켓 11에서 다룬다. 범위 끝의 위상 변화는 애드인이 범위를 줄여 샘플에서 뺀다(티켓 10). 그 전까지는 면 구성이 다른 샘플을 받지 않는다.
   return new Error(`슬라이더 ${id}: 값 ${value}의 샘플이 기본 형상과 면 구성이 다릅니다(위상 묶음은 아직 지원하지 않음)`);
 }

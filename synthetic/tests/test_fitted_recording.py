@@ -57,6 +57,8 @@ def _inside_plane_face(p: list[float], face: dict[str, Any], edges: list[dict[st
 def test_합성_녹화본이_새_형식_검사를_통과하고_모든_샘플이_같은_위상이다(drawer: dict[str, Any]) -> None:
     assert bundle_errors(drawer) == []
     assert {state for _, _, state in sample_topology(drawer)} == {"same"}
+    # 면 지정점을 고친 모델은 범위 끝에서도 면 구성이 바뀌지 않는다
+    assert not any("reductions" in sweep for sweep in drawer["sweeps"])
 
 
 def test_서랍장_10단계에서_고리_모양_면을_포함한_모든_면의_점_수와_순서가_같다(drawer: dict[str, Any]) -> None:
@@ -155,3 +157,18 @@ def test_어느_샘플에서도_삼각형이_뒤집히거나_납작해지지_않
                     n0 = _tri_normal(ref["points"], tri)
                     n1 = _tri_normal(faces[key]["points"], tri)
                     assert sum(x * y for x, y in zip(n0, n1, strict=True)) > 0, (sweep["parameter"], sample["value"], key, tri)
+
+
+def test_속_비우기_면_지정점이_면_밖으로_나가는_서랍장은_모델링_오류_의심으로_범위가_줄어든다(tmp_path: Path) -> None:
+    # report.md 3·5절의 처음 모델: 서랍 속 비우기 면 지정점 (0, 215, 220). 서랍 깊이가 215 아래면 다른 면이 제거된다.
+    out = make_recording(ROOT / "solidcraft-test" / "drawer-shell-point.sc", tmp_path / "broken.json", [])
+    bundle: dict[str, Any] = json.loads(out.read_text(encoding="utf-8"))
+
+    assert bundle_errors(bundle) == []
+    body_d = next(s for s in bundle["sweeps"] if s["parameter"] == "body_d")
+    assert body_d["range"] == {"min": 337.5, "max": 675.0}
+    [reduction] = body_d["reductions"]
+    assert (reduction["side"], reduction["at"], reduction["reason"]) == ("min", 225.0, "modeling_error_suspected")
+    assert reduction["removed_faces"] == [{"body": "DrawerBox", "name": "F6:inner:F5:top"}]
+    # 줄어든 범위 안은 모두 기본 형상과 같은 위상이다
+    assert {state for p, _, state in sample_topology(bundle) if p == "body_d"} == {"same"}

@@ -166,3 +166,38 @@ def test_면_이름에_세로선이_있어도_모서리를_두_면으로_나눈�
     assert edge_faces("F1:-z|F3:blend:F1:-x|F1:-y", names) == ("F1:-z", "F3:blend:F1:-x|F1:-y")
     assert edge_faces("F3:blend:F1:-x|F1:-y|F1:-x", names) == ("F3:blend:F1:-x|F1:-y", "F1:-x")
     assert edge_faces("F2:bore:side:0|F2:bore:side:1~2", names) == ("F2:bore:side:0", "F2:bore:side:1")
+
+
+def test_파라미터_값은_바꾼_파라미터를_적용한_뒤에_묻는다() -> None:
+    cli = FakeCli()
+    model = SolidCraftModel(cli)
+    model.set_parameter("w", 300.0)
+
+    assert model.parameter_values(["d3"]) == {"d3": 20.0}
+    assert [c["command"] for c in cli.scripts[-1]] == ["parameters.change", "parameters.list"]
+
+
+class _SplitEdgeCli(FakeCli):
+    """w가 기본값이 아니면 F1:+z와 F1:+x 사이 모서리가 둘로 나뉘는 상자(이름은 같고 경계가 바뀐 면)"""
+
+    def _result(self, c: dict[str, Any], w: float, errors: list[str]) -> Any:
+        result = super()._result(c, w, errors)
+        if c["command"] == "model.edges" and w != 200.0:
+            edges = result["edges"]
+            [edge] = [e for e in edges if e["name"] == "F1:+x|F1:+z"]
+            edges.remove(edge)
+            edges += [
+                {"name": "F1:+x|F1:+z~1", "start": edge["start"], "mid": edge["start"], "end": edge["mid"]},
+                {"name": "F1:+x|F1:+z~2", "start": edge["mid"], "mid": edge["mid"], "end": edge["end"]},
+            ]
+        return result
+
+
+def test_경계_모서리가_바뀐_면은_그_샘플에서만_쓰는_배치로_놓는다() -> None:
+    model = SolidCraftModel(_SplitEdgeCli())
+    model.fix_baseline_layouts(3)
+    model.set_parameter("w", 400.0)
+
+    faces = {f.name: f for f in model.sample_faces(3)}
+
+    assert max(p[0] for p in faces["F1:+z"].points) == pytest.approx(400.0)

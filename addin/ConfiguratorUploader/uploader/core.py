@@ -61,6 +61,9 @@ class FusionModel(Protocol):
     def restore_parameter(self, parameter: ParameterInfo) -> None: ...
     def sample_faces(self, grid_n: int) -> list[FaceSample]: ...
     def sample_edges(self) -> list[EdgeSample]: ...
+    def parameter_values(self, names: Sequence[str]) -> dict[str, float]:
+        """지금(바꾼 파라미터를 반영한) 값. 수식으로 따라가는 자식 파라미터 값도 준다."""
+        ...
 
 
 @runtime_checkable
@@ -106,6 +109,37 @@ def _parts(bodies: list[BodyInfo], faces: list[dict[str, Any]]) -> list[dict[str
 SWEEP_FACTORS = (0.5, 0.75, 1.0, 1.25, 1.5)
 
 
+def is_count(parameter: ParameterInfo) -> bool:
+    """개수형 파라미터: 단위가 없고 값이 정수인 파라미터(선반 수, 패턴 개수). 스윕하지 않는다(ADR-0005)."""
+    return parameter.unit == "" and float(parameter.value).is_integer()
+
+
+@dataclass(frozen=True)
+class Composition:
+    """B-rep 면 구성: 면(바디, 면 이름, 표면 종류)과 모서리(바디, 모서리 이름). 샘플의 faces·edges가 그 기록이다.
+
+    모서리까지 보는 것은 면 이름이 그대로여도 경계가 나뉘거나 합쳐지면 꼭짓점 짝이 깨지기 때문이다.
+    """
+
+    faces: frozenset[tuple[str, str, str]]
+    edges: frozenset[tuple[str, str]]
+
+    @staticmethod
+    def of(shape: dict[str, Any]) -> "Composition":
+        return Composition(
+            faces=frozenset((f["body"], f["name"], f["surface"]) for f in shape["faces"]),
+            edges=frozenset((e["body"], e["name"]) for e in shape["edges"]),
+        )
+
+
+@dataclass(frozen=True)
+class Baseline:
+    """범위 축소가 비교하는 기본 형상: 면 구성과 개수형 파라미터 값"""
+
+    composition: Composition
+    counts: dict[str, float]
+
+
 def _face_json(face: FaceSample, with_triangles: bool) -> dict[str, Any]:
     out: dict[str, Any] = {"body": face.body, "surface": face.surface}
     if face.name is not None:
@@ -141,8 +175,12 @@ def _shape_or_failure(model: FusionModel, recomputed: bool) -> dict[str, Any]:
     return {"status": "ok" if recomputed else "recompute_failed", **shape}
 
 
-def _sample(model: FusionModel, parameter: ParameterInfo, value: float) -> dict[str, Any]:
-    return {"value": value, **_shape_or_failure(model, model.set_parameter(parameter.name, value))}
+def _sample(model: FusionModel, parameter: ParameterInfo, value: float, counts: Sequence[str]) -> dict[str, Any]:
+    """단독 스윕 샘플. 개수형 파라미터가 있으면 그 값도 담는다(위상이 바뀐 까닭을 가리는 데 쓴다)."""
+    sample = {"value": value, **_shape_or_failure(model, model.set_parameter(parameter.name, value))}
+    if counts:
+        sample["counts"] = model.parameter_values(counts)
+    return sample
 
 
 def cross_check_sample(model: FusionModel, values: dict[str, float]) -> dict[str, Any]:
@@ -182,19 +220,77 @@ def serve_sample_request(model: FusionModel, server: SampleRequestClient, upload
     return True
 
 
-def _sweep(model: FusionModel, parameter: ParameterInfo) -> dict[str, Any]:
+def _refs(keys: frozenset[tuple[str, ...]]) -> list[dict[str, str]]:
+    return [{"body": key[0], "name": key[1]} for key in sorted(keys)]
+
+
+def _reduction(side: str, point: dict[str, Any], baseline: Baseline) -> dict[str, Any]:
+    """면 구성이 바뀐 지점의 기록. 개수형 파라미터 값이 그대로면 모델링 오류 의심이다(ADR-0005)."""
+    found, base = Composition.of(point), baseline.composition
+    counts = {
+        name: [baseline.counts[name], value]
+        for name, value in point.get("counts", {}).items()
+        if value != baseline.counts[name]
+    }
+    return {
+        "side": side,
+        "at": point["value"],
+        # 개수형 값이 함께 바뀐 위상 변화는 범위 축소, 그대로면 모델링 오류 의심. 피드백 종류와 같은 이름이다.
+        "reason": "range_shrunk" if counts else "modeling_error_suspected",
+        "removed_faces": _refs(base.faces - found.faces),
+        "added_faces": _refs(found.faces - base.faces),
+        "removed_edges": _refs(base.edges - found.edges),
+        "added_edges": _refs(found.edges - base.edges),
+        "counts": counts,
+    }
+
+
+def _limit_range(
+    default: float, samples: list[dict[str, Any]], checks: list[dict[str, Any]], baseline: Baseline
+) -> tuple[dict[str, float], list[dict[str, Any]]]:
+    """기본값에서 범위 끝 쪽으로 가며 면 구성이 처음 바뀌는 지점을 찾아, 그 앞 샘플까지로 범위를 줄인다.
+
+    샘플과 검증점을 함께 본다. 범위 끝은 보간할 수 있도록 샘플 값이어야 한다. 재계산 실패는 건너뛴다(티켓 05).
+    범위 안의 위상 경계를 위상 묶음으로 나누는 일은 티켓 11에서 한다. 그때까지는 개수형 값이 바뀐 지점에서도 줄인다.
+    """
+    bounds = {"min": samples[0]["value"], "max": samples[-1]["value"]}
+    reductions = []
+    for side, outward in (("min", -1), ("max", 1)):
+        points = sorted(
+            (p for p in samples + checks if (p["value"] - default) * outward > 0),
+            key=lambda p: abs(p["value"] - default),
+        )
+        changed = next(
+            (p for p in points if p["status"] == "ok" and Composition.of(p) != baseline.composition), None
+        )
+        if changed is None:
+            continue
+        # 기본값과 바뀐 지점 사이에서 가장 먼 샘플. 없으면 기본값까지 줄어든다.
+        inside = [s["value"] for s in samples if 0 <= (s["value"] - default) * outward < abs(changed["value"] - default)]
+        bounds[side] = max(inside, key=lambda v: abs(v - default), default=default)
+        reductions.append(_reduction(side, changed, baseline))
+    return bounds, reductions
+
+
+def _sweep(model: FusionModel, parameter: ParameterInfo, baseline: Baseline) -> dict[str, Any]:
+    counts = list(baseline.counts)
     values = [parameter.value * factor for factor in SWEEP_FACTORS]
-    samples = [_sample(model, parameter, value) for value in values]
+    samples = [_sample(model, parameter, value, counts) for value in values]
     # 검증점: 이웃 샘플 사이 가운데 값. 수치 검증이 이 형상과 변형 결과를 비교한다(ADR-0012).
-    checks = [_sample(model, parameter, (a + b) / 2) for a, b in zip(values, values[1:])]
+    checks = [_sample(model, parameter, (a + b) / 2, counts) for a, b in zip(values, values[1:])]
     # 값이 아니라 원래 수식을 되돌린다. 수식으로 묶인 자식 관계를 상수로 덮지 않기 위해서다(ADR-0003).
     model.restore_parameter(parameter)
-    return {
+    bounds, reductions = _limit_range(parameter.value, samples, checks, baseline)
+    # 줄어든 범위 밖의 샘플·검증점은 담지 않는다. 바뀐 면 구성은 reductions에 남는다.
+    sweep: dict[str, Any] = {
         "parameter": parameter.name,
-        "range": {"min": values[0], "max": values[-1]},
-        "samples": samples,
-        "checks": checks,
+        "range": bounds,
+        "samples": [s for s in samples if bounds["min"] <= s["value"] <= bounds["max"]],
+        "checks": [c for c in checks if bounds["min"] <= c["value"] <= bounds["max"]],
     }
+    if reductions:
+        sweep["reductions"] = reductions
+    return sweep
 
 
 def run_upload(
@@ -210,6 +306,9 @@ def run_upload(
         return None
     parameters = model.parameters()
     baseline = _shape_json(model, baseline=True)
+    # 개수형 파라미터(자식 포함)는 스윕하지 않고, 샘플마다 값을 적어 위상이 바뀐 까닭을 가린다.
+    reference = Baseline(Composition.of(baseline), {p.name: p.value for p in parameters if is_count(p)})
+    swept = [p for p in parameters if (p.is_user or p.name in extra_sweeps) and not is_count(p)]
     bundle = {
         "schema_version": SCHEMA_VERSION,
         "units": "mm",
@@ -217,7 +316,7 @@ def run_upload(
         "grid": {"n": GRID_N},
         "parts": _parts(model.bodies(), baseline["faces"]),
         "baseline": baseline,
-        "sweeps": [_sweep(model, p) for p in parameters if p.is_user or p.name in extra_sweeps],
+        "sweeps": [_sweep(model, p, reference) for p in swept],
         "parameters": [
             {
                 "name": p.name,
@@ -225,6 +324,7 @@ def run_upload(
                 "unit": p.unit,
                 "expression": p.expression,
                 "is_user": p.is_user,
+                "is_count": is_count(p),
             }
             for p in parameters
         ],
