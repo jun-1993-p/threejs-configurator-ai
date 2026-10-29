@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "spec.schema.json",
+  "title": "명세",
+  "description": "상품 하나의 구성기 명세. AI가 쓰는 유일한 산출물이다(ADR-0001). 구조는 docs/spec-schema.md를 따른다.",
+  "type": "object",
+  "required": ["product", "front", "axes", "sliders", "thickness", "fixed"],
+  "additionalProperties": false,
+  "properties": {
+    "product": { "type": "string", "minLength": 1 },
+    "front": {
+      "description": "정면 방향(Fusion 좌표 기준)",
+      "enum": ["+X", "-X", "+Y", "-Y", "+Z", "-Z"]
+    },
+    "axes": {
+      "description": "W 폭·D 깊이·H 높이와 Fusion 축의 대응",
+      "type": "object",
+      "required": ["W", "D", "H"],
+      "additionalProperties": false,
+      "properties": {
+        "W": { "$ref": "#/$defs/fusionAxis" },
+        "D": { "$ref": "#/$defs/fusionAxis" },
+        "H": { "$ref": "#/$defs/fusionAxis" }
+      }
+    },
+    "sliders": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "axis", "min", "max", "default", "step", "unit", "source", "children", "affects"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "description": "부모 파라미터의 Fusion 이름", "type": "string", "minLength": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "axis": { "enum": ["W", "D", "H"] },
+          "min": { "type": "number" },
+          "max": { "type": "number" },
+          "default": { "type": "number" },
+          "step": { "type": "number", "exclusiveMinimum": 0 },
+          "unit": { "const": "mm" },
+          "source": { "description": "범위의 근거가 된 치수 규칙", "type": "string", "minLength": 1 },
+          "children": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "affects": {
+            "type": "object",
+            "required": ["shape", "move"],
+            "additionalProperties": false,
+            "properties": {
+              "shape": { "description": "형태 변경 부품", "type": "array", "items": { "type": "string" } },
+              "move": { "description": "위치 이동 부품", "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "thickness": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ids", "name", "default", "options"],
+        "additionalProperties": false,
+        "properties": {
+          "ids": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "name": { "type": "string", "minLength": 1 },
+          "default": { "type": "number" },
+          "options": { "type": "array", "minItems": 1, "items": { "type": "number" } }
+        }
+      }
+    },
+    "fixed": { "description": "고정 두께 파라미터", "type": "array", "items": { "type": "string", "minLength": 1 } }
+  },
+  "$defs": {
+    "fusionAxis": { "enum": ["X", "Y", "Z"] }
+  }
+}

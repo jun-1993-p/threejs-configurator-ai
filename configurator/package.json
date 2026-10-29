@@ -8,6 +8,7 @@
     "build": "node scripts/build.ts"
   },
   "dependencies": {
+    "ajv": "8.17.1",
     "three": "0.170.0"
   },
   "devDependencies": {
