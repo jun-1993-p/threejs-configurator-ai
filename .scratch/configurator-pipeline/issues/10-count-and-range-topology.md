@@ -11,4 +11,4 @@
 - [ ] 범위 끝 쪽에서 면 구성이 바뀌면 스윕 범위가 바뀌기 전 지점까지 줄어든다
 - [ ] 범위가 줄어든 이유가 `range_reduced` 피드백으로 남는다
 - [ ] 위상이 바뀐 지점에서 개수형 파라미터(자식 포함) 값이 그대로이면 모델링 오류 의심으로 보고, 위상 묶음을 만들지 않고 그 앞에서 범위를 줄인 뒤 `modeling_error_suspected` 피드백으로 운영자에게 알린다
-- [ ] SolidCraft 서랍장에서 속 비우기 면 지정점이 면 밖으로 나가는 경우(`solidcraft-test/report.md` 3·5절의 처음 모델)가 `modeling_error_suspected`로 잡힌다
+- [ ] SolidCraft 서랍장에서 속 비우기 면 지정점이 면 밖으로 나가는 경우(`solidcraft-test/report.md` 3·5절의 처음 모델, 또는 몸통 속 비우기 면 지정점을 (0, 0, 350)으로 되돌린 뒤 `body_h=350`)가 `modeling_error_suspected`로 잡힌다

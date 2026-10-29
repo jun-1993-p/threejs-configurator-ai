@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from uploader.core import BodyInfo, FaceSample, ParameterInfo
+from uploader.core import BodyInfo, BodyMeasure, EdgeSample, FaceSample, ParameterInfo
 
 
 class FakeModel:
@@ -70,3 +70,33 @@ class FakeServer:
     def upload(self, bundle: dict[str, Any]) -> str:
         self.uploaded.append(bundle)
         return f"upload-{len(self.uploaded)}"
+
+
+class FakeTopologyModel(FakeModel):
+    """면·모서리 이름과 바디 측정값을 주는 모델(SolidCraft 합성 녹화본처럼)."""
+
+    def sample_faces(self, grid_n: int) -> list[FaceSample]:
+        return [
+            FaceSample(
+                body=f.body,
+                surface=f.surface,
+                points=f.points,
+                name=f"{f.body}:top",
+                geometry={"type": "plane", "normal": [0.0, 0.0, 1.0]},
+            )
+            for f in super().sample_faces(grid_n)
+        ]
+
+    def sample_edges(self) -> list[EdgeSample]:
+        w = self.values["W"]
+        return [
+            EdgeSample(body=b.name, name=f"{b.name}:top|{b.name}:side", start=(0.0, 0.0, 0.0), mid=(w / 2, 0.0, 0.0), end=(w, 0.0, 0.0))
+            for b in self.bodies()
+        ]
+
+    def measure_bodies(self) -> list[BodyMeasure]:
+        w, d = self.values["W"], self.values["D"]
+        return [
+            BodyMeasure(body=b.name, volume=w * d * 18.0, bbox_min=(0.0, 0.0, 0.0), bbox_max=(w, d, 18.0))
+            for b in self.bodies()
+        ]

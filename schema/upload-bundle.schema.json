@@ -9,6 +9,10 @@
   "properties": {
     "schema_version": { "const": 1 },
     "units": { "const": "mm" },
+    "source": {
+      "description": "묶음을 만든 도구. solidcraft는 합성 녹화본이다.",
+      "enum": ["fusion", "solidcraft"]
+    },
     "grid": {
       "description": "면마다 찍는 (u,v) 격자. 면 하나에 n×n 점.",
       "type": "object",
@@ -49,7 +53,11 @@
       "type": "object",
       "required": ["faces"],
       "additionalProperties": false,
-      "properties": { "faces": { "$ref": "#/$defs/faces" } }
+      "properties": {
+        "faces": { "$ref": "#/$defs/faces" },
+        "edges": { "$ref": "#/$defs/edges" },
+        "bodies": { "$ref": "#/$defs/bodies" }
+      }
     },
     "sweeps": {
       "description": "사용자 파라미터마다 하나씩인 단독 스윕.",
@@ -75,7 +83,9 @@
               "properties": {
                 "value": { "type": "number" },
                 "status": { "enum": ["ok", "recompute_failed"] },
-                "faces": { "$ref": "#/$defs/faces" }
+                "faces": { "$ref": "#/$defs/faces" },
+                "edges": { "$ref": "#/$defs/edges" },
+                "bodies": { "$ref": "#/$defs/bodies" }
               }
             }
           }
@@ -93,17 +103,83 @@
         "properties": {
           "body": { "type": "string", "minLength": 1 },
           "surface": { "type": "string" },
-          "points": {
-            "type": "array",
-            "items": {
-              "type": "array",
-              "items": { "type": "number" },
-              "minItems": 3,
-              "maxItems": 3
+          "name": {
+            "description": "피처 기준 면 이름(ADR-0016). 샘플 사이에서 면을 짝짓는다.",
+            "type": "string",
+            "minLength": 1
+          },
+          "geometry": {
+            "description": "면의 표면. 평면은 법선, 원기둥은 원점·축·반지름.",
+            "oneOf": [
+              {
+                "type": "object",
+                "required": ["type", "normal"],
+                "additionalProperties": false,
+                "properties": {
+                  "type": { "const": "plane" },
+                  "normal": { "$ref": "#/$defs/vector" }
+                }
+              },
+              {
+                "type": "object",
+                "required": ["type", "origin", "axis", "radius"],
+                "additionalProperties": false,
+                "properties": {
+                  "type": { "const": "cylinder" },
+                  "origin": { "$ref": "#/$defs/vector" },
+                  "axis": { "$ref": "#/$defs/vector" },
+                  "radius": { "type": "number", "exclusiveMinimum": 0 }
+                }
+              }
+            ]
+          },
+          "points": { "type": "array", "items": { "$ref": "#/$defs/vector" } }
+        }
+      }
+    },
+    "edges": {
+      "description": "모서리. 이름은 두 면 이름 쌍 `면A|면B`이고, 같은 쌍이 여럿이면 `~순번`이 붙는다. 곡선 모서리는 mid로 모양을 안다.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["body", "name", "start", "mid", "end"],
+        "additionalProperties": false,
+        "properties": {
+          "body": { "type": "string", "minLength": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "start": { "$ref": "#/$defs/vector" },
+          "mid": { "$ref": "#/$defs/vector" },
+          "end": { "$ref": "#/$defs/vector" }
+        }
+      }
+    },
+    "bodies": {
+      "description": "바디별 측정값. 위상 비교와 부피 튐 검사에 쓴다.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "volume", "bbox"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "volume": { "type": "number" },
+          "bbox": {
+            "type": "object",
+            "required": ["min", "max"],
+            "additionalProperties": false,
+            "properties": {
+              "min": { "$ref": "#/$defs/vector" },
+              "max": { "$ref": "#/$defs/vector" }
             }
           }
         }
       }
+    },
+    "vector": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 3,
+      "maxItems": 3
     }
   }
 }
