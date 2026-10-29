@@ -1,8 +1,8 @@
 // 파이프라인 실행기: 상품 하나를 10단계 고정 순서로 진행한다(ADR-0014). AI는 단계 안에서 정해진 형식으로만 답한다.
 // 바깥 의존은 Fusion 연결·AI 모델·저장소 세 포트로만 접근한다.
 import type { Spec, SweepData } from "../src/engine.ts";
-import { assembleProduct, type ProductFiles } from "../scripts/build.ts";
-import { checkCandidates, checkSpec, checkUploadBundle, styleChoiceChecker, type Check } from "./schemas.ts";
+import { assembleProduct, type ProductFiles } from "./assemble.ts";
+import { FRONTS, checkCandidates, checkSpec, checkUploadBundle, styleChoiceChecker, type Check } from "./schemas.ts";
 
 /** 단계 이름. 순서는 runPipeline의 코드가 정한다. */
 export type Stage =
@@ -28,10 +28,12 @@ export interface Intake {
   thickness: "show" | "hide" | "ai";
 }
 
+export type Front = (typeof FRONTS)[number];
+
 /** 슬라이더 구성 후보 */
 export interface Candidate {
   id: string;
-  front: string;
+  front: Front;
   /** 노출할 부모 파라미터 */
   parents: string[];
   showThickness: boolean;
@@ -190,7 +192,7 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
     const files = await assembleProduct(spec, bundle as SweepData);
     await log("assembly");
 
-    // 수치 검증(티켓 04), 축 반응(06), AI 판정(19)이 여기에 들어온다.
+    // 수치 검증(티켓 04), 축 반응 검증(티켓 06), AI 판정(티켓 19)이 여기에 들어온다.
     const feedback: Feedback[] = [];
     await log("verification", { feedback });
 

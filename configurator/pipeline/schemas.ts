@@ -6,8 +6,11 @@ import Ajv2020 from "ajv/dist/2020.js";
 // strictTypes는 끈다. 업로드 묶음 스키마가 allOf 조건 안에서 type 없이 required만 쓰는 것은 의도한 형식이다.
 const ajv = new Ajv2020.default({ allErrors: true, strictTypes: false });
 
-const shared = (name: string) =>
+const loadSharedSchema = (name: string) =>
   JSON.parse(readFileSync(new URL(`../../schema/${name}`, import.meta.url), "utf-8")) as object;
+
+/** 정면 방향(Fusion 좌표 기준). 명세의 front와 같은 값이다. */
+export const FRONTS = ["+X", "-X", "+Y", "-Y", "+Z", "-Z"] as const;
 
 /** 값이 스키마에 맞으면 빈 목록, 아니면 사람이 읽을 문장 목록 */
 export type Check = (value: unknown) => string[];
@@ -18,8 +21,8 @@ function checker(schema: object): Check {
     validate(value) ? [] : (validate.errors ?? []).map((e) => `${e.instancePath || "(최상위)"}: ${e.message}`);
 }
 
-export const checkUploadBundle = checker(shared("upload-bundle.schema.json"));
-export const checkSpec = checker(shared("spec.schema.json"));
+export const checkUploadBundle = checker(loadSharedSchema("upload-bundle.schema.json"));
+export const checkSpec = checker(loadSharedSchema("spec.schema.json"));
 
 /** 후보 제시 응답. 후보는 2~4개(사용자 스토리 19). */
 export const checkCandidates = checker({
@@ -32,7 +35,7 @@ export const checkCandidates = checker({
     additionalProperties: false,
     properties: {
       id: { type: "string", minLength: 1 },
-      front: { enum: ["+X", "-X", "+Y", "-Y", "+Z", "-Z"] },
+      front: { enum: FRONTS },
       parents: { type: "array", minItems: 1, items: { type: "string", minLength: 1 } },
       showThickness: { type: "boolean" },
       summary: { type: "string" },

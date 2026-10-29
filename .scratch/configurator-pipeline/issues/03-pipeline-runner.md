@@ -22,8 +22,10 @@
 - 명세 JSON Schema는 `schema/spec.schema.json`(업로드 묶음 스키마와 같은 자리, 서버와 공유 가능). 업로드 단계에서 업로드 묶음 스키마도 다시 검사한다.
 - 모든 AI 응답(후보, UI 스타일, 명세)을 JSON Schema로 검사한다. 틀리면 `schemaErrors`를 붙여 3번까지 다시 묻고, 그래도 틀리면 그 단계에서 `stopped`로 끝난다(조립하지 않음). 후보는 2~4개, 스타일은 저장소 목록 안의 id만 통과한다. 형식 오류는 검증 피드백(`kind` 목록)과 따로 다룬다.
 - 처리 기록은 저장소 포트의 `appendLog`로 단계마다 `{ stage, at, detail }`가 남는다.
-- 조립은 `assembleProduct`가 메모리에서 결과물 파일 4개(`configurator.js`, `spec.json`, `sweeps.json`, `index.html`)를 만든다. `writeProduct`는 이를 디스크에 쓴다.
+- 조립은 `pipeline/assemble.ts`의 `assembleProduct`가 메모리에서 결과물 파일 4개(`configurator.js`, `spec.json`, `sweeps.json`, `index.html`)를 만든다. `scripts/build.ts`의 `writeProduct`는 이를 디스크에 쓰는 명령행 도구만 맡는다.
 - 아직 없는 것: 검증 단계는 빈 자리(수치 04, 축 반응 06, AI 판정 19)라 피드백 루프와 3회 제한은 04에서 붙는다. Fusion 연결 포트는 인터페이스(`requestSamples`)만 있고 부르지 않는다. 최종 승인은 승인만, 사례 기록은 메모리에 담기만 한다(21). 스타일은 고르기만 하고 결과물에는 아직 반영하지 않는다(18).
 - 시험: `configurator/test/pipeline.test.ts`(경계 1, 서랍장 합성 녹화본). `cd configurator && npm test`.
 - 리뷰 뒤 반영: 처리 기록 항목마다 상품명(`product`)을 남긴다. 명세의 `product`가 정보 입력의 상품명과 다르면 형식 오류로 다시 묻는다.
-- 리뷰에서 남긴 판단: 형식 오류 다시 묻기는 사용자 스토리 81(모든 AI 응답의 JSON Schema 검사)을 단계마다 같은 방식으로 적용한 것이다. 횟수(3번 넘게면 멈춤)와 `stopped` 종료는 티켓 04·15에서 바꿀 수 있다. `assembleProduct`는 아직 `scripts/build.ts`에 있으며, 검증기가 붙을 때(04) 모듈 위치를 다시 본다.
+- 리뷰에서 남긴 판단: 형식 오류 다시 묻기는 사용자 스토리 81(모든 AI 응답의 JSON Schema 검사)을 단계마다 같은 방식으로 적용한 것이다. 횟수(3번 넘게면 멈춤)와 `stopped` 종료는 티켓 04·15에서 바꿀 수 있다.
+- 리뷰 2차 반영: 조립을 `scripts/build.ts`에서 `pipeline/assemble.ts`로 옮겨 실행기가 명령행 스크립트에 기대지 않게 했다. 후보의 정면을 문자열 대신 `Front` 타입(`+X`~`-Z`)으로 좁혔고, 각본 AI의 단계 목록을 한 곳에서 만든다.
+- 리뷰에서 반영하지 않은 것: 상품 종류와 검증 피드백 `kind`의 문자열 타입은 목록이 정해지는 티켓 16·04에서 좁힌다. AI 포트 입력을 공통 타입 하나로 묶는 일은 단계마다 입력이 달라 미뤘다. 녹화 응답을 내는 Fusion 연결 가짜는 추가 샘플을 처음 쓰는 티켓에서 만든다.
