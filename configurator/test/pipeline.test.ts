@@ -11,7 +11,7 @@ import type { Feedback } from "../pipeline/feedback.ts";
 import { FUSION_NEEDED, FUSION_RECONNECTED, runPipeline, type Candidate, type FusionPort, type HumanPort, type Intake, type SampleRequest } from "../pipeline/runner.ts";
 import { scriptedAi, type Script } from "../pipeline/scripted-ai.ts";
 import { memoryStore } from "../pipeline/memory-store.ts";
-import { crossCorners, crossDepth, crossThree, depthSpec, gridDepth, gridDepthChecks, pushMaxSide, shellPointRecording, threeSpec, widthHeightSpec } from "./recording.ts";
+import { crossCorners, crossDepth, crossThree, depthSpec, gridDepth, gridDepthChecks, pushMaxSide, shellPointRecording, shelfCrossCorners, shelfRecording, shelfSpec, threeSpec, widthHeightSpec } from "./recording.ts";
 import type { CrossSample } from "../pipeline/verify-cross.ts";
 
 const fixtures = new URL("../../fixtures/synthetic/", import.meta.url);
@@ -539,4 +539,22 @@ test("후보가 개수형 파라미터나 스윕하지 않은 파라미터를 �
     "/0/parents/0: shelves는 개수형 파라미터라 슬라이더 후보가 될 수 없습니다",
     "/1/parents/0: d5는 스윕한 파라미터가 아닙니다",
   ]);
+});
+
+test("칸막이 수가 바뀌는 선반도 위상 묶음을 넘나드는 슬라이더로 검증을 통과해 제출된다", async () => {
+  const shelfIntake: Intake = { name: "칸막이 선반", kind: "선반", memo: "폭 500~1300, 깊이 200~400", thickness: "ai" };
+  const shelfCandidates: Candidate[] = [
+    { id: "c1", front: "-Y", parents: ["shelf_w", "shelf_d"], showThickness: false, summary: "폭과 깊이", diff: "정면 -Y" },
+    { id: "c2", front: "-Y", parents: ["shelf_w"], showThickness: false, summary: "폭 하나", diff: "깊이 고정" },
+  ];
+  const ai = scriptedAi({ candidates: [shelfCandidates], style: [{ style: "natural" }], spec: [shelfSpec] });
+  const store = memoryStore({ styles });
+  const fusion = recordedFusion(shelfCrossCorners);
+
+  const result = await runPipeline({ bundle: shelfRecording, intake: shelfIntake, human: approveFirst, ports: { fusion: fusion.port, ai, store } });
+
+  assert.equal(result.status, "submitted", JSON.stringify(store.log.at(-1)));
+  assert.equal(fusion.requests.length, 1);
+  const sweeps = JSON.parse(store.submissions[0].files["sweeps.json"]);
+  assert.equal(sweeps.sweeps.find((s: { parameter: string }) => s.parameter === "shelf_w").groups.length, 2);
 });

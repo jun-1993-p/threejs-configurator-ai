@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { verifyNumeric } from "../pipeline/verify-numeric.ts";
-import { AXIS, drawerSpec as spec, facesOf, pushMaxSide, recording, withCheck } from "./recording.ts";
+import { AXIS, drawerSpec as spec, facesOf, pushMaxSide, recording, shelfRecording, shelfSpec, withCheck } from "./recording.ts";
 
 test("서랍장 녹화본은 슬라이더 범위 안의 모든 검증점에서 합격선 안이다", () => {
   assert.deepEqual(verifyNumeric(spec, recording, recording), []);
@@ -109,4 +109,43 @@ test("범위 안의 검증점이 재계산에 실패했거나 면 구성이 다�
   assert.match(recompute.hint, /min.*525/);
   assert.equal(topology.kind, "topology_change");
   assert.equal(topology.path, "sliders[0].max");
+});
+
+// 위상 묶음(ADR-0005): 칸막이 선반 합성 녹화본. 전체 폭 800·1200에서 칸막이가 늘어난다.
+
+test("칸막이 선반은 모든 위상 묶음의 검증점과 묶음 안 단독 스윕의 검증점에서 합격선 안이다", () => {
+  assert.deepEqual(verifyNumeric(shelfSpec, shelfRecording, shelfRecording), []);
+});
+
+/** 칸막이 선반의 한 위상 묶음 안 단독 스윕(전체 깊이)에서 검증점 하나의 칸막이 점을 X로 민 녹화본 사본 */
+function pushGroupCheck(group: number, value: number, delta: number) {
+  const bundle = structuredClone(shelfRecording);
+  const sweep = bundle.sweeps.find((s) => s.parameter === "shelf_w")!.groups![group].sweeps.find((s) => s.parameter === "shelf_d")!;
+  const check = sweep.checks.find((c) => c.value === value)!;
+  for (const f of check.faces) if (f.body === "Divider") for (const p of f.points) p[0] += delta;
+  return bundle;
+}
+
+test("위상 묶음 안 단독 스윕의 검증점이 어긋나면 그 슬라이더의 실패로, 묶음의 기준 값과 함께 알린다", () => {
+  const anchor = shelfRecording.sweeps.find((s) => s.parameter === "shelf_w")!.groups![1].anchor;
+
+  // 4칸 묶음에서 전체 깊이 337.5의 칸막이를 5 mm 옮겼다(형상 오차 합격선은 약 1.4 mm)
+  const bundle = pushGroupCheck(1, 337.5, 5);
+
+  const feedback = verifyNumeric(shelfSpec, bundle, bundle);
+
+  const w = feedback.find((f) => f.kind === "shape_error");
+  assert.ok(w, JSON.stringify(feedback));
+  assert.ok(feedback.every((f) => f.slider === "shelf_d"));
+  assert.equal(w.path, "sliders[1].max");
+  assert.equal(w.slider, "shelf_d");
+  assert.equal(w.part, "Divider");
+  assert.deepEqual((w.measured as { values: object }).values, { shelf_d: 337.5, shelf_w: anchor });
+  assert.match(w.hint, new RegExp(`shelf_w=${anchor}`));
+});
+
+test("슬라이더 범위가 닿지 않는 위상 묶음은 재지 않는다", () => {
+  const narrow = { ...shelfSpec, sliders: [{ ...shelfSpec.sliders[0], max: 1100 }, shelfSpec.sliders[1]] };
+
+  assert.deepEqual(verifyNumeric(narrow, shelfRecording, pushGroupCheck(1, 337.5, 5)), []);
 });

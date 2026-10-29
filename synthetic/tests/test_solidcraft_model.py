@@ -193,7 +193,7 @@ class _SplitEdgeCli(FakeCli):
         return result
 
 
-def test_경계_모서리가_바뀐_면은_그_샘플에서만_쓰는_배치로_놓는다() -> None:
+def test_경계_모서리가_바뀐_면은_바뀐_경계로_새_배치를_만들어_놓는다() -> None:
     model = SolidCraftModel(_SplitEdgeCli())
     model.fix_baseline_layouts(3)
     model.set_parameter("w", 400.0)
@@ -201,3 +201,47 @@ def test_경계_모서리가_바뀐_면은_그_샘플에서만_쓰는_배치로_
     faces = {f.name: f for f in model.sample_faces(3)}
 
     assert max(p[0] for p in faces["F1:+z"].points) == pytest.approx(400.0)
+
+
+def test_경계_모서리가_같은_샘플끼리는_바뀐_면도_같은_배치로_놓는다() -> None:
+    # 위상 묶음 안에서는 꼭짓점이 1:1로 짝지어져야 한다(ADR-0005)
+    model = SolidCraftModel(_SplitEdgeCli())
+    model.fix_baseline_layouts(3)
+    model.set_parameter("w", 400.0)
+    first = {f.name: f for f in model.sample_faces(3)}["F1:+z"]
+    model.set_parameter("w", 500.0)
+
+    second = {f.name: f for f in model.sample_faces(3)}["F1:+z"]
+
+    assert len(second.points) == len(first.points) and second.triangles == first.triangles
+
+
+class _CopyCli(FakeCli):
+    """w가 300 이상이면 패턴 사본 바디 Plate (2)가 생기는 모델(칸막이가 늘어나는 선반처럼)"""
+
+    def _result(self, c: dict[str, Any], w: float, errors: list[str]) -> Any:
+        if c["command"] in ("model.faces", "model.edges") and c["params"]["body"] not in self._bodies(w):
+            raise RuntimeError(f"no body {c['params']['body']}")
+        result = super()._result(c, w, errors)
+        if c["command"] == "inspect.measure" and w >= 300:
+            copy = dict(result["bodies"][0], name="Plate (2)")
+            result["bodies"].append(copy)
+        return result
+
+    @staticmethod
+    def _bodies(w: float) -> list[str]:
+        return ["Plate", "Plate (2)"] if w >= 300 else ["Plate"]
+
+
+def test_파라미터를_바꿔_생기거나_사라진_바디도_그_형상에_담는다() -> None:
+    model = SolidCraftModel(_CopyCli())
+    model.fix_baseline_layouts(3)
+    model.set_parameter("w", 400.0)
+
+    assert [b.name for b in model.bodies()] == ["Plate", "Plate (2)"]
+    assert {f.body for f in model.sample_faces(3)} == {"Plate", "Plate (2)"}
+    assert {e.body for e in model.sample_edges()} == {"Plate", "Plate (2)"}
+    assert [b.body for b in model.measure_bodies()] == ["Plate", "Plate (2)"]
+    model.set_parameter("w", 250.0)
+    assert [b.name for b in model.bodies()] == ["Plate"]
+    assert {f.body for f in model.sample_faces(3)} == {"Plate"}

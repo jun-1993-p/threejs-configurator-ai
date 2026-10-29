@@ -1,9 +1,9 @@
 // 수치 검증: 슬라이더 범위 안의 검증점마다 변형 엔진 결과와 녹화된 Fusion 형상을 비교한다(ADR-0012).
 // 검증기는 구성기와 같은 변형 엔진(src/engine.ts)을 그대로 불러, 실제로 내보낼 결과를 잰다.
-import { createMorph, faceKey, type Axis, type Morph, type MorphFace, type SampleFace, type Spec, type SweepData, type Vector } from "../src/engine.ts";
+import { createMorph, faceKey, reaches, type Axis, type MorphFace, type SampleFace, type Slider, type Spec, type SweepData, type Topology, type Vector } from "../src/engine.ts";
 import type { Feedback } from "./feedback.ts";
 import { boundsOf, coordinateOf, diagonal, DIMENSIONS, round, type Bounds } from "./measure.ts";
-import type { UploadBundle } from "./upload-bundle.ts";
+import type { Geometry, UploadBundle } from "./upload-bundle.ts";
 
 /** 부품 치수(W·D·H와 두께) 오차의 합격선, mm */
 export const DIMENSION_TOLERANCE = 0.2;
@@ -39,62 +39,89 @@ interface PartReading extends ComparisonContext {
 
 /**
  * 슬라이더 값 묶음에서 변형 엔진 결과와 녹화된 Fusion 형상을 부품마다 비교한다. 검증점과 교차 검증 샘플이 같이 쓴다.
- * 면 구성이 기본 형상과 다르면 undefined다.
+ * 엔진은 값이 든 위상 묶음의 면 구성을 내고(ADR-0005), 녹화된 면 구성이 그와 다르면 undefined다.
  */
 export type ShapeComparer = (values: Record<string, number>, faces: SampleFace[], context: ComparisonContext) => PartFailure[] | undefined;
 
 export function shapeComparer(spec: Spec, sweeps: SweepData, bundle: UploadBundle): ShapeComparer {
   const morph = createMorph(spec, sweeps);
-  const parts = [...new Set(morph.faces.map((f) => f.part))];
-  const panels = panelPairs(morph, bundle);
+  const geometry = surfaces(bundle);
+  // 판재 두께를 재는 면 쌍은 위상 묶음마다 그 기준 형상에서 한 번 정한다
+  const panels = new Map<MorphFace[], PanelPair[]>();
   return (values, faces, context) => {
-    // 위상 묶음(티켓 11)이 들어오면 묶음마다의 면 구성과 비교해야 한다. 지금은 엔진도 기본 형상의 면 구성만 받는다.
-    const fusion = recordedPositions(morph, faces);
+    const shape = morph.shape(values);
+    const fusion = recordedPositions(shape, faces);
     if (!fusion) return undefined;
-    const engine = morph.positions(values);
-    const tolerance = shapeTolerance(diagonal(bounds(morph.faces, fusion)));
-    return parts.flatMap((part) => {
-      const reading: PartReading = { part, faces: morph.faces.filter((f) => f.part === part), engine, fusion, ...context };
-      return [...shapeFailures(reading, tolerance), ...sizeFailures(reading, spec), ...thicknessFailures(reading, panels)];
+    if (!panels.has(shape.faces)) panels.set(shape.faces, panelPairs(shape, geometry));
+    const tolerance = shapeTolerance(diagonal(bounds(shape.faces, fusion)));
+    return [...new Set(shape.faces.map((f) => f.part))].flatMap((part) => {
+      const reading: PartReading = { part, faces: shape.faces.filter((f) => f.part === part), engine: shape.positions, fusion, ...context };
+      return [...shapeFailures(reading, tolerance), ...sizeFailures(reading, spec), ...thicknessFailures(reading, panels.get(shape.faces)!)];
     });
   };
+}
+
+/** 면 표면: 기본 형상과 위상 묶음 기준 형상의 면, (바디, 이름)으로 찾는다 */
+function surfaces(bundle: UploadBundle): Map<string, Geometry> {
+  const faces = [bundle.baseline.faces, ...bundle.sweeps.flatMap((s) => (s.groups ?? []).map((g) => g.baseline.faces))].flat();
+  return new Map(faces.flatMap((f) => (f.geometry ? [[faceKey(f), f.geometry] as const] : [])));
 }
 
 /**
  * 검증점에서 합격선을 넘은 항목을 검증 피드백으로 돌려준다. 통과하면 빈 목록이다.
  * sweeps: 결과물에 담긴 스윕 데이터(엔진 입력), bundle: 검증점 형상이 든 업로드 묶음.
+ * 위상 묶음이 있는 슬라이더는 묶음마다 나머지 슬라이더의 단독 스윕 검증점도 잰다(그 슬라이더는 묶음 기준 값에 둔다).
  */
 export function verifyNumeric(spec: Spec, sweeps: SweepData, bundle: UploadBundle): Feedback[] {
   const compare = shapeComparer(spec, sweeps, bundle);
-  const feedback: Feedback[] = [];
   // 격자 보강 쌍의 슬라이더는 단독 스윕 검증점을 재지 않는다. 짝 슬라이더가 Fusion 수식으로 따라가는 단독 스윕은
   // 짝 슬라이더 값을 고정한 구성기 상태가 아니기 때문이다. 이 쌍은 교차 검증에서 격자 칸 가운데로 잰다.
   const gridded = new Set((sweeps.grids ?? []).flatMap((g) => g.parameters));
+  const sweepOf = (slider: Slider) => bundle.sweeps.find((s) => s.parameter === slider.id);
 
-  spec.sliders.forEach((slider, i) => {
-    if (gridded.has(slider.id)) return;
-    const checks = bundle.sweeps.find((s) => s.parameter === slider.id)?.checks ?? [];
-    for (const check of checks.filter((c) => c.value >= slider.min && c.value <= slider.max)) {
-      // 범위 끝 쪽을 좁히라고 알린다. 검증점은 샘플 사이 값이라 기본값(샘플)과 같을 수 없다.
-      const side = check.value < slider.default ? "min" : "max";
-      const narrow = `${slider.id}의 ${side}를 ${check.value}${side === "max" ? "보다 작게" : "보다 크게"} 좁히세요`;
-      const fail = (failure: PartFailure) => feedback.push({ path: `sliders[${i}].${side}`, slider: slider.id, ...failure });
+  /** 슬라이더 하나의 단독 스윕 검증점. fixed는 함께 고정한 다른 슬라이더 값(위상 묶음 기준 값)이다. */
+  const checkSweep = (i: number, checks: Check[], fixed: Record<string, number>) => {
+    const slider = spec.sliders[i];
+    const at = Object.entries(fixed).map(([id, v]) => `·${id}=${v}`).join("");
+    return checks
+      .filter((c) => c.value >= slider.min && c.value <= slider.max)
+      .flatMap((check): Feedback[] => {
+        // 범위 끝 쪽을 좁히라고 알린다. 검증점은 샘플 사이 값이라 기본값(샘플)과 같을 수 없다.
+        const side = check.value < slider.default ? "min" : "max";
+        const narrow = `${slider.id}의 ${side}를 ${check.value}${side === "max" ? "보다 작게" : "보다 크게"} 좁히세요`;
+        const values = { [slider.id]: check.value, ...fixed };
+        const measured = at ? { values } : { value: check.value };
+        const place = at ? `${slider.id}=${check.value}${at}` : String(check.value);
+        const fail = (failure: PartFailure): Feedback => ({ path: `sliders[${i}].${side}`, slider: slider.id, ...failure });
 
-      // 부품과 무관한 실패는 part를 비워 둔다.
-      if (check.status !== "ok") {
-        fail({ part: "", kind: "recompute_failed", measured: { value: check.value }, expected: "재계산 성공", hint: `Fusion이 ${check.value}에서 재계산하지 못합니다. ${narrow}` });
-        continue;
-      }
-      const failures = compare({ [slider.id]: check.value }, check.faces, { measured: { value: check.value }, place: String(check.value), hintTail: narrow });
-      if (!failures) {
-        fail({ part: "", kind: "topology_change", measured: { value: check.value }, expected: "기본 형상과 같은 면 구성", hint: `${check.value}에서 면 구성이 기본 형상과 다릅니다. ${narrow}` });
-        continue;
-      }
-      failures.forEach(fail);
-    }
+        // 부품과 무관한 실패는 part를 비워 둔다.
+        if (check.status !== "ok") {
+          return [fail({ part: "", kind: "recompute_failed", measured, expected: "재계산 성공", hint: `Fusion이 ${place}에서 재계산하지 못합니다. ${narrow}` })];
+        }
+        const failures = compare(values, check.faces, { measured, place, hintTail: narrow });
+        if (!failures) {
+          return [fail({ part: "", kind: "topology_change", measured, expected: "위상 묶음 기준 형상과 같은 면 구성", hint: `${place}에서 면 구성이 그 위상 묶음의 기준 형상과 다릅니다. ${narrow}` })];
+        }
+        return failures.map(fail);
+      });
+  };
+
+  return spec.sliders.flatMap((slider, i) => {
+    const own = gridded.has(slider.id) ? [] : checkSweep(i, sweepOf(slider)?.checks ?? [], {});
+    // 슬라이더 범위가 닿는 위상 묶음마다, 그 묶음 안 단독 스윕의 검증점
+    const groups = (sweepOf(slider)?.groups ?? []).filter((g) => reaches(slider, g));
+    const inGroups = groups.flatMap((group) =>
+      spec.sliders.flatMap((other, j) => {
+        if (j === i || gridded.has(other.id)) return [];
+        const checks = group.sweeps.find((s) => s.parameter === other.id)?.checks ?? [];
+        return checkSweep(j, checks, { [slider.id]: group.anchor });
+      }),
+    );
+    return [...own, ...inGroups];
   });
-  return feedback;
 }
+
+type Check = UploadBundle["sweeps"][number]["checks"][number];
 
 /** 형상 오차: 부품에서 같은 꼭짓점끼리 잰 거리의 최댓값 */
 function shapeFailures({ part, measured, place, faces, engine, fusion, hintTail }: PartReading, tolerance: number): PartFailure[] {
@@ -157,12 +184,12 @@ function thicknessFailures(reading: PartReading, panels: PanelPair[]): PartFailu
   return dimensionFailure(reading, "thickness", label, worst.engine, worst.fusion, { faces: worst.pair.faces });
 }
 
-/** 녹화된 면 점을 엔진의 면 순서대로 이어 붙인다. 면은 (바디, 이름)으로 짝짓고, 면 구성이 다르면 undefined다. */
-function recordedPositions(morph: Morph, faces: SampleFace[]): Float64Array | undefined {
-  if (faces.length !== morph.faces.length) return undefined;
+/** 녹화된 면 점을 엔진 형상의 면 순서대로 이어 붙인다. 면은 (바디, 이름)으로 짝짓고, 면 구성이 다르면 undefined다. */
+function recordedPositions(shape: Topology, faces: SampleFace[]): Float64Array | undefined {
+  if (faces.length !== shape.faces.length) return undefined;
   const byKey = new Map(faces.map((f) => [faceKey(f), f]));
-  const out = new Float64Array(morph.faces.reduce((n, f) => n + f.count, 0) * 3);
-  for (const face of morph.faces) {
+  const out = new Float64Array(shape.faces.reduce((n, f) => n + f.count, 0) * 3);
+  for (const face of shape.faces) {
     const recorded = byKey.get(faceKey(face));
     if (recorded?.points.length !== face.count) return undefined;
     recorded.points.forEach((p, j) => out.set(p, (face.start + j) * 3));
@@ -199,13 +226,14 @@ interface PanelPair {
 
 /**
  * 판재 두께를 재는 면 쌍. 같은 바디에서 법선이 서로 반대이고 서로 등지고 있으며(사이가 재료),
- * 기본 형상에서 간격이 MAX_THICKNESS 이하인 두 평면이다. 연결과 마찬가지로 기본 형상에서 한 번 정한다.
+ * 위상 묶음 기준 형상에서 간격이 MAX_THICKNESS 이하인 두 평면이다. 연결과 마찬가지로 묶음의 기준 형상에서 한 번 정한다.
  */
-function panelPairs(morph: Morph, bundle: UploadBundle): PanelPair[] {
-  const planes = bundle.baseline.faces.flatMap((face, i) =>
-    face.geometry?.type === "plane" ? [{ i, face: morph.faces[i], normal: face.geometry.normal }] : [],
-  );
-  const base = morph.positions({});
+function panelPairs(topology: Topology, geometry: Map<string, Geometry>): PanelPair[] {
+  const planes = topology.faces.flatMap((face, i) => {
+    const surface = geometry.get(faceKey(face));
+    return surface?.type === "plane" ? [{ i, face, normal: surface.normal }] : [];
+  });
+  const base = topology.base;
   /** 면 점들을 법선 n에 내린 평균 위치 */
   const offset = (face: MorphFace, n: Vector, positions: Float64Array) => {
     let sum = 0;

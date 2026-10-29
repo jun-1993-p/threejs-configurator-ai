@@ -39,8 +39,17 @@
         }
       }
     },
+    "parts": { "$ref": "#/$defs/parts" },
+    "baseline": { "$ref": "#/$defs/baseline" },
+    "sweeps": {
+      "description": "사용자 파라미터마다 하나씩인 단독 스윕.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/sweep" }
+    }
+  },
+  "$defs": {
     "parts": {
-      "description": "부품. Fusion 컴포넌트 단위, 컴포넌트가 없는 바디는 바디 단위(ADR-0006). faces는 기본 형상 면 목록의 위치.",
+      "description": "부품. Fusion 컴포넌트 단위, 컴포넌트가 없는 바디는 바디 단위(ADR-0006). faces는 같은 묶음 기본 형상 면 목록의 위치.",
       "type": "array",
       "items": {
         "type": "object",
@@ -59,7 +68,7 @@
       "additionalProperties": false,
       "properties": {
         "faces": {
-          "description": "기본 형상의 면. 연결 정보(triangles)는 여기에만 있고 모든 샘플이 같이 쓴다.",
+          "description": "기본 형상의 면. 연결 정보(triangles)는 여기에만 있고 같은 위상 묶음의 모든 샘플이 같이 쓴다.",
           "type": "array",
           "items": { "allOf": [{ "$ref": "#/$defs/face" }, { "required": ["triangles"] }] }
         },
@@ -67,56 +76,81 @@
         "bodies": { "$ref": "#/$defs/bodies" }
       }
     },
-    "sweeps": {
-      "description": "사용자 파라미터마다 하나씩인 단독 스윕.",
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["parameter", "range", "samples", "checks"],
-        "additionalProperties": false,
-        "properties": {
-          "parameter": { "type": "string", "minLength": 1 },
-          "range": {
-            "description": "스윕 범위. 기본값 ±50%에서 reductions만큼 줄어든 범위이고, samples와 checks는 이 안에 있다.",
-            "type": "object",
-            "required": ["min", "max"],
-            "additionalProperties": false,
-            "properties": { "min": { "type": "number" }, "max": { "type": "number" } }
-          },
-          "samples": { "type": "array", "items": { "$ref": "#/$defs/sample" } },
-          "checks": {
-            "description": "검증점: 이웃 샘플 사이 가운데 값의 형상. 변형 결과와 비교하는 데만 쓰고 섞지 않는다(ADR-0012).",
-            "type": "array",
-            "items": { "$ref": "#/$defs/sample" }
-          },
-          "reductions": {
-            "description": "범위 끝 쪽에서 면 구성(면과 모서리)이 바뀌어 범위를 줄인 기록(ADR-0005). 쪽마다 하나까지다.",
-            "type": "array",
-            "maxItems": 2,
-            "items": { "$ref": "#/$defs/reduction" }
-          }
+    "range": {
+      "type": "object",
+      "required": ["min", "max"],
+      "additionalProperties": false,
+      "properties": { "min": { "type": "number" }, "max": { "type": "number" } }
+    },
+    "sweep": {
+      "type": "object",
+      "required": ["parameter", "range", "samples", "checks"],
+      "additionalProperties": false,
+      "properties": {
+        "parameter": { "type": "string", "minLength": 1 },
+        "range": {
+          "description": "스윕 범위. 기본값 ±50%에서 reductions만큼 줄어든 범위이고, samples와 checks는 이 안에 있다.",
+          "$ref": "#/$defs/range"
+        },
+        "samples": {
+          "description": "모든 위상 묶음의 샘플, 값 순서. 위상 경계 양쪽에는 경계를 좁혀 찾은 샘플이 있다.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/sample" }
+        },
+        "checks": {
+          "description": "검증점: 이웃 샘플 사이 가운데 값의 형상. 변형 결과와 비교하는 데만 쓰고 섞지 않는다(ADR-0012).",
+          "type": "array",
+          "items": { "$ref": "#/$defs/sample" }
+        },
+        "reductions": {
+          "description": "범위 끝 쪽에서 면 구성(면과 모서리)이 바뀌거나 위상 묶음이 상한을 넘어 범위를 줄인 기록(ADR-0005). 쪽마다 하나까지다.",
+          "type": "array",
+          "maxItems": 2,
+          "items": { "$ref": "#/$defs/reduction" }
+        },
+        "groups": {
+          "description": "기본 묶음 밖의 위상 묶음, 값 순서(ADR-0005). 기본 묶음을 합쳐 4개까지다. 묶음 안의 단독 스윕에는 없다.",
+          "type": "array",
+          "maxItems": 3,
+          "items": { "$ref": "#/$defs/topologyGroup" }
         }
       }
-    }
-  },
-  "$defs": {
+    },
+    "topologyGroup": {
+      "description": "면 구성이 같은 샘플의 모음. 이동량은 같은 묶음 안에서만 섞는다.",
+      "type": "object",
+      "required": ["range", "anchor", "counts", "parts", "baseline", "sweeps"],
+      "additionalProperties": false,
+      "properties": {
+        "range": { "description": "이 묶음에 드는 이 파라미터의 샘플 값 범위", "$ref": "#/$defs/range" },
+        "anchor": { "description": "기준 형상(baseline)의 이 파라미터 값. 묶음의 샘플 하나다.", "type": "number" },
+        "counts": { "description": "이 묶음의 개수형 파라미터 값", "type": "object", "additionalProperties": { "type": "number" } },
+        "parts": { "$ref": "#/$defs/parts" },
+        "baseline": { "$ref": "#/$defs/baseline" },
+        "sweeps": {
+          "description": "이 파라미터를 anchor에 두고 뽑은 나머지 파라미터의 단독 스윕. 다시 묶음으로 나누지 않고 면 구성이 바뀌면 범위를 줄인다.",
+          "type": "array",
+          "items": { "allOf": [{ "$ref": "#/$defs/sweep" }, { "not": { "required": ["groups"] } }] }
+        }
+      }
+    },
     "reduction": {
       "type": "object",
       "required": ["side", "at", "reason", "removed_faces", "added_faces", "removed_edges", "added_edges", "counts"],
       "additionalProperties": false,
       "properties": {
         "side": { "description": "줄어든 쪽", "enum": ["min", "max"] },
-        "at": { "description": "기본값에서 그쪽으로 가며 면 구성이 처음 바뀐 값(샘플 또는 검증점)", "type": "number" },
+        "at": { "description": "기본값에서 그쪽으로 가며 면 구성이 처음 바뀐 값(샘플 또는 검증점). topology_group_limit이면 뺀 묶음에서 기본값에 가장 가까운 점이다.", "type": "number" },
         "reason": {
-          "description": "검증 피드백 종류와 같다. range_shrunk: 개수형 파라미터 값도 바뀌었다. modeling_error_suspected: 개수형 값은 그대로인데 면 구성이 바뀌었다.",
-          "enum": ["range_shrunk", "modeling_error_suspected"]
+          "description": "검증 피드백 종류와 같다. range_shrunk: 개수형 파라미터 값도 바뀌었다(위상 묶음 안의 단독 스윕). modeling_error_suspected: 개수형 값은 그대로인데 면 구성이 바뀌었다. topology_group_limit: 위상 묶음이 상한을 넘어 그 묶음부터 뺐다.",
+          "enum": ["range_shrunk", "modeling_error_suspected", "topology_group_limit"]
         },
         "removed_faces": { "$ref": "#/$defs/faceRefs" },
         "added_faces": { "$ref": "#/$defs/faceRefs" },
         "removed_edges": { "$ref": "#/$defs/faceRefs" },
         "added_edges": { "$ref": "#/$defs/faceRefs" },
         "counts": {
-          "description": "그 지점에서 값이 바뀐 개수형 파라미터: [기본값, 그 지점 값]",
+          "description": "그 지점에서 값이 바뀐 개수형 파라미터: [바로 안쪽 묶음의 값, 그 지점 값]",
           "type": "object",
           "additionalProperties": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } }
         }

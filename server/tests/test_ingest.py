@@ -137,6 +137,45 @@ def test_면_구성이_바뀐_샘플은_거절하지_않고_위상_변화로_표
     assert sample_topology(bundle) == [("W", 400, "changed"), ("W", 1200, "failed")]
 
 
+def _grouped() -> dict[str, Any]:
+    """W 1000 이상이 칸막이 면(F2:+z)이 하나 더 있는 위상 묶음인 묶음"""
+    bundle = _bundle()
+    sweep = bundle["sweeps"][0]
+
+    def two(width: float, baseline: bool = False) -> list[dict[str, Any]]:
+        return [_face("Body1", width=width, baseline=baseline), _face("Body1", "F2:+z", width, baseline)]
+
+    sweep["samples"][1] = {"value": 1200, "status": "ok", "faces": two(1.5), "edges": _edges("Body1")}
+    sweep["samples"].insert(1, {"value": 1000, "status": "ok", "faces": two(1.25), "edges": _edges("Body1")})
+    sweep["groups"] = [
+        {
+            "range": {"min": 1000, "max": 1200},
+            "anchor": 1000,
+            "counts": {"bays": 2},
+            "parts": [{"name": "상판", "kind": "component", "faces": [0, 1]}],
+            "baseline": {"faces": two(1.25, baseline=True), "edges": _edges("Body1")},
+            "sweeps": [],
+        }
+    ]
+    return bundle
+
+
+def test_위상_묶음의_샘플은_그_묶음의_기준_형상과_짝짓는다() -> None:
+    bundle = _grouped()
+
+    assert bundle_errors(bundle) == []
+    assert sample_topology(bundle) == [("W", 400, "same"), ("W", 1000, "same"), ("W", 1200, "same")]
+    bundle["sweeps"][0]["samples"][2]["faces"][1]["points"].pop()
+    assert any("W=1200" in e and "F2:+z" in e for e in bundle_errors(bundle))
+
+
+def test_위상_묶음의_기준_형상도_연결이_점_번호를_벗어나면_거절한다() -> None:
+    bundle = _grouped()
+    bundle["sweeps"][0]["groups"][0]["baseline"]["faces"][1]["triangles"] = [[0, 1, 4]]
+
+    assert any("F2:+z" in e and "연결" in e for e in bundle_errors(bundle))
+
+
 def test_이름이_같아도_법선이_뒤집힌_면은_짝으로_보지_않는다() -> None:
     bundle = _bundle()
     bundle["sweeps"][0]["samples"][0]["faces"][0]["geometry"]["normal"] = [0, 0, -1]

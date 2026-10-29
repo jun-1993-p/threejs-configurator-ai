@@ -3,7 +3,7 @@
 import json
 import math
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import jsonschema
 
@@ -50,20 +50,40 @@ def pair_faces(baseline: list[dict[str, Any]], sample: list[dict[str, Any]]) -> 
     return pairs
 
 
-def _samples(bundle: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
-    return [(sweep["parameter"], sample) for sweep in bundle["sweeps"] for sample in sweep["samples"]]
+Shape = tuple[str, dict[str, Any], list[dict[str, Any]]]
 
 
-def _samples_and_checks(bundle: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
-    """스윕 샘플과 검증점. 검증점도 기본 형상과 점이 짝지어져야 수치 검증이 잴 수 있다."""
-    return _samples(bundle) + [(sweep["parameter"], check) for sweep in bundle["sweeps"] for check in sweep["checks"]]
+def _baseline_of(bundle: dict[str, Any], sweep: dict[str, Any], value: float) -> list[dict[str, Any]]:
+    """샘플 값이 든 위상 묶음의 기준 형상 면. 묶음 밖이면 기본 형상이다(ADR-0005)."""
+    for group in sweep.get("groups", []):
+        if group["range"]["min"] <= value <= group["range"]["max"]:
+            faces: list[dict[str, Any]] = group["baseline"]["faces"]
+            return faces
+    baseline: list[dict[str, Any]] = bundle["baseline"]["faces"]
+    return baseline
+
+
+def _shapes(bundle: dict[str, Any], key: Literal["samples", "checks"]) -> list[Shape]:
+    """(파라미터, 샘플, 짝지을 기준 형상 면). 위상 묶음 안의 단독 스윕은 그 묶음의 기준 형상과 짝짓는다."""
+    out: list[Shape] = []
+    for sweep in bundle["sweeps"]:
+        out += [(sweep["parameter"], s, _baseline_of(bundle, sweep, s["value"])) for s in sweep[key]]
+        for group in sweep.get("groups", []):
+            faces = group["baseline"]["faces"]
+            out += [(inner["parameter"], s, faces) for inner in group["sweeps"] for s in inner[key]]
+    return out
+
+
+def _samples_and_checks(bundle: dict[str, Any]) -> list[Shape]:
+    """스윕 샘플과 검증점. 검증점도 기준 형상과 점이 짝지어져야 수치 검증이 잴 수 있다."""
+    return _shapes(bundle, "samples") + _shapes(bundle, "checks")
 
 
 def sample_topology(bundle: dict[str, Any]) -> list[tuple[str, float, str]]:
-    """샘플마다 (파라미터, 값, same | changed | failed). changed는 기본 형상과 면이 짝지어지지 않는 샘플이다."""
-    baseline = bundle["baseline"]["faces"]
+    """샘플마다 (파라미터, 값, same | changed | failed). changed는 그 값의 기준 형상(기본 형상 또는 위상 묶음)과
+    면이 짝지어지지 않는 샘플이다. 위상 묶음 안의 단독 스윕 샘플도 담는다."""
     out = []
-    for parameter, sample in _samples(bundle):
+    for parameter, sample, baseline in _shapes(bundle, "samples"):
         if sample["status"] != "ok":
             state = "failed"
         else:
@@ -96,15 +116,20 @@ def bundle_errors(bundle: dict[str, Any]) -> list[str]:
     for sweep in bundle["sweeps"]:
         if sweep["parameter"] in counts:
             errors.append(f"{sweep['parameter']}: 개수형 파라미터는 스윕하지 않습니다(ADR-0005)")
-    baseline = bundle["baseline"]["faces"]
-    for face in baseline:
-        n = len(face["points"])
-        if any(i >= n for tri in face["triangles"] for i in tri):
-            errors.append(f"기본 형상 바디 {face['body']} 면 {face['name']}: 연결(triangles)이 점 {n}개 밖을 가리킵니다")
-    for parameter, sample in _samples_and_checks(bundle):
+    baselines = [("기본 형상", bundle["baseline"]["faces"])] + [
+        (f"{sweep['parameter']}={group['anchor']} 위상 묶음 기준 형상", group["baseline"]["faces"])
+        for sweep in bundle["sweeps"]
+        for group in sweep.get("groups", [])
+    ]
+    for label, faces in baselines:
+        for face in faces:
+            n = len(face["points"])
+            if any(i >= n for tri in face["triangles"] for i in tri):
+                errors.append(f"{label} 바디 {face['body']} 면 {face['name']}: 연결(triangles)이 점 {n}개 밖을 가리킵니다")
+    for parameter, sample, baseline in _samples_and_checks(bundle):
         pairs = pair_faces(baseline, sample["faces"]) if sample["status"] == "ok" else None
         if pairs is None:
-            # 재계산 실패나 위상 변화. 위상 변화는 거절하지 않고 sample_topology로 알린다(티켓 10, 11).
+            # 재계산 실패나 위상 변화. 위상 변화는 거절하지 않고 sample_topology로 알린다(티켓 10).
             continue
         for i, face in zip(pairs, sample["faces"], strict=True):
             expected = len(baseline[i]["points"])

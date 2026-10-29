@@ -17,6 +17,7 @@ export const FEEDBACK_KINDS = [
   "no_range_intersection",
   "ai_judgment",
   "grid_limit",
+  "topology_group_limit",
 ] as const;
 
 export type FeedbackKind = (typeof FEEDBACK_KINDS)[number];

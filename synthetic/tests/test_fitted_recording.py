@@ -172,3 +172,23 @@ def test_속_비우기_면_지정점이_면_밖으로_나가는_서랍장은_모
     assert reduction["removed_faces"] == [{"body": "DrawerBox", "name": "F6:inner:F5:top"}]
     # 줄어든 범위 안은 모두 기본 형상과 같은 위상이다
     assert {state for p, _, state in sample_topology(bundle) if p == "body_d"} == {"same"}
+
+
+def test_칸막이_수가_바뀌는_선반은_전체_폭_스윕이_위상_묶음으로_나뉘고_모든_샘플이_제_묶음과_짝지어진다(tmp_path: Path) -> None:
+    # 칸 수 = floor(전체 폭 / 400) + 1: 전체 폭 800·1200에서 칸막이 바디(패턴 사본)가 하나씩 늘어난다(티켓 11)
+    out = make_recording(ROOT / "solidcraft-test" / "shelf.sc", tmp_path / "shelf.json", [])
+    bundle: dict[str, Any] = json.loads(out.read_text(encoding="utf-8"))
+
+    assert bundle_errors(bundle) == []
+    width = next(s for s in bundle["sweeps"] if s["parameter"] == "shelf_w")
+    assert width["range"] == {"min": 450.0, "max": 1350.0} and "reductions" not in width
+    groups = width["groups"]
+    assert [g["counts"]["bays"] for g in groups] == [2.0, 4.0]
+    # 경계는 0.2 안으로 좁혀 양쪽에 샘플을 둔다
+    assert 799.8 <= groups[0]["range"]["max"] < 800.0
+    assert 1200.0 <= groups[1]["range"]["min"] <= 1200.2
+    assert {b["name"] for b in groups[1]["baseline"]["bodies"]} == {"Carcass", "Divider", "Body1", "Body1 (2)"}
+    # 위상 묶음의 샘플도 모두 그 묶음의 기준 형상과 짝지어진다
+    assert {state for _, _, state in sample_topology(bundle)} == {"same"}
+    # 나머지 파라미터는 묶음마다 위상이 바뀌지 않는다
+    assert all("reductions" not in inner for g in groups for inner in g["sweeps"])

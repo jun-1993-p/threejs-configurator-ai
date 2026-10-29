@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import * as esbuild from "esbuild";
 
-import type { SampleFace, Spec, SweepData } from "../src/engine.ts";
+import { reaches, type SampleFace, type Spec, type Sweep, type SweepData } from "../src/engine.ts";
 
 const CORE = fileURLToPath(new URL("../src/core.ts", import.meta.url));
 
@@ -26,25 +26,50 @@ async function buildCore(): Promise<string> {
 /** 엔진이 읽는 면 필드만 남긴다 */
 const engineFaces = (faces: SampleFace[]) => faces.map(({ body, name, points }) => ({ body, name, points }));
 
+/** 엔진이 읽는 부품·기준 형상 필드만 남긴다 */
+const engineParts = (parts: SweepData["parts"]) => parts.map(({ name, faces }) => ({ name, faces }));
+const engineBaseline = (baseline: SweepData["baseline"]) => ({
+  faces: baseline.faces.map(({ body, name, points, triangles }) => ({ body, name, points, triangles })),
+});
+
+/**
+ * 명세의 슬라이더가 쓰는 단독 스윕만, 엔진이 읽는 필드만 남긴다. 위상 묶음은 슬라이더 범위가 닿는 것만 남기고,
+ * 묶음 안의 단독 스윕도 같은 방법으로 줄인다. 위상 묶음은 명세가 아니라 스윕 데이터에 담긴다(ADR-0005).
+ */
+function engineSweeps(spec: Spec, sweeps: Sweep[]): Sweep[] {
+  return sweeps.flatMap(({ parameter, samples, groups = [] }) => {
+    const slider = spec.sliders.find((s) => s.id === parameter);
+    if (!slider) return [];
+    const reached = groups.filter((g) => reaches(slider, g));
+    return [
+      {
+        parameter,
+        samples: samples.map(({ value, status, faces }) => ({ value, status, faces: engineFaces(faces) })),
+        ...(reached.length === 0
+          ? {}
+          : {
+              groups: reached.map(({ range, anchor, counts, parts, baseline, sweeps: inner }) => ({
+                range,
+                anchor,
+                counts,
+                parts: engineParts(parts),
+                baseline: engineBaseline(baseline),
+                sweeps: engineSweeps(spec, inner),
+              })),
+            }),
+      },
+    ];
+  });
+}
+
 /** 업로드 묶음과 격자 보강에서 명세의 슬라이더가 쓰는 부분만 남긴다. 형식은 그대로라 엔진이 바로 읽는다. */
 function sweepDataFor(spec: Spec, bundle: SweepData): SweepData {
   const ids = new Set(spec.sliders.map((s) => s.id));
   const grids = (bundle.grids ?? []).filter((g) => g.parameters.every((id) => ids.has(id)));
   return {
-    parts: bundle.parts.map(({ name, faces }) => ({ name, faces })),
-    baseline: {
-      faces: bundle.baseline.faces.map(({ body, name, points, triangles }) => ({ body, name, points, triangles })),
-    },
-    sweeps: bundle.sweeps
-      .filter((s) => ids.has(s.parameter))
-      .map(({ parameter, samples }) => ({
-        parameter,
-        samples: samples.map(({ value, status, faces }) => ({
-          value,
-          status,
-          faces: engineFaces(faces),
-        })),
-      })),
+    parts: engineParts(bundle.parts),
+    baseline: engineBaseline(bundle.baseline),
+    sweeps: engineSweeps(spec, bundle.sweeps),
     ...(grids.length === 0
       ? {}
       : {

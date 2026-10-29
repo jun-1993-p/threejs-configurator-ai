@@ -91,11 +91,15 @@
   | `no_range_intersection` | 범위 교집합 없음 |
   | `ai_judgment` | AI 판정(이미지 경로와 이유 한 줄 포함) |
   | `grid_limit` | 격자 보강이 필요한 쌍이 상품당 2쌍을 넘음 |
+  | `topology_group_limit` | 파라미터 하나의 위상 묶음이 4개를 넘어 범위가 줄어듦 |
 
-- `part`: 부품과 무관한 실패(검증점 재계산 실패, 검증점의 `topology_change`)는 빈 문자열이다. 범위 축소(`range_shrunk`·`modeling_error_suspected`)는 바뀐 면이 속한 부품이다.
-- `range_shrunk`·`modeling_error_suspected`: 애드인이 범위 끝 쪽의 위상 변화(면 또는 모서리 구성)로 스윕 범위를 줄인 기록(업로드 묶음 `sweeps[].reductions`, `reason`이 이 `kind`와 같다)에서 나온다(ADR-0005). 개수형 파라미터 값도 함께 바뀌었으면 `range_shrunk`, 그대로면 `modeling_error_suspected`다.
+- `part`: 부품과 무관한 실패(검증점 재계산 실패, 검증점의 `topology_change`)는 빈 문자열이다. 범위 축소(`range_shrunk`·`modeling_error_suspected`·`topology_group_limit`)는 바뀐 면이 속한 부품이고, 기준 형상에 없는 바디(새로 생긴 칸막이 등)면 그 바디 이름이다.
+- `range_shrunk`·`modeling_error_suspected`·`topology_group_limit`: 애드인이 위상 변화(면 또는 모서리 구성)로 스윕 범위를 줄인 기록(업로드 묶음 `sweeps[].reductions`, `reason`이 이 `kind`와 같다)에서 나온다(ADR-0005).
+  - 범위 안에서 개수형 파라미터 값과 함께 면 구성이 바뀌면 범위를 줄이지 않고 위상 묶음으로 나눈다(`sweeps[].groups`). 묶음이 파라미터당 4개(기본 묶음 포함)를 넘으면 기본값에서 먼 묶음부터 빼고 `topology_group_limit`으로 줄인다.
+  - 개수형 값은 그대로인데 면 구성이 바뀌면 `modeling_error_suspected`로 줄인다.
+  - 위상 묶음 안의 단독 스윕(`groups[].sweeps`)은 다시 묶음으로 나누지 않는다. 면 구성이 바뀌면 개수형 값이 바뀌었으면 `range_shrunk`, 그대로면 `modeling_error_suspected`로 줄인다. 힌트 앞에 그 묶음(`shelf_w=1200.04 위상 묶음에서`)이 붙고 `measured.values`에 묶음 기준 값이 들어간다.
   - 업로드 단계: 처리 기록으로 운영자에게 알린다. 명세가 없으므로 `path`는 빈 문자열이고, `slider`에는 그 파라미터 이름(슬라이더가 된다면 그 id)이 들어간다.
-  - 검증 단계: 명세 범위가 줄어든 쪽을 넘으면 수치 검증 전에 `sliders[i].min`/`max`에 다시 낸다. `expected`는 줄어든 범위 끝(`{ "min": 337.5 }`)이다.
+  - 검증 단계: 명세 범위가 줄어든 쪽을 넘으면 수치 검증 전에 `sliders[i].min`/`max`에 다시 낸다. `expected`는 줄어든 범위 끝(`{ "min": 337.5 }`)이다. 위상 묶음 안의 단독 스윕은 묶음의 파라미터가 슬라이더이고 그 슬라이더 범위가 묶음에 닿을 때만 본다.
 - `slider`: 한 슬라이더의 실패가 아니면(`grid_limit`) 빈 문자열이고, 이때 `path`는 `sliders`다.
 - `hint`: 규칙으로 만든다(AI가 쓰지 않음).
 
@@ -103,7 +107,9 @@
 
 업로드 묶음의 단독 스윕마다 `checks`(이웃 샘플 사이 가운데 값의 Fusion 형상, 검증점)가 있다. 슬라이더 범위 안의 검증점마다 그 슬라이더만 검증점 값으로 두고(나머지는 `default`) 변형 결과를 잰다.
 
-- 치수 오차: 부품별 W·D·H(`axes`에 따른 바운딩 박스 길이)와 판재 두께가 0.2 mm를 넘으면 `dimension_error`. 판재 두께는 같은 바디에서 서로 등진 두 평면 중 기본 형상 간격이 30 mm(표준 두께 목록의 최댓값) 이하인 쌍의 간격이며, 부품마다 가장 크게 어긋난 판 하나를 알린다.
+위상 묶음이 있는 슬라이더는 검증점이 든 묶음의 면 구성으로 잰다. 슬라이더 범위가 닿는 묶음마다 묶음 안 단독 스윕의 검증점도 잰다. 이때 묶음의 슬라이더는 기준 값(`anchor`)에 두고, `measured`는 `{ values }`, 힌트의 자리는 `shelf_d=337.5·shelf_w=1200.04` 꼴이다. 검증점 형상이 그 묶음의 기준 형상과 면 구성이 다르면 `topology_change`다.
+
+- 치수 오차: 부품별 W·D·H(`axes`에 따른 바운딩 박스 길이)와 판재 두께가 0.2 mm를 넘으면 `dimension_error`. 판재 두께는 같은 바디에서 서로 등진 두 평면 중 기준 형상(기본 형상, 위상 묶음이면 그 묶음의 기준 형상) 간격이 30 mm(표준 두께 목록의 최댓값) 이하인 쌍의 간격이며, 부품마다 가장 크게 어긋난 판 하나를 알린다.
 - 형상 오차: 부품별로 같은 꼭짓점끼리 잰 거리의 최댓값이 max(1 mm, 그 검증점 Fusion 형상 바운딩 박스 대각선의 0.1%)를 넘으면 `shape_error`.
 - `path`는 검증점이 기본값보다 작으면 `sliders[i].min`, 크면 `sliders[i].max`이고, 힌트는 그쪽 범위를 검증점 값 안쪽으로 좁히라고 한다.
 

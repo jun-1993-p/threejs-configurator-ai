@@ -224,19 +224,27 @@ def _refs(keys: frozenset[tuple[str, ...]]) -> list[dict[str, str]]:
     return [{"body": key[0], "name": key[1]} for key in sorted(keys)]
 
 
-def _reduction(side: str, point: dict[str, Any], baseline: Baseline) -> dict[str, Any]:
-    """면 구성이 바뀐 지점의 기록. 개수형 파라미터 값이 그대로면 모델링 오류 의심이다(ADR-0005)."""
-    found, base = Composition.of(point), baseline.composition
-    counts = {
+def _changed_counts(point: dict[str, Any], baseline: Baseline) -> dict[str, list[float]]:
+    """값이 바뀐 개수형 파라미터: [비교 대상 값, 그 지점 값]"""
+    return {
         name: [baseline.counts[name], value]
         for name, value in point.get("counts", {}).items()
         if value != baseline.counts[name]
     }
+
+
+def _reduction(side: str, point: dict[str, Any], baseline: Baseline, reason: str | None = None) -> dict[str, Any]:
+    """면 구성이 바뀐 지점의 기록. 개수형 파라미터 값이 그대로면 모델링 오류 의심이다(ADR-0005).
+
+    baseline은 그 지점 바로 안쪽의 면 구성이다(기본 형상 또는 안쪽 위상 묶음).
+    """
+    found, base = Composition.of(point), baseline.composition
+    counts = _changed_counts(point, baseline)
     return {
         "side": side,
         "at": point["value"],
         # 개수형 값이 함께 바뀐 위상 변화는 범위 축소, 그대로면 모델링 오류 의심. 피드백 종류와 같은 이름이다.
-        "reason": "range_shrunk" if counts else "modeling_error_suspected",
+        "reason": reason or ("range_shrunk" if counts else "modeling_error_suspected"),
         "removed_faces": _refs(base.faces - found.faces),
         "added_faces": _refs(found.faces - base.faces),
         "removed_edges": _refs(base.edges - found.edges),
@@ -251,7 +259,7 @@ def _limit_range(
     """기본값에서 범위 끝 쪽으로 가며 면 구성이 처음 바뀌는 지점을 찾아, 그 앞 샘플까지로 범위를 줄인다.
 
     샘플과 검증점을 함께 본다. 범위 끝은 보간할 수 있도록 샘플 값이어야 한다. 재계산 실패는 건너뛴다(티켓 05).
-    범위 안의 위상 경계를 위상 묶음으로 나누는 일은 티켓 11에서 한다. 그때까지는 개수형 값이 바뀐 지점에서도 줄인다.
+    위상 묶음 안의 단독 스윕이 쓴다. 묶음 안에서 다시 묶음으로 나누지 않으므로, 개수형 값이 바뀐 지점에서도 줄인다.
     """
     bounds = {"min": samples[0]["value"], "max": samples[-1]["value"]}
     reductions = []
@@ -272,25 +280,228 @@ def _limit_range(
     return bounds, reductions
 
 
-def _sweep(model: FusionModel, parameter: ParameterInfo, baseline: Baseline) -> dict[str, Any]:
-    counts = list(baseline.counts)
+def _coarse_points(
+    model: FusionModel, parameter: ParameterInfo, counts: Sequence[str]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """기본값 ±50% 5점 샘플과 검증점(이웃 샘플 사이 가운데 값, ADR-0012). 파라미터는 되돌리지 않는다."""
     values = [parameter.value * factor for factor in SWEEP_FACTORS]
     samples = [_sample(model, parameter, value, counts) for value in values]
-    # 검증점: 이웃 샘플 사이 가운데 값. 수치 검증이 이 형상과 변형 결과를 비교한다(ADR-0012).
     checks = [_sample(model, parameter, (a + b) / 2, counts) for a, b in zip(values, values[1:])]
-    # 값이 아니라 원래 수식을 되돌린다. 수식으로 묶인 자식 관계를 상수로 덮지 않기 위해서다(ADR-0003).
-    model.restore_parameter(parameter)
-    bounds, reductions = _limit_range(parameter.value, samples, checks, baseline)
-    # 줄어든 범위 밖의 샘플·검증점은 담지 않는다. 바뀐 면 구성은 reductions에 남는다.
+    return samples, checks
+
+
+def _sweep_json(
+    parameter: ParameterInfo,
+    bounds: dict[str, float],
+    samples: list[dict[str, Any]],
+    checks: list[dict[str, Any]],
+    reductions: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """줄어든 범위 밖의 샘플·검증점은 담지 않는다. 바뀐 면 구성은 reductions에 남는다."""
     sweep: dict[str, Any] = {
         "parameter": parameter.name,
         "range": bounds,
-        "samples": [s for s in samples if bounds["min"] <= s["value"] <= bounds["max"]],
+        "samples": sorted((s for s in samples if bounds["min"] <= s["value"] <= bounds["max"]), key=lambda s: s["value"]),
         "checks": [c for c in checks if bounds["min"] <= c["value"] <= bounds["max"]],
     }
     if reductions:
         sweep["reductions"] = reductions
     return sweep
+
+
+def _single_sweep(model: FusionModel, parameter: ParameterInfo, baseline: Baseline) -> dict[str, Any]:
+    """위상 묶음으로 나누지 않는 단독 스윕: 면 구성이 바뀌면 그 앞에서 범위를 줄인다. 다른 파라미터는 지금 값 그대로다."""
+    samples, checks = _coarse_points(model, parameter, list(baseline.counts))
+    # 값이 아니라 원래 수식을 되돌린다. 수식으로 묶인 자식 관계를 상수로 덮지 않기 위해서다(ADR-0003).
+    model.restore_parameter(parameter)
+    bounds, reductions = _limit_range(parameter.value, samples, checks, baseline)
+    return _sweep_json(parameter, bounds, samples, checks, reductions)
+
+
+# 파라미터 하나의 위상 묶음 상한(기본 묶음 포함). 묶음마다 나머지 파라미터를 다시 스윕하기 때문이다(ADR-0005).
+TOPOLOGY_GROUP_LIMIT = 4
+
+# 위상 경계를 이 폭(파라미터 값) 안으로 좁힌다. 경계에서 형상이 바로 바뀌므로 치수 합격선(0.2 mm)과 같은 값을 쓴다.
+BOUNDARY_TOLERANCE = 0.2
+
+
+@dataclass
+class _Group:
+    """기본값에서 한쪽 끝으로 가며 면 구성이 같은 점들(위상 묶음 후보). 쪽마다 첫 묶음은 기본 묶음이다."""
+
+    reference: Baseline
+    # 기본값에서 먼 순서. 샘플과 검증점이 섞여 있다.
+    points: list[dict[str, Any]]
+
+
+@dataclass
+class _Side:
+    """기본값에서 한쪽 끝까지 나눈 위상 묶음과 그 사이 경계"""
+
+    groups: list[_Group]
+    # edges[k]: groups[k]와 groups[k + 1] 사이 경계 양쪽 점(안쪽, 바깥쪽)
+    edges: list[tuple[dict[str, Any], dict[str, Any]]]
+    # 개수형 값이 그대로인데 면 구성이 바뀐 점(모델링 오류 의심). 없으면 None
+    stop: dict[str, Any] | None = None
+
+
+def _bisect(
+    model: FusionModel, parameter: ParameterInfo, inner: dict[str, Any], outer: dict[str, Any], reference: Baseline
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """안쪽 면 구성(reference)과 그 밖의 면 구성 사이 경계를 BOUNDARY_TOLERANCE 안으로 좁혀, 경계 양쪽 점을 돌려준다.
+
+    inner·outer는 재계산에 성공한 점이다. 가운데 값에서 재계산이 실패하면 어느 쪽인지 알 수 없으므로 거기서 멈춘다.
+    """
+    counts = list(reference.counts)
+    while abs(outer["value"] - inner["value"]) > BOUNDARY_TOLERANCE:
+        sample = _sample(model, parameter, (inner["value"] + outer["value"]) / 2, counts)
+        if sample["status"] != "ok":
+            break
+        if Composition.of(sample) == reference.composition:
+            inner = sample
+        else:
+            outer = sample
+    return inner, outer
+
+
+def _split_side(
+    model: FusionModel,
+    parameter: ParameterInfo,
+    origin: dict[str, Any],
+    points: list[dict[str, Any]],
+    baseline: Baseline,
+    outward: int,
+) -> _Side:
+    """기본값(origin)에서 한쪽 끝으로 가며 면 구성이 바뀌는 곳마다 경계를 좁혀 위상 묶음을 나눈다(ADR-0005).
+
+    경계 바깥쪽 점의 면 구성이 그 너머 점과 다르면(성긴 점 사이에 숨은 묶음) 그 점으로 묶음을 하나 열고 다시 좁힌다.
+    개수형 값이 그대로인데 면 구성이 바뀌면 거기서 멈춘다.
+    """
+    pending = sorted(
+        (p for p in points if p["status"] == "ok" and (p["value"] - origin["value"]) * outward > 0),
+        key=lambda p: abs(p["value"] - origin["value"]),
+    )
+    side = _Side([_Group(baseline, [])], [])
+    while pending:
+        point, group = pending[0], side.groups[-1]
+        if Composition.of(point) == group.reference.composition:
+            group.points.append(pending.pop(0))
+            continue
+        if not _changed_counts(point, group.reference):
+            side.stop = point
+            break
+        inner, outer = _bisect(model, parameter, group.points[-1] if group.points else origin, point, group.reference)
+        if not _changed_counts(outer, group.reference):
+            side.stop = outer
+            break
+        side.edges.append((inner, outer))
+        # 바깥쪽 점으로 새 묶음을 연다. point는 다음 차례에 이 묶음과 다시 견준다.
+        side.groups.append(_Group(Baseline(Composition.of(outer), dict(outer["counts"])), [outer]))
+    return side
+
+
+def _limit_groups(default: float, sides: dict[str, _Side]) -> dict[str, _Group]:
+    """위상 묶음이 TOPOLOGY_GROUP_LIMIT를 넘으면 기본값에서 먼 묶음부터 뺀다. 쪽마다 뺀 묶음 가운데 가장 안쪽 것을 돌려준다."""
+    dropped: dict[str, _Group] = {}
+    while 1 + sum(len(s.groups) - 1 for s in sides.values()) > TOPOLOGY_GROUP_LIMIT:
+        # 묶음에서 기본값에 가장 가까운 점의 거리로 잰다
+        far = max(
+            (name for name, s in sides.items() if len(s.groups) > 1),
+            key=lambda name: abs(sides[name].groups[-1].points[0]["value"] - default),
+        )
+        dropped[far] = sides[far].groups.pop()
+    return dropped
+
+
+def _sweep(
+    model: FusionModel, parameter: ParameterInfo, baseline: Baseline, others: Sequence[ParameterInfo]
+) -> dict[str, Any]:
+    """단독 스윕. 범위 안에서 개수형 값과 함께 면 구성이 바뀌면 위상 묶음으로 나누고(ADR-0005), 묶음마다
+    나머지 파라미터(others)의 단독 스윕을 그 묶음의 기준 형상에서 뽑는다.
+
+    범위가 줄어드는 까닭은 쪽마다 하나다: 묶음 상한(topology_group_limit), 모델링 오류 의심, 샘플이 2개보다 적어
+    보간할 수 없는 묶음(range_shrunk). 줄어든 범위 밖의 묶음은 담지 않는다.
+    """
+    default = parameter.value
+
+    def distance(value: float) -> float:
+        return abs(value - default)
+
+    samples, checks = _coarse_points(model, parameter, list(baseline.counts))
+    bounds = {"min": samples[0]["value"], "max": samples[-1]["value"]}
+    origin = next(s for s in samples if s["value"] == default)
+    sides = {
+        name: _split_side(model, parameter, origin, samples + checks, baseline, outward)
+        for name, outward in (("min", -1), ("max", 1))
+    }
+    # 경계 양쪽 점을 샘플로 더한다. 검증점이 경계 끝이면 같은 값의 샘플이 된다(형상이 같다).
+    for side in sides.values():
+        for edge in (e for pair in side.edges for e in pair):
+            if edge["value"] not in {s["value"] for s in samples}:
+                samples.append(edge)
+    dropped = _limit_groups(default, sides)
+
+    reductions: dict[str, dict[str, Any]] = {}
+    groups: list[tuple[_Group, list[dict[str, Any]]]] = []
+    for name, outward in (("min", -1), ("max", 1)):
+        side = sides[name]
+        on_side = [s for s in samples if (s["value"] - default) * outward > 0]
+        if name in dropped:
+            bounds[name] = side.edges[len(side.groups) - 1][0]["value"]
+            reductions[name] = _reduction(name, dropped[name].points[0], side.groups[-1].reference, "topology_group_limit")
+        elif side.stop is not None:
+            # 바뀐 지점 앞의 가장 먼 샘플. 없으면 기본값까지 줄어든다.
+            inside = [s["value"] for s in on_side if distance(s["value"]) < distance(side.stop["value"])]
+            bounds[name] = max(inside, key=distance, default=default)
+            reductions[name] = _reduction(name, side.stop, side.groups[-1].reference)
+        for k, group in enumerate(side.groups[1:], start=1):
+            # 묶음의 샘플: 안쪽 경계 바깥쪽 점부터 다음 경계 안쪽 점(마지막 묶음은 범위 끝)까지
+            lo = distance(side.edges[k - 1][1]["value"])
+            hi = distance(side.edges[k][0]["value"] if k < len(side.groups) - 1 else bounds[name])
+            members = [s for s in on_side if lo <= distance(s["value"]) <= hi]
+            if len(members) < 2:
+                # 보간할 수 없는 묶음은 만들지 않고 그 경계 앞에서 줄인다
+                bounds[name] = side.edges[k - 1][0]["value"]
+                reductions[name] = _reduction(name, group.points[0], side.groups[k - 1].reference)
+                break
+            groups.append((group, members))
+    model.restore_parameter(parameter)
+
+    sweep = _sweep_json(parameter, bounds, samples, checks, list(reductions.values()))
+    if groups:
+        sweep["groups"] = sorted(
+            (_group_json(model, parameter, group, members, others) for group, members in groups),
+            key=lambda g: g["range"]["min"],
+        )
+    return sweep
+
+
+def _group_json(
+    model: FusionModel,
+    parameter: ParameterInfo,
+    group: _Group,
+    members: list[dict[str, Any]],
+    others: Sequence[ParameterInfo],
+) -> dict[str, Any]:
+    """기본 묶음 밖의 위상 묶음: 범위, 기준 형상(연결 포함)과 부품, 기준 형상에서 뽑은 나머지 파라미터의 단독 스윕"""
+    values = sorted(s["value"] for s in members)
+    middle = (values[0] + values[-1]) / 2
+    # 기준 형상: 묶음 가운데에 가장 가까운 샘플. 같으면 기본값에 가까운 쪽
+    anchor = min(values, key=lambda v: (abs(v - middle), abs(v - parameter.value)))
+    try:
+        model.set_parameter(parameter.name, anchor)
+        shape = _shape_json(model, baseline=True)
+        reference = Baseline(Composition.of(shape), model.parameter_values(list(group.reference.counts)))
+        return {
+            "range": {"min": values[0], "max": values[-1]},
+            "anchor": anchor,
+            "counts": reference.counts,
+            "parts": _parts(model.bodies(), shape["faces"]),
+            "baseline": shape,
+            "sweeps": [_single_sweep(model, other, reference) for other in others],
+        }
+    finally:
+        model.restore_parameter(parameter)
 
 
 def run_upload(
@@ -316,7 +527,7 @@ def run_upload(
         "grid": {"n": GRID_N},
         "parts": _parts(model.bodies(), baseline["faces"]),
         "baseline": baseline,
-        "sweeps": [_sweep(model, p, reference) for p in swept],
+        "sweeps": [_sweep(model, p, reference, [o for o in swept if o is not p]) for p in swept],
         "parameters": [
             {
                 "name": p.name,

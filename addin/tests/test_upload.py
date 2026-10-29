@@ -1,4 +1,5 @@
 import json
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -368,25 +369,71 @@ def test_면_구성이_바뀌지_않으면_범위를_줄이지_않는다() -> No
     assert "reductions" not in w
 
 
-def test_범위_끝에서_개수형_값과_함께_면_구성이_바뀌면_바뀌기_전_샘플까지_범위를_줄이고_까닭을_남긴다() -> None:
-    # 검증점 1100에서 선반 수가 3이 된다. 범위 끝은 그 앞 샘플 1000이고, 바뀐 쪽 샘플·검증점은 담지 않는다.
+def test_범위_안에서_개수형_값과_함께_면_구성이_바뀌면_범위를_줄이지_않고_위상_묶음으로_나눈다() -> None:
+    # 검증점 1100에서 선반 수가 3이 된다. 경계(1100)를 0.2 안으로 좁혀 양쪽에 샘플을 더한다.
     w = run_upload_bundle(_ShelfModel())["sweeps"][0]
 
-    assert w["range"] == {"min": 400.0, "max": 1000.0}
-    assert [s["value"] for s in w["samples"]] == [400.0, 600.0, 800.0, 1000.0]
-    assert [c["value"] for c in w["checks"]] == [500.0, 700.0, 900.0]
-    assert w["reductions"] == [
-        {
-            "side": "max",
-            "at": 1100.0,
-            "reason": "range_shrunk",
-            "removed_faces": [],
-            "added_faces": [{"body": "Body1", "name": "F2:shelf"}],
-            "removed_edges": [],
-            "added_edges": [],
-            "counts": {"shelves": [2.0, 3.0]},
-        }
-    ]
+    assert w["range"] == {"min": 400.0, "max": 1200.0}
+    assert "reductions" not in w
+    values = [s["value"] for s in w["samples"]]
+    assert values[:4] == [400.0, 600.0, 800.0, 1000.0] and values[-2:] == [1100.0, 1200.0]
+    [edge] = values[4:-2]
+    assert 1099.8 <= edge < 1100.0
+    assert [c["value"] for c in w["checks"]] == [500.0, 700.0, 900.0, 1100.0]
+    [group] = w["groups"]
+    assert group["range"] == {"min": 1100.0, "max": 1200.0}
+    assert group["counts"] == {"shelves": 3.0}
+    # 기준 형상: 묶음 가운데(1150)에 가장 가까운 샘플, 같으면 기본값에 가까운 쪽
+    assert group["anchor"] == 1100.0
+    assert {(f["body"], f["name"]) for f in group["baseline"]["faces"]} >= {("Body1", "F2:shelf")}
+    assert all("triangles" in f for f in group["baseline"]["faces"])
+    assert [p["name"] for p in group["parts"]] == ["상판", "측판"]
+
+
+def test_위상_묶음마다_나머지_파라미터의_단독_스윕을_그_묶음의_기준_형상에서_뽑는다() -> None:
+    model = _ShelfModel()
+    server = FakeServer()
+    run_upload(model, server, lambda _: None)
+
+    [group] = server.uploaded[0]["sweeps"][0]["groups"]
+    [d] = group["sweeps"]
+    assert d["parameter"] == "D"
+    assert [s["value"] for s in d["samples"]] == [200.0, 300.0, 400.0, 500.0, 600.0]
+    # 묶음 안의 단독 스윕은 W를 기준 형상 값(1100)에 둔 형상이다
+    assert all(len(f["points"]) == 81 and f["points"][-1][0] == 1100.0 for s in d["samples"] for f in s["faces"])
+    assert [s["counts"] for s in d["samples"]] == [{"shelves": 3.0}] * 5
+    assert model.values == {"W": 800.0, "D": 400.0, "shelves": 2.0}
+    assert model.expressions["W"] == "800 mm"
+
+
+def test_파라미터_하나의_위상_묶음이_4개를_넘으면_기본값에서_먼_묶음부터_빼고_범위를_줄인다() -> None:
+    class _Bays(_ShelfModel):
+        """칸 수 = floor(W / 220): W 400~1200에서 1·2·3·4·5칸, 기본값 800은 3칸이다."""
+
+        def __init__(self) -> None:
+            super().__init__()
+            self._parameters[2] = replace(self._parameters[2], value=3.0, expression="floor(W / 220 mm)")
+            self._follow()
+
+        def _follow(self) -> None:
+            self.values["shelves"] = float(self.values["W"] // 220)
+
+        def sample_faces(self, grid_n: int) -> list[FaceSample]:
+            faces = FakeModel.sample_faces(self, grid_n)
+            return faces + [replace(faces[0], name=f"F2:bay{k}") for k in range(int(self.values["shelves"]))]
+
+    w = run_upload_bundle(_Bays())["sweeps"][0]
+
+    # 기본값에서 가장 먼 1칸 묶음(400)을 빼서 묶음이 4개(기본 묶음 포함)가 된다
+    assert [g["counts"] for g in w["groups"]] == [{"shelves": 2.0}, {"shelves": 4.0}, {"shelves": 5.0}]
+    # 1칸·2칸 경계는 440이다(440은 2칸)
+    assert 440.0 <= w["range"]["min"] <= 440.2 and w["range"]["max"] == 1200.0
+    [reduction] = w["reductions"]
+    # 뺀 묶음에서 기본값에 가장 가까운 점: 1칸·2칸 경계 바로 바깥
+    assert reduction["side"] == "min" and 439.8 <= reduction["at"] < 440.0
+    assert reduction["reason"] == "topology_group_limit"
+    assert reduction["counts"] == {"shelves": [2.0, 1.0]}
+    assert all(s["value"] >= w["range"]["min"] for s in w["samples"] + w["checks"])
 
 
 def test_개수형_값이_그대로인데_면_구성이_바뀌면_모델링_오류_의심으로_범위를_줄인다() -> None:
@@ -449,3 +496,58 @@ def test_범위를_줄인_업로드_묶음도_스키마를_통과한다() -> Non
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
 
     jsonschema.validate(run_upload_bundle(_ShelfModel(count_user=True)), schema)
+
+
+class _Shelves(_ShelfModel):
+    """선반 수를 W로 정하는 모델. 선반마다 면이 하나씩 있어 선반 수마다 면 구성이 다르다."""
+
+    def __init__(self, shelves: Callable[[float], float]) -> None:
+        self._shelves = shelves
+        super().__init__()
+        self._parameters[2] = replace(self._parameters[2], value=shelves(800.0))
+        self._follow()
+
+    def _follow(self) -> None:
+        self.values["shelves"] = self._shelves(self.values["W"])
+
+    def sample_faces(self, grid_n: int) -> list[FaceSample]:
+        faces = FakeModel.sample_faces(self, grid_n)
+        return faces + [replace(faces[0], name=f"F2:shelf{k}") for k in range(int(self.values["shelves"]))]
+
+
+def test_성긴_샘플_사이에_숨은_위상_묶음도_경계를_좁히며_찾아_나눈다() -> None:
+    # 선반 수가 1050에서 3, 1080에서 4가 된다. 성긴 점(1000, 검증점 1100)에는 3이 보이지 않는다.
+    w = run_upload_bundle(_Shelves(lambda v: 2.0 if v < 1050 else 3.0 if v < 1080 else 4.0))["sweeps"][0]
+
+    assert [g["counts"] for g in w["groups"]] == [{"shelves": 3.0}, {"shelves": 4.0}]
+    three, four = w["groups"]
+    assert 1049.8 <= three["range"]["min"] <= 1050.2 and 1079.8 <= three["range"]["max"] < 1080.0
+    assert 1080.0 <= four["range"]["min"] <= 1080.2 and four["range"]["max"] == 1200.0
+
+
+def test_위상_경계_바로_뒤에서_모델링_오류가_의심되면_샘플이_하나뿐인_묶음을_만들지_않고_경계_앞에서_줄인다() -> None:
+    class _LostAfter(_ShelfModel):
+        """1100에서 선반이 3이 되고, 1150부터는 선반 수와 상관없이 면 하나가 사라진다."""
+
+        def sample_faces(self, grid_n: int) -> list[FaceSample]:
+            faces = super().sample_faces(grid_n)
+            return faces[1:] if self.values["W"] >= 1150 else faces
+
+    w = run_upload_bundle(_LostAfter())["sweeps"][0]
+
+    assert "groups" not in w
+    assert 1099.8 <= w["range"]["max"] < 1100.0
+    [reduction] = w["reductions"]
+    assert (reduction["side"], reduction["at"], reduction["reason"]) == ("max", 1100.0, "range_shrunk")
+    assert reduction["counts"] == {"shelves": [2.0, 3.0]}
+
+
+def test_경계를_좁히다_재계산이_실패하면_거기서_멈추고_경계를_안쪽으로_당기지_않는다() -> None:
+    model = _ShelfModel()
+    model._failing = {"W": {1050.0}}
+
+    w = run_upload_bundle(model)["sweeps"][0]
+
+    [group] = w["groups"]
+    assert group["range"]["min"] == 1100.0
+    assert max(s["value"] for s in w["samples"] if s["value"] < 1100.0) == 1000.0

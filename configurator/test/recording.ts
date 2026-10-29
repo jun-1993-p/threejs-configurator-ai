@@ -113,5 +113,18 @@ export const gridDepthChecks: CrossSample[] = JSON.parse(readFileSync(new URL("d
 /** 서로 영향이 없는 세 슬라이더: 전체 폭·전체 높이·전체 깊이 */
 export const threeSpec: Spec = { ...widthHeightSpec, sliders: [...widthHeightSpec.sliders, depthSpec.sliders[0]] };
 
+/**
+ * 칸막이 선반 합성 녹화본(solidcraft-test/shelf.sc). 칸 수 bays = floor(전체 폭 / 400) + 1이라 전체 폭 800·1200에서
+ * 칸막이 바디가 하나씩 늘어나고, 애드인이 전체 폭 스윕을 위상 묶음 셋(2·3·4칸)으로 나눴다.
+ */
+export const shelfRecording: UploadBundle = JSON.parse(readFileSync(new URL("shelf.json", fixtures), "utf-8"));
+export const shelfSpec: Spec = JSON.parse(readFileSync(new URL("shelf.spec.json", fixtures), "utf-8"));
+
+/** 칸막이 선반 전체 폭 × 전체 깊이 교차 검증 샘플. 2칸(600, 250)·3칸(1000, 350)·4칸(1300, 350) 묶음에 하나씩이다. */
+export const shelfCrossChecks: CrossSample[] = JSON.parse(readFileSync(new URL("shelf.cross-checks.json", fixtures), "utf-8")).samples;
+
 /** threeSpec의 세 쌍 모서리 조합 12개에서 녹화한 교차 검증 샘플 */
 export const crossThree: CrossSample[] = JSON.parse(readFileSync(new URL("drawer.cross-three.json", fixtures), "utf-8")).samples;
+
+/** 칸막이 선반 명세(shelfSpec) 범위의 모서리 조합 4개(전체 폭 500·1300 × 전체 깊이 200·400). 2칸·4칸 묶음에 걸친다. */
+export const shelfCrossCorners: CrossSample[] = JSON.parse(readFileSync(new URL("shelf.cross-corners.json", fixtures), "utf-8")).samples;

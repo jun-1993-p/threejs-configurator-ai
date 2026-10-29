@@ -42,3 +42,41 @@ test("스윕 데이터에는 명세의 슬라이더가 쓰는 단독 스윕만 �
   const sweeps: SweepData = JSON.parse(readFileSync(join(out, "sweeps.json"), "utf-8"));
   assert.deepEqual(sweeps.sweeps.map((s) => s.parameter), ["body_w"]);
 });
+
+// 위상 묶음(ADR-0005): 칸막이 선반 합성 녹화본
+const shelfRecording: SweepData = JSON.parse(readFileSync(new URL("shelf.json", fixtures), "utf-8"));
+const shelfSpec: Spec = JSON.parse(readFileSync(new URL("shelf.spec.json", fixtures), "utf-8"));
+const shelfOut = mkdtempSync(join(tmpdir(), "configurator-shelf-"));
+await writeProduct(shelfSpec, shelfRecording, shelfOut);
+
+test("위상 묶음은 명세에 적히지 않고 스윕 데이터에 담기며, 묶음 안 단독 스윕도 명세의 슬라이더 것만 남는다", () => {
+  const specText = readFileSync(join(shelfOut, "spec.json"), "utf-8");
+  assert.doesNotMatch(specText, /groups|anchor|bays/);
+  const sweeps: SweepData = JSON.parse(readFileSync(join(shelfOut, "sweeps.json"), "utf-8"));
+  const width = sweeps.sweeps.find((s) => s.parameter === "shelf_w")!;
+  assert.deepEqual(width.groups!.map((g) => g.counts.bays), [2, 4]);
+  for (const group of width.groups!) assert.deepEqual(group.sweeps.map((s) => s.parameter), ["shelf_d"]);
+  assert.equal(sweeps.sweeps.find((s) => s.parameter === "shelf_d")!.groups, undefined);
+});
+
+test("슬라이더 범위가 닿지 않는 위상 묶음은 스윕 데이터에서 뺀다", async () => {
+  const narrow = { ...shelfSpec, sliders: [{ ...shelfSpec.sliders[0], max: 1100 }, shelfSpec.sliders[1]] };
+  const dir = mkdtempSync(join(tmpdir(), "configurator-shelf-"));
+  await writeProduct(narrow, shelfRecording, dir);
+
+  const sweeps: SweepData = JSON.parse(readFileSync(join(dir, "sweeps.json"), "utf-8"));
+  assert.deepEqual(sweeps.sweeps.find((s) => s.parameter === "shelf_w")!.groups!.map((g) => g.counts.bays), [2]);
+});
+
+test("번들 안의 엔진은 위상 묶음을 넘나들어도 Node 엔진과 같은 형상을 낸다", () => {
+  const context = vm.createContext({});
+  vm.runInContext(readFileSync(join(shelfOut, "configurator.js"), "utf-8"), context);
+  const shipped = vm.runInContext("Configurator", context);
+  const bundled = shipped.createMorph(shelfSpec, JSON.parse(readFileSync(join(shelfOut, "sweeps.json"), "utf-8")));
+  const local = createMorph(shelfSpec, shelfRecording);
+  for (const values of [{ shelf_w: 600 }, { shelf_w: 1000, shelf_d: 250 }, { shelf_w: 1300, shelf_d: 350 }] as Record<string, number>[]) {
+    const [a, b] = [bundled.shape(values), local.shape(values)];
+    assert.deepEqual(Array.from(a.triangles), Array.from(b.triangles), JSON.stringify(values));
+    assert.deepEqual(Array.from(a.positions), Array.from(b.positions), JSON.stringify(values));
+  }
+});

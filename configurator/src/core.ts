@@ -2,7 +2,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
-import { createMorph, type Spec, type SweepData } from "./engine.ts";
+import { createMorph, type MorphShape, type Spec, type SweepData } from "./engine.ts";
 
 // 검증기가 구성기와 같은 엔진을 쓰도록 번들 전역(Configurator)으로도 내보낸다
 export { createMorph };
@@ -49,28 +49,40 @@ export function mount(container: HTMLElement, spec: Spec, sweeps: SweepData): Co
   scene.add(sun);
 
   // 부품마다 메쉬 하나. 꼭짓점 위치는 모든 부품이 한 버퍼를 같이 쓴다.
-  const position = new THREE.BufferAttribute(new Float32Array(morph.positions(values)), 3);
-  position.setUsage(THREE.DynamicDrawUsage);
-  const geometries: THREE.BufferGeometry[] = [];
-  const parts = [...new Set(morph.faces.map((f) => f.part))];
-  const partOfVertex = new Uint32Array(position.count);
-  for (const face of morph.faces) partOfVertex.fill(parts.indexOf(face.part), face.start, face.start + face.count);
-  parts.forEach((_, n) => {
-    const index: number[] = [];
-    const t = morph.triangles;
-    for (let i = 0; i < t.length; i += 3) if (partOfVertex[t[i]] === n) index.push(t[i], t[i + 1], t[i + 2]);
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", position);
-    geometry.setIndex(index);
-    geometry.computeVertexNormals();
-    geometries.push(geometry);
-    const material = new THREE.MeshStandardMaterial({
-      color: PART_COLORS[n % PART_COLORS.length],
-      roughness: 0.8,
-      side: THREE.DoubleSide,
+  // 위상 묶음이 바뀌면(칸막이가 생기거나 사라지면) 페이드 없이 메쉬를 새 면 구성으로 바로 바꾼다(ADR-0005).
+  // 부품 색은 부품 이름마다 처음 본 순서로 정해, 묶음이 바뀌어도 같은 부품은 같은 색이다.
+  const partColors = new Map<string, number>();
+  let shown: { faces: MorphShape["faces"]; position: THREE.BufferAttribute; meshes: THREE.Mesh[] };
+  const show = (shape: MorphShape) => {
+    const position = new THREE.BufferAttribute(new Float32Array(shape.positions), 3);
+    position.setUsage(THREE.DynamicDrawUsage);
+    const parts = [...new Set(shape.faces.map((f) => f.part))];
+    const partOfVertex = new Uint32Array(position.count);
+    for (const face of shape.faces) partOfVertex.fill(parts.indexOf(face.part), face.start, face.start + face.count);
+    const meshes = parts.map((part, n) => {
+      const index: number[] = [];
+      const t = shape.triangles;
+      for (let i = 0; i < t.length; i += 3) if (partOfVertex[t[i]] === n) index.push(t[i], t[i + 1], t[i + 2]);
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", position);
+      geometry.setIndex(index);
+      geometry.computeVertexNormals();
+      if (!partColors.has(part)) partColors.set(part, PART_COLORS[partColors.size % PART_COLORS.length]);
+      const material = new THREE.MeshStandardMaterial({ color: partColors.get(part), roughness: 0.8, side: THREE.DoubleSide });
+      return new THREE.Mesh(geometry, material);
     });
-    scene.add(new THREE.Mesh(geometry, material));
-  });
+    if (shown) {
+      for (const mesh of shown.meshes) {
+        scene.remove(mesh);
+        mesh.geometry.dispose();
+        (mesh.material as THREE.Material).dispose();
+      }
+    }
+    scene.add(...meshes);
+    shown = { faces: shape.faces, position, meshes };
+  };
+  show(morph.shape(values));
+  const geometries = shown!.meshes.map((m) => m.geometry);
 
   // 카메라는 기본 형상을 정면에서 비스듬히 위로 본다
   const up = axisVector(spec.axes.H);
@@ -113,9 +125,14 @@ export function mount(container: HTMLElement, spec: Spec, sweeps: SweepData): Co
   observer.observe(view);
 
   const update = () => {
-    (position.array as Float32Array).set(morph.positions(values));
-    position.needsUpdate = true;
-    for (const g of geometries) g.computeVertexNormals();
+    const shape = morph.shape(values);
+    if (shape.faces !== shown.faces) {
+      show(shape);
+    } else {
+      (shown.position.array as Float32Array).set(shape.positions);
+      shown.position.needsUpdate = true;
+      for (const mesh of shown.meshes) mesh.geometry.computeVertexNormals();
+    }
     render();
   };
 

@@ -1,0 +1,27 @@
+{
+  "product": "칸막이 선반",
+  "front": "-Y",
+  "axes": { "W": "X", "D": "Y", "H": "Z" },
+  "sliders": [
+    {
+      "id": "shelf_w",
+      "name": "전체 폭",
+      "axis": "W",
+      "min": 500, "max": 1300, "default": 900, "step": 10, "unit": "mm",
+      "source": "치수규칙/선반/폭",
+      "children": [],
+      "affects": { "shape": ["Carcass"], "move": ["Divider", "Body1"] }
+    },
+    {
+      "id": "shelf_d",
+      "name": "전체 깊이",
+      "axis": "D",
+      "min": 200, "max": 400, "default": 300, "step": 10, "unit": "mm",
+      "source": "치수규칙/선반/깊이",
+      "children": [],
+      "affects": { "shape": ["Carcass", "Divider", "Body1"], "move": [] }
+    }
+  ],
+  "thickness": [],
+  "fixed": []
+}

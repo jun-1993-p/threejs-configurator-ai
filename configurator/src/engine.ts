@@ -1,5 +1,6 @@
 // 변형 엔진: 단독 스윕 샘플 사이의 꼭짓점 이동량을 슬라이더 값으로 섞는다(ADR-0002, 0004).
 // 덧셈이 틀리는 슬라이더 쌍은 애드인이 뽑은 3×3 격자로 보강해 격자 보간을 더한다(ADR-0008).
+// 슬라이더가 위상 경계를 넘으면 그 위상 묶음의 기준 형상과 단독 스윕으로 바꿔 섞는다. 경계에서는 페이드 없이 바로 바뀐다(ADR-0005).
 // 구성기(브라우저)와 검증기(Node)가 이 파일을 그대로 같이 쓴다. DOM이나 three.js에 기대지 않는다.
 
 export type Vector = [number, number, number];
@@ -59,14 +60,34 @@ export interface GridSweep {
   samples: CrossSample[];
 }
 
+type Part = { name: string; faces: number[] };
+type Baseline = { faces: (SampleFace & { triangles: Triangle[] })[] };
+
+/** 단독 스윕(업로드 묶음 스키마의 sweep). groups는 기본 묶음 밖의 위상 묶음이다. */
+export interface Sweep {
+  parameter: string;
+  samples: { value: number; status: "ok" | "recompute_failed"; faces: SampleFace[] }[];
+  groups?: TopologyGroup[];
+}
+
+/**
+ * 위상 묶음(ADR-0005): 이 파라미터 값이 range 안이면 면 구성이 baseline과 같다. sweeps는 이 파라미터를 anchor에 두고
+ * 뽑은 나머지 파라미터의 단독 스윕이다. 명세가 아니라 스윕 데이터에 담긴다.
+ */
+export interface TopologyGroup {
+  range: { min: number; max: number };
+  anchor: number;
+  counts: Record<string, number>;
+  parts: Part[];
+  baseline: Baseline;
+  sweeps: Omit<Sweep, "groups">[];
+}
+
 /** 스윕 데이터. 업로드 묶음(schema/upload-bundle.schema.json)에서 엔진이 쓰는 부분과, 검증 중에 받은 격자 보강이다. */
 export interface SweepData {
-  parts: { name: string; faces: number[] }[];
-  baseline: { faces: (SampleFace & { triangles: Triangle[] })[] };
-  sweeps: {
-    parameter: string;
-    samples: { value: number; status: "ok" | "recompute_failed"; faces: SampleFace[] }[];
-  }[];
+  parts: Part[];
+  baseline: Baseline;
+  sweeps: Sweep[];
   grids?: GridSweep[];
 }
 
@@ -80,11 +101,25 @@ export interface MorphFace {
   count: number;
 }
 
-export interface Morph {
+/** 위상 묶음 하나의 면 구성. 같은 묶음이면 슬라이더 값이 달라도 같은 객체다. */
+export interface Topology {
   faces: MorphFace[];
-  /** 꼭짓점 번호 세 개씩. 기본 형상에서 정한 연결이며 슬라이더 값과 무관하다. */
+  /** 꼭짓점 번호 세 개씩. 묶음의 기준 형상에서 정한 연결이다. */
   triangles: Uint32Array;
-  /** 슬라이더 값(빠진 슬라이더는 명세의 default)에 맞는 꼭짓점 위치, x y z 순으로 이어 붙임 */
+  /** 묶음 기준 형상의 꼭짓점 위치 */
+  base: Float64Array;
+}
+
+/** 슬라이더 값에 맞는 형상: 그 값이 든 위상 묶음의 면 구성과 꼭짓점 위치(x y z 순으로 이어 붙임) */
+export interface MorphShape extends Topology {
+  positions: Float64Array;
+}
+
+/** faces·triangles·base는 기본 묶음(기본 형상)의 것이다. */
+export interface Morph extends Topology {
+  /** 슬라이더 값(빠진 슬라이더는 명세의 default)에 맞는 형상 */
+  shape(values: Record<string, number>): MorphShape;
+  /** shape(values).positions */
   positions(values: Record<string, number>): Float64Array;
 }
 
@@ -92,7 +127,7 @@ interface Track {
   id: string;
   defaultValue: number;
   values: number[];
-  /** values와 같은 순서의 샘플별 꼭짓점 이동량(기본 형상 기준) */
+  /** values와 같은 순서의 샘플별 꼭짓점 이동량(위상 묶음 기준 형상 기준) */
   deltas: Float64Array[];
 }
 
@@ -109,10 +144,26 @@ interface GridTrack {
 /** 샘플 사이에서 면을 짝짓는 키: (바디, 면 이름) */
 export const faceKey = (f: { body: string; name: string }) => `${f.body}/${f.name}`;
 
-export function createMorph(spec: Spec, data: SweepData): Morph {
-  const baseline = data.baseline.faces;
+/** 위상 묶음 하나의 엔진: 기준 형상과 슬라이더마다의 단독 스윕 이동량, 격자 보강 */
+interface GroupMorph extends Topology {
+  tracks: Track[];
+  grids: GridTrack[];
+}
+
+/**
+ * 위상 묶음 하나를 만든다. samplesOf는 슬라이더의 이 묶음 안 단독 스윕 샘플이고, name은 오류에 붙이는 묶음 이름이다.
+ * 이동량은 이 묶음의 기준 형상(baseline)에서 잰다.
+ */
+function createGroupMorph(
+  spec: Spec,
+  parts: Part[],
+  baseline: Baseline["faces"],
+  samplesOf: (slider: Slider) => Sweep["samples"] | undefined,
+  name: string,
+  gridSweeps: GridSweep[],
+): GroupMorph {
   const partOf = new Map<number, string>();
-  for (const part of data.parts) for (const i of part.faces) partOf.set(i, part.name);
+  for (const part of parts) for (const i of part.faces) partOf.set(i, part.name);
 
   const faces: MorphFace[] = [];
   const base: number[] = [];
@@ -126,7 +177,7 @@ export function createMorph(spec: Spec, data: SweepData): Morph {
   const basePositions = Float64Array.from(base);
   const faceIndex = new Map(baseline.map((f, i) => [faceKey(f), i]));
 
-  /** 샘플 형상의 기본 형상 기준 이동량. 면 구성이 기본 형상과 다르면 undefined다. */
+  /** 샘플 형상의 기준 형상 기준 이동량. 면 구성이 기준 형상과 다르면 undefined다. */
   const deltaOf = (sampleFaces: SampleFace[]): Float64Array | undefined => {
     const delta = new Float64Array(basePositions.length);
     if (sampleFaces.length !== baseline.length) return undefined;
@@ -142,17 +193,17 @@ export function createMorph(spec: Spec, data: SweepData): Morph {
   };
 
   const tracks: Track[] = spec.sliders.map((slider) => {
-    const sweep = data.sweeps.find((s) => s.parameter === slider.id);
-    if (!sweep) throw new Error(`슬라이더 ${slider.id}: 스윕 데이터에 이 파라미터의 단독 스윕이 없습니다`);
-    const samples = sweep.samples.filter((s) => s.status === "ok").sort((a, b) => a.value - b.value);
-    if (samples.length < 2) throw new Error(`슬라이더 ${slider.id}: 재계산에 성공한 샘플이 2개보다 적습니다`);
+    const found = samplesOf(slider);
+    if (!found) throw new Error(`슬라이더 ${slider.id}: ${name}에 이 파라미터의 단독 스윕이 없습니다`);
+    const samples = found.filter((s) => s.status === "ok").sort((a, b) => a.value - b.value);
+    if (samples.length < 2) throw new Error(`슬라이더 ${slider.id}: ${name}에서 재계산에 성공한 샘플이 2개보다 적습니다`);
     return {
       id: slider.id,
       defaultValue: slider.default,
       values: samples.map((s) => s.value),
       deltas: samples.map((s) => {
         const delta = deltaOf(s.faces);
-        if (!delta) throw topologyChanged(slider.id, s.value);
+        if (!delta) throw new Error(`슬라이더 ${slider.id}: 값 ${s.value}의 샘플이 ${name}의 기준 형상과 면 구성이 다릅니다`);
         return delta;
       }),
     };
@@ -161,7 +212,7 @@ export function createMorph(spec: Spec, data: SweepData): Morph {
   // 명세의 두 슬라이더를 잇는 격자만 쓴다. 격자 값이 슬라이더 범위와 맞는지는 엔진이 보지 않는다.
   // 범위나 기본값이 바뀐 명세에는 그 격자를 넣지 않는 것이 부르는 쪽(실행기)의 몫이다.
   const trackOf = new Map(tracks.map((t) => [t.id, t]));
-  const grids: GridTrack[] = (data.grids ?? []).flatMap(({ parameters, samples }) => {
+  const grids: GridTrack[] = gridSweeps.flatMap(({ parameters, samples }) => {
     const pair = parameters.map((id) => trackOf.get(id));
     if (!pair[0] || !pair[1]) return [];
     const [a, b] = pair as [Track, Track];
@@ -190,16 +241,82 @@ export function createMorph(spec: Spec, data: SweepData): Morph {
     return [{ ids: [a.id, b.id], defaults: [a.defaultValue, b.defaultValue], values, residuals }];
   });
 
-  return {
-    faces,
-    triangles: Uint32Array.from(triangles),
-    positions(values) {
-      const out = Float64Array.from(basePositions);
-      for (const track of tracks) addDelta(out, track, values[track.id] ?? track.defaultValue);
-      for (const grid of grids) addResidual(out, grid, grid.ids.map((id, k) => values[id] ?? grid.defaults[k]) as [number, number]);
-      return out;
-    },
+  return { faces, triangles: Uint32Array.from(triangles), base: basePositions, tracks, grids };
+}
+
+/** 위상 묶음이 있는 슬라이더에서 묶음 하나가 덮는 값: 그 묶음에 든 샘플 값의 최솟값·최댓값 */
+interface GroupSpan {
+  morph: GroupMorph;
+  min: number;
+  max: number;
+}
+
+/** 슬라이더 범위가 위상 묶음에 닿는지. 닿지 않는 묶음은 결과물에 담지 않고 검증하지 않는다. */
+export const reaches = (slider: Slider, group: { range: { min: number; max: number } }) =>
+  group.range.max >= slider.min && group.range.min <= slider.max;
+
+export function createMorph(spec: Spec, data: SweepData): Morph {
+  const sweepOf = (id: string) => data.sweeps.find((s) => s.parameter === id);
+  const groupsOf = (id: string) => sweepOf(id)?.groups ?? [];
+  const inGroup = (g: TopologyGroup, value: number) => g.range.min <= value && value <= g.range.max;
+
+  // 기본 묶음: 위상 묶음에 든 샘플은 뺀다. 격자 보강은 기본 묶음에서만 쓴다(격자 샘플은 기본 형상의 면 구성이다).
+  const main = createGroupMorph(
+    spec,
+    data.parts,
+    data.baseline.faces,
+    (slider) => sweepOf(slider.id)?.samples.filter((s) => !groupsOf(slider.id).some((g) => inGroup(g, s.value))),
+    "스윕 데이터",
+    data.grids ?? [],
+  );
+
+  // 위상 묶음이 있는 슬라이더마다 묶음별 범위. 그 슬라이더가 묶음 안이면 나머지 슬라이더는 묶음 안의 단독 스윕으로 섞는다.
+  const grouped = spec.sliders.flatMap((slider) => {
+    const groups = groupsOf(slider.id);
+    if (groups.length === 0) return [];
+    const own = main.tracks.find((t) => t.id === slider.id)!.values;
+    const spans: GroupSpan[] = [{ morph: main, min: own[0], max: own[own.length - 1] }];
+    for (const group of groups) {
+      const morph = createGroupMorph(
+        spec,
+        group.parts,
+        group.baseline.faces,
+        (other) =>
+          other.id === slider.id
+            ? sweepOf(slider.id)!.samples.filter((s) => inGroup(group, s.value))
+            : group.sweeps.find((s) => s.parameter === other.id)?.samples,
+        `${slider.id} ${group.range.min}~${group.range.max} 위상 묶음`,
+        [],
+      );
+      spans.push({ morph, min: group.range.min, max: group.range.max });
+    }
+    return [{ id: slider.id, defaultValue: slider.default, spans }];
+  });
+
+  /**
+   * 값이 든 위상 묶음. 묶음 사이 틈(경계 양쪽 샘플 사이)에서는 가까운 쪽이므로 틈 가운데가 경계다.
+   * 여러 슬라이더가 저마다 기본 묶음 밖이면 명세 순서로 앞 슬라이더의 묶음을 따르고, 뒤 슬라이더는 그 묶음 안 단독 스윕의
+   * 범위 끝에 붙는다. 묶음 안 단독 스윕은 위상이 바뀌는 앞에서 범위가 줄어 있고, 그 너머의 명세는 범위 검증이 거른다.
+   */
+  const groupFor = (values: Record<string, number>): GroupMorph => {
+    for (const { id, defaultValue, spans } of grouped) {
+      const value = values[id] ?? defaultValue;
+      const gap = (span: GroupSpan) => Math.max(span.min - value, value - span.max, 0);
+      const nearest = spans.reduce((best, span) => (gap(span) < gap(best) ? span : best));
+      if (nearest.morph !== main) return nearest.morph;
+    }
+    return main;
   };
+
+  const shape = (values: Record<string, number>): MorphShape => {
+    const morph = groupFor(values);
+    const out = Float64Array.from(morph.base);
+    for (const track of morph.tracks) addDelta(out, track, values[track.id] ?? track.defaultValue);
+    for (const grid of morph.grids) addResidual(out, grid, grid.ids.map((id, k) => values[id] ?? grid.defaults[k]) as [number, number]);
+    return { faces: morph.faces, triangles: morph.triangles, base: morph.base, positions: out };
+  };
+
+  return { faces: main.faces, triangles: main.triangles, base: main.base, shape, positions: (values) => shape(values).positions };
 }
 
 /** 값을 감싸는 두 샘플 번호와 그 사이 비율. 샘플 범위 밖의 값은 끝 샘플에 붙인다. */
@@ -227,9 +344,4 @@ function addResidual(out: Float64Array, grid: GridTrack, [va, vb]: [number, numb
   const [r00, r01, r10, r11] = [r[u.lo][v.lo], r[u.lo][v.hi], r[u.hi][v.lo], r[u.hi][v.hi]];
   const [w00, w01, w10, w11] = [(1 - u.t) * (1 - v.t), (1 - u.t) * v.t, u.t * (1 - v.t), u.t * v.t];
   for (let i = 0; i < out.length; i++) out[i] += r00[i] * w00 + r01[i] * w01 + r10[i] * w10 + r11[i] * w11;
-}
-
-function topologyChanged(id: string, value: number) {
-  // 위상 묶음(ADR-0005)은 티켓 11에서 다룬다. 범위 끝의 위상 변화는 애드인이 범위를 줄여 샘플에서 뺀다(티켓 10). 그 전까지는 면 구성이 다른 샘플을 받지 않는다.
-  return new Error(`슬라이더 ${id}: 값 ${value}의 샘플이 기본 형상과 면 구성이 다릅니다(위상 묶음은 아직 지원하지 않음)`);
 }

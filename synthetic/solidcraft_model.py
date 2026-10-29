@@ -4,7 +4,7 @@ solidcraft-cli는 호출마다 새로 설계를 연다. 그래서 바꾼 파라�
 처음부터 다시 적용한 명령 스크립트를 돌린다. 원본 설계 파일은 저장하지 않으므로 바뀌지 않는다.
 
 면의 점은 경계 맞춤 격자다(ADR-0016, 티켓 25). 처음 본 형상(기본 형상)에서 면마다 배치를 만들어 두고,
-이후 샘플에서는 같은 이름의 면에 그 배치를 그대로 놓는다.
+이후 샘플에서는 이름과 경계 모서리가 같은 면에 그 배치를 그대로 놓는다. 바디는 형상마다 다시 읽는다(티켓 11).
 """
 
 import math
@@ -91,16 +91,15 @@ class SolidCraftModel:
             )
             for p in listed["parameters"]
         ]
-        self._bodies = [b["name"] for b in measured["bodies"]]
         self._diagonal = {b["name"]: math.dist(b["bbox"]["min"], b["bbox"]["max"]) for b in measured["bodies"]}
-        self._layouts: dict[tuple[str, str], FaceLayout] = {}
+        self._layouts: dict[tuple[str, str, frozenset[str]], FaceLayout] = {}
 
     def parameters(self) -> list[ParameterInfo]:
         return list(self._parameters)
 
     def bodies(self) -> list[BodyInfo]:
-        # SolidCraft 합성 녹화본은 컴포넌트 없이 바디 단위 부품만 쓴다
-        return [BodyInfo(name=b, component=None) for b in self._bodies]
+        """지금 형상의 바디. SolidCraft 합성 녹화본은 컴포넌트 없이 바디 단위 부품만 쓴다."""
+        return [BodyInfo(name=b, component=None) for b in self._state().get("body_names", [])]
 
     def set_parameter(self, name: str, value: float) -> bool:
         unit = next(p.unit for p in self._parameters if p.name == name)
@@ -126,30 +125,35 @@ class SolidCraftModel:
         key = tuple(self._overrides.items())
         if self._cache is not None and self._cache[0] == key:
             return self._cache[1]
-        commands: list[dict[str, Any]] = [
+        changes: list[dict[str, Any]] = [
             {"command": "parameters.change", "params": {"name": n, "expression": e}} for n, e in key
         ]
-        commands.append(
-            {"command": "document.inspect", "params": {"sketches": False, "measure": False, "joints": False}}
-        )
-        for body in self._bodies:
-            commands.append({"command": "model.faces", "params": {"body": body}})
-            commands.append({"command": "model.edges", "params": {"body": body}})
-        commands.append({"command": "inspect.measure", "params": {}})
         try:
-            results = self._run(commands)
+            # 바디는 파라미터에 따라 생기거나 사라진다(패턴 개수). 먼저 바디를 알아낸 뒤 면과 모서리를 묻는다.
+            *results, inspected, measured = self._run(
+                changes
+                + [
+                    {"command": "document.inspect", "params": {"sketches": False, "measure": False, "joints": False}},
+                    {"command": "inspect.measure", "params": {}},
+                ]
+            )
+            bodies = [b["name"] for b in measured["bodies"]]
+            topology = [{"command": f"model.{kind}", "params": {"body": b}} for b in bodies for kind in ("faces", "edges")]
+            per_body = self._run(changes + topology)[len(key) :]
         except RuntimeError:
-            # 바디가 사라지는 등 명령 자체가 실패한 경우
+            # 명령 자체가 실패한 경우
             state: dict[str, Any] = {"ok": False}
         else:
-            changes, inspected = results[: len(key)], results[len(key)]
-            per_body = results[len(key) + 1 : -1]
-            ok = not any(c["errors"] for c in changes) and not any(f["error"] for f in inspected["timeline"])
+            ok = not any(c["errors"] for c in results) and not any(f["error"] for f in inspected["timeline"])
+            for b in measured["bodies"]:
+                # 점 간격은 바디를 처음 본 형상의 대각선으로 정해 모든 샘플에 같게 쓴다
+                self._diagonal.setdefault(b["name"], math.dist(b["bbox"]["min"], b["bbox"]["max"]))
             state = {
                 "ok": ok,
-                "faces": {per_body[2 * i]["body"]: per_body[2 * i]["faces"] for i in range(len(self._bodies))},
-                "edges": {per_body[2 * i + 1]["body"]: per_body[2 * i + 1]["edges"] for i in range(len(self._bodies))},
-                "bodies": results[-1]["bodies"],
+                "body_names": bodies,
+                "faces": {per_body[2 * i]["body"]: per_body[2 * i]["faces"] for i in range(len(bodies))},
+                "edges": {per_body[2 * i + 1]["body"]: per_body[2 * i + 1]["edges"] for i in range(len(bodies))},
+                "bodies": measured["bodies"],
             }
         self._cache = (key, state)
         return state
@@ -163,8 +167,8 @@ class SolidCraftModel:
     def sample_faces(self, grid_n: int) -> list[FaceSample]:
         state = self._state()
         samples = []
-        for body in self._bodies:
-            # 점 간격: 바디 대각선 / (2(n-1)). 기본 형상의 바디 크기로 정해 모든 샘플에 같게 쓴다.
+        for body in state["body_names"]:
+            # 점 간격: 바디 대각선 / (2(n-1)). 바디를 처음 본 형상(보통 기본 형상)의 크기로 정해 모든 샘플에 같게 쓴다.
             spacing = self._diagonal[body] / (2 * (grid_n - 1))
             names = {f["name"] for f in state["faces"][body]}
             edge_pairs = [(edge_faces(e["name"], names), e) for e in state["edges"][body]]
@@ -186,15 +190,12 @@ class SolidCraftModel:
                     geometry = {"type": "plane", "normal": list(surface.normal)}
                 else:
                     raise UnsupportedFaceError(f"{body} 면 {name}: 평면과 원기둥만 다룹니다")
-                # 기본 형상에 없던 면(위상 변화)은 그 샘플의 형상으로 새 배치를 만든다
-                key = (body, name)
+                # 배치는 (바디, 면 이름, 경계 모서리)마다 처음 본 형상에서 만든다. 기본 형상에 없던 면이나
+                # 경계 모서리가 달라진 면(위상 변화)도 같은 위상 묶음의 샘플끼리는 같은 배치로 놓인다(ADR-0005).
+                key = (body, name, frozenset(bound))
                 if key not in self._layouts:
                     self._layouts[key] = build_layout(surface, bound, spacing)
                 layout = self._layouts[key]
-                if not {spec.edge for spec in layout.specs if spec.kind == "boundary"} <= bound.keys():
-                    # 이름은 같아도 경계 모서리가 달라진 면(위상 변화)은 이 샘플에서만 쓰는 배치로 놓는다.
-                    # 모서리 이름이 바뀌므로 애드인이 면 구성 변화로 보고 범위를 줄일 때 버린다.
-                    layout = build_layout(surface, bound, spacing)
                 samples.append(
                     FaceSample(
                         body=body,
@@ -211,7 +212,7 @@ class SolidCraftModel:
         state = self._state()
         return [
             EdgeSample(body=body, name=e["name"], start=_point(e["start"]), mid=_point(e["mid"]), end=_point(e["end"]))
-            for body in self._bodies
+            for body in state["body_names"]
             for e in state["edges"][body]
         ]
 
