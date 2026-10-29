@@ -3,9 +3,10 @@
 import type { Spec, SweepData } from "../src/engine.ts";
 import { assembleProduct, type ProductFiles } from "./assemble.ts";
 import type { Feedback } from "./feedback.ts";
-import { FRONTS, checkCandidates, checkSpec, checkUploadBundle, specReferenceChecker, styleChoiceChecker, type Check } from "./schemas.ts";
+import { FRONTS, checkCandidates, checkSampleResponse, checkSpec, checkUploadBundle, specReferenceChecker, styleChoiceChecker, type Check } from "./schemas.ts";
 import type { UploadBundle } from "./upload-bundle.ts";
 import { verifyAxisResponse } from "./verify-axis.ts";
+import { crossCheckValues, verifyCross, type CrossSample } from "./verify-cross.ts";
 import { verifyNumeric } from "./verify-numeric.ts";
 
 /** 단계 이름. 순서는 runPipeline의 코드가 정한다. */
@@ -78,9 +79,25 @@ export interface SampleRequest {
   values: Record<string, number>[];
 }
 
+/**
+ * 추가 샘플 요청의 결과. 응답은 검사 전이라 unknown이고, 형식은 업로드 묶음 스키마의 sampleResponse다.
+ * 애드인 연결이 끊겨 있으면 disconnected, 애드인이 샘플을 뽑지 못했으면 그 이유와 함께 failed다.
+ */
+export type SampleAnswer =
+  | { status: "answered"; response: unknown }
+  | { status: "disconnected" }
+  | { status: "failed"; reason: string };
+
+/** Fusion 연결 포트: 업로드부터 최종 승인까지 연결된 CAD 애드인(ADR-0013) */
 export interface FusionPort {
-  requestSamples(request: SampleRequest): Promise<unknown>;
+  requestSamples(request: SampleRequest): Promise<SampleAnswer>;
+  /** 애드인이 다시 연결되면 끝난다 */
+  reconnected(): Promise<void>;
 }
+
+/** 애드인 연결이 끊겼을 때와 다시 연결됐을 때 처리 기록에 보이는 상태 */
+export const FUSION_NEEDED = "Fusion 연결 필요";
+export const FUSION_RECONNECTED = "다시 연결됨";
 
 /**
  * AI 모델 포트. 응답은 검사 전이라 unknown이다. 실행기가 JSON Schema로 검사하고,
@@ -141,7 +158,7 @@ class PipelineStop extends Error {
 }
 
 export async function runPipeline({ bundle, intake, human, ports }: PipelineInput): Promise<PipelineResult> {
-  const { ai, store } = ports;
+  const { ai, fusion, store } = ports;
   const log = (stage: Stage, detail?: unknown) =>
     store.appendLog({ product: intake.name, stage, at: new Date().toISOString(), ...(detail === undefined ? {} : { detail }) });
 
@@ -155,6 +172,38 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
       await log(stage, { schemaErrors: errors });
     }
     throw new PipelineStop(stage, `AI 응답이 ${SCHEMA_RETRIES}번 다시 물어도 형식 검사를 통과하지 못했습니다: ${errors.join("; ")}`);
+  }
+
+  /**
+   * 애드인에 추가 샘플을 요청한다. 연결이 끊겨 있으면 실패로 세지 않고 "Fusion 연결 필요"로 기다렸다가 다시 요청한다.
+   * 애드인이 샘플을 뽑지 못했거나 응답이 형식에 맞지 않으면 검증 단계에서 멈춘다.
+   */
+  async function requestSamples(request: SampleRequest): Promise<CrossSample[]> {
+    for (;;) {
+      const answer = await fusion.requestSamples(request);
+      if (answer.status === "answered") {
+        const errors = checkSampleResponse(answer.response);
+        if (errors.length > 0) throw new PipelineStop("verification", `애드인 응답 형식 오류: ${errors.join("; ")}`);
+        const { samples } = answer.response as { samples: CrossSample[] };
+        // 서버도 같은 검사를 하지만, 포트 구현이 서버를 거치지 않을 수도 있어 여기서 한 번 더 본다.
+        if (JSON.stringify(samples.map((s) => s.values)) !== JSON.stringify(request.values)) {
+          throw new PipelineStop("verification", "애드인 응답의 값 묶음이 요청과 다릅니다");
+        }
+        return samples;
+      }
+      if (answer.status === "failed") throw new PipelineStop("verification", `애드인이 추가 샘플을 뽑지 못했습니다: ${answer.reason}`);
+      await log("verification", { fusion: FUSION_NEEDED });
+      await fusion.reconnected();
+      await log("verification", { fusion: FUSION_RECONNECTED });
+    }
+  }
+
+  /** 슬라이더 쌍마다 모서리 조합 교차 검증. 슬라이더가 하나면 요청하지 않는다. */
+  async function verifyCrossChecks(spec: Spec, sweeps: SweepData): Promise<Feedback[]> {
+    const values = crossCheckValues(spec);
+    if (values.length === 0) return [];
+    const samples = await requestSamples({ kind: "cross", values });
+    return verifyCross(spec, sweeps, bundle as UploadBundle, samples);
   }
 
   // 명세의 상품명은 정보 입력에서 가져오고, 슬라이더·부품 이름은 업로드 묶음을 가리킨다(docs/spec-schema.md).
@@ -183,10 +232,12 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
       const files = await assembleProduct(spec, bundle as SweepData);
       await log("assembly");
 
-      // 수치 검증은 결과물에 담긴 스윕 데이터로 잰다. 통과하면 축 반응을 녹화된 단독 스윕으로 본다.
-      // AI 판정(티켓 19)이 뒤에 붙는다.
-      feedback = verifyNumeric(spec, JSON.parse(files["sweeps.json"]), bundle as UploadBundle);
+      // 수치 검증은 결과물에 담긴 스윕 데이터로 잰다. 통과하면 축 반응을 녹화된 단독 스윕으로 보고,
+      // 그것도 통과하면 애드인에 교차 검증 샘플을 받아 슬라이더 덧셈을 본다. AI 판정(티켓 19)이 뒤에 붙는다.
+      const sweeps: SweepData = JSON.parse(files["sweeps.json"]);
+      feedback = verifyNumeric(spec, sweeps, bundle as UploadBundle);
       if (feedback.length === 0) feedback = verifyAxisResponse(spec, bundle as UploadBundle);
+      if (feedback.length === 0) feedback = await verifyCrossChecks(spec, sweeps);
       await log("verification", { attempt, feedback });
       if (feedback.length === 0) return { spec, files };
     }

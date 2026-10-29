@@ -75,6 +75,14 @@ class ServerClient(Protocol):
     def upload(self, bundle: dict[str, Any]) -> str: ...
 
 
+class SampleRequestClient(Protocol):
+    """업로드 뒤 추가 샘플 요청을 주고받는 서버 연결(ADR-0013)."""
+
+    def next_sample_request(self, upload_id: str) -> dict[str, Any] | None: ...
+    def answer_sample_request(self, upload_id: str, request_id: str, response: dict[str, Any]) -> None: ...
+    def fail_sample_request(self, upload_id: str, request_id: str, reason: str) -> None: ...
+
+
 SCHEMA_VERSION = 1
 
 # 경계 맞춤 격자의 밀도 기준(ADR-0016). 점 간격은 어댑터가 이 값으로 정한다.
@@ -146,12 +154,32 @@ def cross_check_sample(model: FusionModel, values: dict[str, float]) -> dict[str
     unknown = [name for name in values if name not in parameters]
     if unknown:
         raise ValueError(f"모델에 없는 파라미터: {', '.join(unknown)}")
-    # 모두 바꾼 뒤에 재계산 결과를 본다. 앞에서 실패해도 나머지를 마저 바꿔야 되돌릴 목록이 맞는다.
-    recomputed = all([model.set_parameter(name, value) for name, value in values.items()])
-    sample = {"values": dict(values), **_shape_or_failure(model, recomputed)}
-    for name in values:
-        model.restore_parameter(parameters[name])
-    return sample
+    try:
+        # 모두 바꾼 뒤에 재계산 결과를 본다. 앞에서 실패해도 나머지를 마저 바꿔야 되돌릴 목록이 맞는다.
+        recomputed = all([model.set_parameter(name, value) for name, value in values.items()])
+        return {"values": dict(values), **_shape_or_failure(model, recomputed)}
+    finally:
+        # 업로드 뒤에도 사용자가 연 모델이므로, 예외가 나도 수식을 되돌린다.
+        for name in values:
+            model.restore_parameter(parameters[name])
+
+
+def serve_sample_request(model: FusionModel, server: SampleRequestClient, upload_id: str) -> bool:
+    """서버가 기다리는 추가 샘플 요청 하나에 답한다(ADR-0013). 요청이 없으면 False.
+
+    요청은 {id, kind, values: [{파라미터: 값}]}이고, 응답은 값 묶음마다 교차 검증 샘플 형식으로 같은 순서다.
+    샘플을 뽑지 못하면(모델에 없는 파라미터, Fusion API 오류) 답 대신 실패 이유를 알린다. 파이프라인이 끝없이 기다리지 않게 하기 위해서다.
+    """
+    request = server.next_sample_request(upload_id)
+    if request is None:
+        return False
+    try:
+        samples = [cross_check_sample(model, values) for values in request["values"]]
+    except Exception as error:
+        server.fail_sample_request(upload_id, request["id"], f"{type(error).__name__}: {error}")
+        return True
+    server.answer_sample_request(upload_id, request["id"], {"samples": samples})
+    return True
 
 
 def _sweep(model: FusionModel, parameter: ParameterInfo) -> dict[str, Any]:

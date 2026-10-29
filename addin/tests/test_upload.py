@@ -4,7 +4,8 @@ from pathlib import Path
 import jsonschema
 import pytest
 from fakes import FakeModel, FakeServer, FakeMeasuringModel
-from uploader.core import BodyInfo, run_upload, cross_check_sample
+from server.bundle import sample_response_errors
+from uploader.core import BodyInfo, cross_check_sample, run_upload, serve_sample_request
 
 SCHEMA_PATH = Path(__file__).parents[2] / "schema" / "upload-bundle.schema.json"
 
@@ -248,3 +249,57 @@ def test_교차_검증_샘플에_모델에_없는_파라미터가_있으면_아�
         cross_check_sample(model, {"W": 600.0, "H": 500.0})
 
     assert model.set_calls == []
+
+
+def test_업로드_뒤_추가_샘플_요청을_받으면_값_묶음마다_샘플과_같은_형식으로_답한다() -> None:
+    model = FakeModel()
+    server = FakeServer(requests=[{"id": "r1", "kind": "cross", "values": [{"W": 600.0, "D": 250.0}, {"W": 1000.0, "D": 500.0}]}])
+
+    answered = serve_sample_request(model, server, "upload-1")
+
+    assert answered is True
+    assert [(upload_id, request_id) for upload_id, request_id, _ in server.answers] == [("upload-1", "r1")]
+    response = server.answers[0][2]
+    assert [s["values"] for s in response["samples"]] == [{"W": 600.0, "D": 250.0}, {"W": 1000.0, "D": 500.0}]
+    assert max(p[0] for f in response["samples"][1]["faces"] for p in f["points"]) == 1000.0
+    assert sample_response_errors([{"W": 600.0, "D": 250.0}, {"W": 1000.0, "D": 500.0}], response) == []
+    assert model.expressions == {"W": "800 mm", "D": "W / 2", "d12": "18 mm"}
+
+
+def test_기다리는_추가_샘플_요청이_없으면_모델을_건드리지_않는다() -> None:
+    model = FakeModel()
+    server = FakeServer()
+
+    assert serve_sample_request(model, server, "upload-1") is False
+    assert model.set_calls == []
+    assert server.answers == []
+
+
+class _BrokenModel(FakeModel):
+    """D를 바꾸면 Fusion API가 예외를 내는 모델"""
+
+    def set_parameter(self, name: str, value: float) -> bool:
+        if name == "D":
+            raise RuntimeError("Fusion API 오류")
+        return super().set_parameter(name, value)
+
+
+def test_교차_검증_샘플을_뽑다가_예외가_나도_바꾼_파라미터의_수식을_되돌린다() -> None:
+    model = _BrokenModel()
+
+    with pytest.raises(RuntimeError):
+        cross_check_sample(model, {"W": 600.0, "D": 250.0})
+
+    assert model.expressions == {"W": "800 mm", "D": "W / 2", "d12": "18 mm"}
+
+
+def test_추가_샘플을_뽑지_못하면_답_대신_실패_이유를_서버에_알린다() -> None:
+    server = FakeServer(requests=[{"id": "r1", "kind": "cross", "values": [{"W": 600.0, "H": 500.0}]}])
+
+    assert serve_sample_request(FakeModel(), server, "upload-1") is True
+
+    assert server.answers == []
+    assert len(server.failures) == 1
+    upload_id, request_id, reason = server.failures[0]
+    assert (upload_id, request_id) == ("upload-1", "r1")
+    assert "H" in reason

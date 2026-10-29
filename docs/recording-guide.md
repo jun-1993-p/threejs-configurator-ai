@@ -146,4 +146,6 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:8000/uploads/<업로드 ID
 | 11 위상 묶음 | 폭에 따라 칸막이 수가 바뀌는 모델 |
 | 13 두께 고정 실측 | 판재 두께가 수식에 섞인 모델(예: `t = W / 50`) |
 
-교차 검증(티켓 08)부터는 업로드 뒤에도 애드인이 서버에 연결된 채로 추가 샘플에 답해야 한다. 그때는 녹화 절차가 달라지며, 이 문서를 고친다.
+교차 검증(티켓 08)부터는 업로드 뒤에도 애드인이 서버에 연결된 채로 추가 샘플에 답한다(ADR-0013). 업로드를 마친 뒤 최종 승인까지 Fusion과 그 디자인 문서를 열어 두어야 한다. 애드인은 3초마다 서버에서 요청을 찾고, 서버는 15초 넘게 소식이 없으면 "Fusion 연결 필요"로 본다.
+
+추가 샘플 응답의 녹화는 아직 서버에 저장하지 않는다. 지금 시험용 교차 검증 샘플은 SolidCraft 합성 녹화본(`python -m synthetic.make_cross_checks`)으로 만든다(`fixtures/synthetic/drawer.cross-corners.json`, `drawer.cross-depth.json`).

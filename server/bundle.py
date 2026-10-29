@@ -8,7 +8,9 @@ from typing import Any
 import jsonschema
 
 SCHEMA_PATH = Path(__file__).parents[1] / "schema" / "upload-bundle.schema.json"
-_validator = jsonschema.Draft202012Validator(json.loads(SCHEMA_PATH.read_text(encoding="utf-8")))
+_schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+_validator = jsonschema.Draft202012Validator(_schema)
+_response_validator = jsonschema.Draft202012Validator({"$defs": _schema["$defs"], "$ref": "#/$defs/sampleResponse"})
 
 # 이름이 같은 두 면의 법선(원기둥은 축)이 이보다 덜 나란하면 짝으로 보지 않는다
 _PARALLEL = 0.999
@@ -70,12 +72,24 @@ def sample_topology(bundle: dict[str, Any]) -> list[tuple[str, float, str]]:
     return out
 
 
+def _schema_errors(validator: jsonschema.Draft202012Validator, value: Any) -> list[str]:
+    return [f"{'/'.join(str(p) for p in e.absolute_path) or '(최상위)'}: {e.message}" for e in validator.iter_errors(value)]
+
+
+def sample_response_errors(values: list[dict[str, float]], response: Any) -> list[str]:
+    """추가 샘플 응답의 문제. 샘플은 요청한 값 묶음과 같은 수, 같은 순서여야 한다."""
+    errors = _schema_errors(_response_validator, response)
+    if errors:
+        return errors
+    got = [sample["values"] for sample in response["samples"]]
+    if got != values:
+        errors.append(f"samples: 요청한 값 묶음 {values}과 응답의 값 묶음 {got}이 다릅니다")
+    return errors
+
+
 def bundle_errors(bundle: dict[str, Any]) -> list[str]:
     """업로드 묶음의 문제를 사람이 읽을 문장으로 돌려준다. 문제가 없으면 빈 목록."""
-    errors = [
-        f"{'/'.join(str(p) for p in e.absolute_path) or '(최상위)'}: {e.message}"
-        for e in _validator.iter_errors(bundle)
-    ]
+    errors = _schema_errors(_validator, bundle)
     if errors:
         return errors
     baseline = bundle["baseline"]["faces"]

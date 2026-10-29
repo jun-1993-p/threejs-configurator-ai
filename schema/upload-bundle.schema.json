@@ -89,6 +89,28 @@
     }
   },
   "$defs": {
+    "sampleResponse": {
+      "description": "추가 샘플 요청에 대한 애드인 응답(ADR-0013). samples는 요청의 값 묶음과 같은 순서다.",
+      "type": "object",
+      "required": ["samples"],
+      "additionalProperties": false,
+      "properties": {
+        "samples": { "type": "array", "items": { "$ref": "#/$defs/crossSample" } }
+      }
+    },
+    "crossSample": {
+      "description": "여러 파라미터를 함께 바꾼 형상. 단독 스윕 샘플과 같고 value 대신 values를 쓴다.",
+      "type": "object",
+      "required": ["values", "status", "faces", "edges"],
+      "additionalProperties": false,
+      "properties": {
+        "values": { "type": "object", "minProperties": 1, "additionalProperties": { "type": "number" } },
+        "status": { "enum": ["ok", "recompute_failed"] },
+        "faces": { "$ref": "#/$defs/faces" },
+        "edges": { "$ref": "#/$defs/edges" },
+        "bodies": { "$ref": "#/$defs/bodies" }
+      }
+    },
     "sample": {
       "type": "object",
       "required": ["value", "status", "faces", "edges"],

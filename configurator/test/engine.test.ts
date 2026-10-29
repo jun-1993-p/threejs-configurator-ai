@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { createMorph, type Morph, type SampleFace, type Spec, type SweepData } from "../src/engine.ts";
 import { boundsOf, diagonal } from "../pipeline/measure.ts";
 import { shapeTolerance } from "../pipeline/verify-numeric.ts";
-import { crossChecks } from "./recording.ts";
+import { crossChecks, widthHeightSpec } from "./recording.ts";
 
 const fixtures = new URL("../../fixtures/synthetic/", import.meta.url);
 const recording: SweepData = JSON.parse(readFileSync(new URL("drawer.json", fixtures), "utf-8"));
@@ -62,23 +62,6 @@ test("값을 주지 않은 슬라이더는 명세의 default를 쓴다", () => {
   const morph = createMorph(spec, recording);
   assert.deepEqual(partBounds(morph, morph.positions({}), "Carcass"), [[-300, 300], [0, 450], [0, 700]]);
 });
-
-/** 서로 영향이 없는 두 슬라이더: 전체 폭(몸통·서랍의 X)과 전체 높이(몸통의 Z) */
-const widthHeightSpec: Spec = {
-  ...spec,
-  sliders: [
-    spec.sliders[0],
-    {
-      ...spec.sliders[0],
-      id: "body_h",
-      name: "전체 높이",
-      axis: "H",
-      min: 500, max: 1000, default: 700,
-      source: "치수규칙/서랍장/높이",
-      affects: { shape: ["Carcass"], move: [] },
-    },
-  ],
-};
 
 test("슬라이더 하나만 움직이면 단독 스윕 보간과 결과가 같다", () => {
   for (const slider of widthHeightSpec.sliders) {

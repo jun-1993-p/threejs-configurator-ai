@@ -16,18 +16,48 @@ const MAX_THICKNESS = 30;
 
 const dot = (a: ArrayLike<number>, b: ArrayLike<number>) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
-/** 검증점 하나에서 잰 부품의 실패. path·slider는 verifyNumeric이 채운다. */
-type PartFailure = Omit<Feedback, "path" | "slider">;
+/** 한 형상에서 잰 부품의 실패. path·slider는 부르는 쪽이 채운다. */
+export type PartFailure = Omit<Feedback, "path" | "slider">;
 
-/** 검증점 하나에서 같은 부품을 엔진과 Fusion으로 잰 결과를 비교하는 데 필요한 것 */
-interface PartReading {
+/** 비교하는 형상이 어느 슬라이더 값인지와 피드백에 붙일 말 */
+export interface ComparisonContext {
+  /** measured 앞에 그대로 붙는다(예: { value } 또는 { values }) */
+  measured: object;
+  /** 힌트에 쓰는 자리(예: "825", "body_w=800·body_h=1000") */
+  place: string;
+  /** 고치는 방법을 알리는 힌트 꼬리 */
+  hintTail: string;
+}
+
+/** 한 형상에서 같은 부품을 엔진과 Fusion으로 잰 결과를 비교하는 데 필요한 것 */
+interface PartReading extends ComparisonContext {
   part: string;
-  value: number;
   faces: MorphFace[];
   engine: Float64Array;
   fusion: Float64Array;
-  /** 검증점 값 쪽 범위를 좁히라는 힌트 꼬리 */
-  narrow: string;
+}
+
+/**
+ * 슬라이더 값 묶음에서 변형 엔진 결과와 녹화된 Fusion 형상을 부품마다 비교한다. 검증점과 교차 검증 샘플이 같이 쓴다.
+ * 면 구성이 기본 형상과 다르면 undefined다.
+ */
+export type ShapeComparer = (values: Record<string, number>, faces: SampleFace[], context: ComparisonContext) => PartFailure[] | undefined;
+
+export function shapeComparer(spec: Spec, sweeps: SweepData, bundle: UploadBundle): ShapeComparer {
+  const morph = createMorph(spec, sweeps);
+  const parts = [...new Set(morph.faces.map((f) => f.part))];
+  const panels = panelPairs(morph, bundle);
+  return (values, faces, context) => {
+    // 위상 묶음(티켓 10·11)이 들어오면 묶음마다의 면 구성과 비교해야 한다. 지금은 엔진도 기본 형상의 면 구성만 받는다.
+    const fusion = recordedPositions(morph, faces);
+    if (!fusion) return undefined;
+    const engine = morph.positions(values);
+    const tolerance = shapeTolerance(diagonal(bounds(morph.faces, fusion)));
+    return parts.flatMap((part) => {
+      const reading: PartReading = { part, faces: morph.faces.filter((f) => f.part === part), engine, fusion, ...context };
+      return [...shapeFailures(reading, tolerance), ...sizeFailures(reading, spec), ...thicknessFailures(reading, panels)];
+    });
+  };
 }
 
 /**
@@ -35,9 +65,7 @@ interface PartReading {
  * sweeps: 결과물에 담긴 스윕 데이터(엔진 입력), bundle: 검증점 형상이 든 업로드 묶음.
  */
 export function verifyNumeric(spec: Spec, sweeps: SweepData, bundle: UploadBundle): Feedback[] {
-  const morph = createMorph(spec, sweeps);
-  const parts = [...new Set(morph.faces.map((f) => f.part))];
-  const panels = panelPairs(morph, bundle);
+  const compare = shapeComparer(spec, sweeps, bundle);
   const feedback: Feedback[] = [];
 
   spec.sliders.forEach((slider, i) => {
@@ -53,47 +81,35 @@ export function verifyNumeric(spec: Spec, sweeps: SweepData, bundle: UploadBundl
         fail({ part: "", kind: "recompute_failed", measured: { value: check.value }, expected: "재계산 성공", hint: `Fusion이 ${check.value}에서 재계산하지 못합니다. ${narrow}` });
         continue;
       }
-      // 위상 묶음(티켓 10·11)이 들어오면 묶음마다의 면 구성과 비교해야 한다. 지금은 엔진도 기본 형상의 면 구성만 받는다.
-      const fusion = recordedPositions(morph, check.faces);
-      if (!fusion) {
+      const failures = compare({ [slider.id]: check.value }, check.faces, { measured: { value: check.value }, place: String(check.value), hintTail: narrow });
+      if (!failures) {
         fail({ part: "", kind: "topology_change", measured: { value: check.value }, expected: "기본 형상과 같은 면 구성", hint: `${check.value}에서 면 구성이 기본 형상과 다릅니다. ${narrow}` });
         continue;
       }
-      const engine = morph.positions({ [slider.id]: check.value });
-      const tolerance = shapeTolerance(diagonal(bounds(morph.faces, fusion)));
-      for (const part of parts) {
-        const reading: PartReading = { part, value: check.value, faces: morph.faces.filter((f) => f.part === part), engine, fusion, narrow };
-        for (const failure of [
-          ...shapeFailures(reading, tolerance),
-          ...sizeFailures(reading, spec),
-          ...thicknessFailures(reading, panels),
-        ]) {
-          fail(failure);
-        }
-      }
+      failures.forEach(fail);
     }
   });
   return feedback;
 }
 
 /** 형상 오차: 부품에서 같은 꼭짓점끼리 잰 거리의 최댓값 */
-function shapeFailures({ part, value, faces, engine, fusion, narrow }: PartReading, tolerance: number): PartFailure[] {
+function shapeFailures({ part, measured, place, faces, engine, fusion, hintTail }: PartReading, tolerance: number): PartFailure[] {
   const error = maxDistance(faces, engine, fusion);
   if (error <= tolerance) return [];
   return [
     {
       part,
       kind: "shape_error",
-      measured: { value, error_mm: round(error) },
+      measured: { ...measured, error_mm: round(error) },
       expected: { max_error_mm: round(tolerance) },
-      hint: `${part}의 꼭짓점이 ${value}에서 Fusion과 최대 ${round(error)} mm 어긋납니다. ${narrow}`,
+      hint: `${part}의 꼭짓점이 ${place}에서 Fusion과 최대 ${round(error)} mm 어긋납니다. ${hintTail}`,
     },
   ];
 }
 
 /** 치수 오차 하나. dimension은 W·D·H 또는 thickness, label은 힌트에 쓰는 이름이다. */
 function dimensionFailure(
-  { part, value, narrow }: PartReading,
+  { part, measured, place, hintTail }: PartReading,
   dimension: Axis | "thickness",
   label: string,
   engineMm: number,
@@ -106,9 +122,9 @@ function dimensionFailure(
     {
       part,
       kind: "dimension_error",
-      measured: { value, dimension, ...extra, engine_mm: round(engineMm), fusion_mm: round(fusionMm), error_mm: round(error) },
+      measured: { ...measured, dimension, ...extra, engine_mm: round(engineMm), fusion_mm: round(fusionMm), error_mm: round(error) },
       expected: { max_error_mm: DIMENSION_TOLERANCE },
-      hint: `${part}의 ${label}가 ${value}에서 Fusion과 ${round(error)} mm 다릅니다. ${narrow}`,
+      hint: `${part}의 ${label}가 ${place}에서 Fusion과 ${round(error)} mm 다릅니다. ${hintTail}`,
     },
   ];
 }

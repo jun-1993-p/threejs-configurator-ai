@@ -23,6 +23,8 @@ function checker(schema: object): Check {
 
 export const checkUploadBundle = checker(loadSharedSchema("upload-bundle.schema.json"));
 export const checkSpec = checker(loadSharedSchema("spec.schema.json"));
+/** 추가 샘플 요청에 대한 애드인 응답. 형식은 업로드 묶음 스키마에 함께 있다(위에서 컴파일해 $id로 찾는다). */
+export const checkSampleResponse = checker({ $ref: "upload-bundle.schema.json#/$defs/sampleResponse" });
 
 /** 후보 제시 응답. 후보는 2~4개(사용자 스토리 19). */
 export const checkCandidates = checker({

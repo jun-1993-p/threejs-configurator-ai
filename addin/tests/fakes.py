@@ -85,9 +85,13 @@ class FakeModel:
 
 
 class FakeServer:
-    def __init__(self, reachable: bool = True) -> None:
+    def __init__(self, reachable: bool = True, requests: list[dict[str, Any]] | None = None) -> None:
         self.reachable = reachable
         self.uploaded: list[dict[str, Any]] = []
+        # 서버가 애드인에 보낼 추가 샘플 요청, 앞에서부터 하나씩
+        self.requests = list(requests or [])
+        self.answers: list[tuple[str, str, dict[str, Any]]] = []
+        self.failures: list[tuple[str, str, str]] = []
 
     def ping(self) -> bool:
         return self.reachable
@@ -95,6 +99,15 @@ class FakeServer:
     def upload(self, bundle: dict[str, Any]) -> str:
         self.uploaded.append(bundle)
         return f"upload-{len(self.uploaded)}"
+
+    def next_sample_request(self, upload_id: str) -> dict[str, Any] | None:
+        return self.requests.pop(0) if self.requests else None
+
+    def answer_sample_request(self, upload_id: str, request_id: str, response: dict[str, Any]) -> None:
+        self.answers.append((upload_id, request_id, response))
+
+    def fail_sample_request(self, upload_id: str, request_id: str, reason: str) -> None:
+        self.failures.append((upload_id, request_id, reason))
 
 
 class FakeMeasuringModel(FakeModel):

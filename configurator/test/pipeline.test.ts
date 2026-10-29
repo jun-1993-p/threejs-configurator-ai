@@ -1,5 +1,6 @@
 // 경계 1: 상품 하나를 처리하는 파이프라인 실행. 입력은 서랍장 합성 녹화본, 정보 입력, 사람 결정 각본이다.
-// AI는 각본대로 답하는 가짜, 저장소는 메모리 구현, Fusion 연결은 호출되면 실패하는 가짜다.
+// AI는 각본대로 답하는 가짜, 저장소는 메모리 구현이다. Fusion 연결은 슬라이더가 하나면 호출되면 실패하는 가짜,
+// 둘 이상이면 녹화한 교차 검증 샘플로 답하는 가짜다.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -7,10 +8,11 @@ import vm from "node:vm";
 
 import type { Spec } from "../src/engine.ts";
 import type { Feedback } from "../pipeline/feedback.ts";
-import { runPipeline, type Candidate, type FusionPort, type HumanPort, type Intake } from "../pipeline/runner.ts";
+import { FUSION_NEEDED, FUSION_RECONNECTED, runPipeline, type Candidate, type FusionPort, type HumanPort, type Intake, type SampleRequest } from "../pipeline/runner.ts";
 import { scriptedAi, type Script } from "../pipeline/scripted-ai.ts";
 import { memoryStore } from "../pipeline/memory-store.ts";
-import { depthSpec, pushMaxSide } from "./recording.ts";
+import { crossCorners, crossDepth, depthSpec, pushMaxSide, widthHeightSpec } from "./recording.ts";
+import type { CrossSample } from "../pipeline/verify-cross.ts";
 
 const fixtures = new URL("../../fixtures/synthetic/", import.meta.url);
 const bundle = JSON.parse(readFileSync(new URL("drawer.json", fixtures), "utf-8"));
@@ -27,17 +29,33 @@ const styles = [{ id: "natural" }, { id: "dark" }];
 
 const offline: FusionPort = {
   requestSamples: () => Promise.reject(new Error("이 시험에서는 추가 샘플을 요청하지 않는다")),
+  reconnected: () => Promise.reject(new Error("이 시험에서는 연결을 기다리지 않는다")),
 };
+
+/** 녹화한 교차 검증 샘플로 답하는 Fusion 연결. 받은 요청을 남긴다. */
+function recordedFusion(samples: CrossSample[] = crossCorners) {
+  const requests: SampleRequest[] = [];
+  const port: FusionPort = {
+    requestSamples: async (request) => {
+      requests.push(structuredClone(request));
+      const answered = request.values.map((values) => samples.find((s) => JSON.stringify(s.values) === JSON.stringify(values)));
+      if (answered.includes(undefined)) throw new Error(`녹화하지 않은 값 묶음: ${JSON.stringify(request.values)}`);
+      return { status: "answered", response: { samples: structuredClone(answered) } };
+    },
+    reconnected: () => Promise.reject(new Error("이 Fusion 연결은 끊기지 않는다")),
+  };
+  return { port, requests };
+}
 
 const approveFirst: HumanPort = {
   chooseCandidate: () => Promise.resolve({ candidate: "c1" }),
   finalApproval: () => Promise.resolve({ decision: "approve" }),
 };
 
-function setup(script: Partial<Script> = {}) {
+function setup(script: Partial<Script> = {}, fusion: FusionPort = offline) {
   const ai = scriptedAi({ candidates: [candidates], style: [{ style: "natural" }], spec: [spec], ...script });
   const store = memoryStore({ styles });
-  return { ai, store, ports: { fusion: offline, ai, store } };
+  return { ai, store, ports: { fusion, ai, store } };
 }
 
 test("업로드부터 제출까지 정해진 순서로만 진행한다", async () => {
@@ -177,9 +195,11 @@ const drawerMissing = (base: Spec): Spec => ({
   sliders: base.sliders.map((s) => (s.id === "body_d" || s.id === "body_w" ? { ...s, affects: { shape: ["Carcass"], move: [] } } : s)),
 });
 
-test("한 축에 슬라이더가 둘인 명세에서 축 반응이 틀리면 부품과 명세 위치를 담은 피드백으로 다시 쓰고, 고친 명세로 제출한다", async () => {
-  const depthIntake = { ...intake, memo: "전체 깊이와 서랍 깊이" };
-  const { ai, store, ports } = setup({ spec: [drawerMissing(depthSpec), depthSpec] });
+const depthIntake = { ...intake, memo: "전체 깊이와 서랍 깊이" };
+
+test("한 축에 슬라이더가 둘인 명세에서 축 반응이 틀리면 부품과 명세 위치를 담은 피드백으로 다시 쓴다", async () => {
+  // 축 반응을 고친 명세는 교차 검증에 걸리고(서랍 깊이가 전체 깊이의 자식), 세 번째 명세는 전체 폭 하나로 줄였다.
+  const { ai, store, ports } = setup({ spec: [drawerMissing(depthSpec), depthSpec, spec] }, recordedFusion(crossDepth).port);
 
   const result = await runPipeline({ bundle, intake: depthIntake, human: approveFirst, ports });
 
@@ -189,7 +209,7 @@ test("한 축에 슬라이더가 둘인 명세에서 축 반응이 틀리면 부
     asked[1].feedback.map(({ path, slider, part, kind }) => ({ path, slider, part, kind })),
     [{ path: "sliders[0].affects.shape", slider: "body_d", part: "DrawerBox", kind: "unexpected_shape_change" }],
   );
-  assert.deepEqual(JSON.parse(store.submissions[0].files["spec.json"]), depthSpec);
+  assert.deepEqual(JSON.parse(store.submissions[0].files["spec.json"]), spec);
 });
 
 test("축 반응은 수치 검증을 통과한 명세에만 검사한다", async () => {
@@ -211,7 +231,7 @@ test("명세가 녹화본에 없는 슬라이더·부품 이름을 쓰거나 한
       { ...depthSpec.sliders[1], id: "drawer_depth" },
     ],
   };
-  const { ai, ports } = setup({ spec: [wrongNames, depthSpec] });
+  const { ai, ports } = setup({ spec: [wrongNames, depthSpec, spec] }, recordedFusion(crossDepth).port);
 
   const result = await runPipeline({ bundle, intake, human: approveFirst, ports });
 
@@ -221,4 +241,140 @@ test("명세가 녹화본에 없는 슬라이더·부품 이름을 쓰거나 한
   assert.match(errors.join("\n"), /\/sliders\/0\/affects\/shape.*Drawer/);
   assert.match(errors.join("\n"), /\/sliders\/0\/affects.*Carcass/);
   assert.match(errors.join("\n"), /\/sliders\/1\/id.*drawer_depth/);
+});
+
+const corners = [
+  { body_w: 400, body_h: 500 },
+  { body_w: 400, body_h: 1000 },
+  { body_w: 800, body_h: 500 },
+  { body_w: 800, body_h: 1000 },
+];
+
+const verificationLog = (store: ReturnType<typeof setup>["store"]) => store.log.filter((e) => e.stage === "verification").map((e) => e.detail);
+
+test("슬라이더가 둘이면 그 쌍의 모서리 조합 교차 검증 샘플을 요청하고, 덧셈이 맞으면 제출한다", async () => {
+  const fusion = recordedFusion();
+  const { store, ports } = setup({ spec: [widthHeightSpec] }, fusion.port);
+
+  const result = await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  assert.deepEqual(fusion.requests, [{ kind: "cross", values: corners }]);
+  assert.deepEqual(JSON.parse(store.submissions[0].files["spec.json"]), widthHeightSpec);
+});
+
+test("서랍 깊이가 수식으로 전체 깊이를 따르는 쌍은 덧셈이 맞지 않아 교차 검증 피드백이 나온다", async () => {
+  const fusion = recordedFusion(crossDepth);
+  const { ai, ports } = setup({ spec: [depthSpec, spec] }, fusion.port);
+
+  const result = await runPipeline({ bundle, intake: depthIntake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  const feedback = (ai.calls.spec[1] as { feedback: Feedback[] }).feedback;
+  const drawer = feedback.find((f) => f.part === "DrawerBox" && f.kind === "dimension_error" && (f.measured as { dimension: string }).dimension === "D");
+  assert.ok(drawer, JSON.stringify(feedback));
+  assert.equal(drawer.path, "sliders[0]");
+  assert.equal(drawer.slider, "body_d");
+  // 두 슬라이더가 모두 서랍 깊이를 바꾸므로 큰 쪽 모서리에서 서랍 깊이가 두 번 더해진다
+  const worst = feedback.filter((f) => f.part === "DrawerBox" && f.kind === "dimension_error");
+  assert.ok(worst.some((f) => JSON.stringify((f.measured as { values: object }).values) === JSON.stringify({ body_d: 600, drawer_d: 600 })));
+  assert.match(drawer.hint, /자식/);
+});
+
+/** 몸통 윗면이 3 mm 높은 (800, 1000) 모서리 샘플. 덧셈은 이 모서리에서만 틀린다. */
+function raisedCorner(): CrossSample[] {
+  const samples = structuredClone(crossCorners);
+  const corner = samples.find((s) => s.values.body_w === 800 && s.values.body_h === 1000)!;
+  for (const face of corner.faces) {
+    if (face.body !== "Carcass") continue;
+    for (const p of face.points) if (Math.abs(p[2] - 1000) < 1e-6) p[2] += 3;
+  }
+  return samples;
+}
+
+test("교차 검증 샘플에서 덧셈 오차가 합격선을 넘으면 그 쌍을 가리키는 피드백으로 명세를 다시 쓴다", async () => {
+  const fusion = recordedFusion(raisedCorner());
+  const { ai, store, ports } = setup({ spec: [widthHeightSpec, spec] }, fusion.port);
+
+  const result = await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  const feedback = (ai.calls.spec[1] as { feedback: Feedback[] }).feedback;
+  assert.ok(feedback.length > 0);
+  for (const f of feedback) {
+    assert.equal(f.slider, "body_w");
+    assert.equal(f.part, "Carcass");
+    assert.deepEqual((f.measured as { values: object }).values, { body_w: 800, body_h: 1000 });
+    assert.match(f.hint, /body_w.*body_h/);
+  }
+  assert.deepEqual([...new Set(feedback.map((f) => f.kind))].sort(), ["dimension_error", "shape_error"]);
+  assert.ok(feedback.some((f) => (f.measured as { dimension?: string }).dimension === "H"));
+  // 다시 쓴 명세는 슬라이더가 하나라 교차 검증 샘플을 요청하지 않는다
+  assert.equal(fusion.requests.length, 1);
+  assert.deepEqual(JSON.parse(store.submissions[0].files["spec.json"]), spec);
+});
+
+test("애드인 연결이 끊기면 실패로 기록하지 않고 Fusion 연결 필요로 기다렸다가, 다시 연결되면 이어서 검증한다", async () => {
+  const fusion = recordedFusion();
+  let connected = false;
+  let reconnect = () => {};
+  // 실행기가 연결을 기다리기 시작하면 풀린다
+  let markWaiting = () => {};
+  const waiting = new Promise<void>((resolve) => (markWaiting = resolve));
+  const flaky: FusionPort = {
+    requestSamples: (request) => (connected ? fusion.port.requestSamples(request) : Promise.resolve({ status: "disconnected" })),
+    reconnected: () =>
+      new Promise<void>((resolve) => {
+        reconnect = () => {
+          connected = true;
+          resolve();
+        };
+        markWaiting();
+      }),
+  };
+  const { ai, store, ports } = setup({ spec: [widthHeightSpec] }, flaky);
+
+  const running = runPipeline({ bundle, intake, human: approveFirst, ports });
+  await waiting;
+
+  // 검증이 멈춰 있고, 처리 기록에 Fusion 연결 필요가 보인다
+  assert.deepEqual(verificationLog(store), [{ fusion: "Fusion 연결 필요" }]);
+  assert.equal(store.submissions.length, 0);
+  reconnect();
+  const result = await running;
+
+  assert.equal(result.status, "submitted");
+  assert.equal(ai.calls.spec.length, 1);
+  assert.deepEqual(fusion.requests, [{ kind: "cross", values: corners }]);
+  assert.deepEqual(verificationLog(store), [{ fusion: FUSION_NEEDED }, { fusion: FUSION_RECONNECTED }, { attempt: 0, feedback: [] }]);
+});
+
+test("애드인 응답이 업로드 묶음의 샘플 형식이 아니면 검증 단계에서 멈춘다", async () => {
+  const broken: FusionPort = {
+    requestSamples: async (request) => ({ status: "answered", response: { samples: request.values.map((values) => ({ values })) } }),
+    reconnected: () => Promise.resolve(),
+  };
+  const { store, ports } = setup({ spec: [widthHeightSpec] }, broken);
+
+  const result = await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "stopped");
+  assert.equal(result.status === "stopped" && result.stage, "verification");
+  assert.match(result.status === "stopped" ? result.reason : "", /samples\/0/);
+  assert.equal(store.submissions.length, 0);
+});
+
+test("애드인이 추가 샘플을 뽑지 못했다고 알리면 그 이유로 검증 단계에서 멈춘다", async () => {
+  const failing: FusionPort = {
+    requestSamples: async () => ({ status: "failed", reason: "ValueError: 모델에 없는 파라미터: body_h" }),
+    reconnected: () => Promise.resolve(),
+  };
+  const { store, ports } = setup({ spec: [widthHeightSpec] }, failing);
+
+  const result = await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "stopped");
+  assert.equal(result.status === "stopped" && result.stage, "verification");
+  assert.match(result.status === "stopped" ? result.reason : "", /모델에 없는 파라미터: body_h/);
+  assert.equal(store.submissions.length, 0);
 });
