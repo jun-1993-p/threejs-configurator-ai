@@ -32,6 +32,7 @@ import {
   type PairFailure,
 } from "./verify-cross.ts";
 import { verifyNumeric } from "./verify-numeric.ts";
+import { rangeIntersection, type DimensionRule } from "./range-intersection.ts";
 import { checkThicknessSamples, verifyThicknessFixed } from "./verify-thickness.ts";
 import { uploadRangeFeedback, verifyRange } from "./verify-range.ts";
 
@@ -141,13 +142,17 @@ export interface AiPort {
     bundle: unknown;
     intake: Intake;
     candidate: Candidate;
+    /** 정보 입력의 상품 종류로 거른 치수 규칙. 슬라이더 범위와 source는 여기서 고른다(ADR-0009). */
+    rules: DimensionRule[];
     feedback: Feedback[];
     schemaErrors: string[];
   }): Promise<unknown>;
 }
 
-/** 저장소 포트: UI 스타일 목록, 처리 기록, 결과물, 사례 저장소 */
+/** 저장소 포트: 치수 규칙, UI 스타일 목록, 처리 기록, 결과물, 사례 저장소 */
 export interface StorePort {
+  /** 그 상품 종류의 치수 규칙 */
+  dimensionRules(kind: string): Promise<DimensionRule[]>;
   styles(): Promise<Style[]>;
   appendLog(entry: LogEntry): Promise<void>;
   submit(product: string, files: ProductFiles): Promise<void>;
@@ -234,12 +239,21 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
   }
 
   // 명세의 상품명은 정보 입력에서 가져오고, 슬라이더·부품 이름은 업로드 묶음을 가리킨다(docs/spec-schema.md).
+  // 슬라이더 범위의 근거는 정보 입력의 상품 종류의 치수 규칙이다. 상품 하나를 처리하는 동안 바뀌지 않는다.
+  const rules = await store.dimensionRules(intake.kind);
+  const ranges = rangeIntersection({ rules, intake, bundle: uploaded });
+
   const checkProductSpec: Check = (value) => {
     const errors = checkSpec(value);
     if (errors.length > 0) return errors;
     const spec = value as Spec;
     if (spec.product !== intake.name) errors.push(`/product: 정보 입력의 상품명 "${intake.name}"이어야 합니다`);
-    errors.push(...specReferenceChecker(uploaded)(spec), ...thicknessChoiceChecker(uploaded)(spec), ...fixedThicknessChecker(spec));
+    errors.push(
+      ...specReferenceChecker(uploaded)(spec),
+      ...ranges.check(spec),
+      ...thicknessChoiceChecker(uploaded)(spec),
+      ...fixedThicknessChecker(spec),
+    );
     return errors;
   };
 
@@ -312,9 +326,17 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
 
     for (let attempt = 0; attempt <= SPEC_RETRIES; attempt++) {
       const spec = await askUntilValid<Spec>("spec", checkProductSpec, (schemaErrors) =>
-        ai.writeSpec({ bundle, intake, candidate, feedback, schemaErrors }),
+        ai.writeSpec({ bundle, intake, candidate, rules: structuredClone(rules), feedback, schemaErrors }),
       );
       await log("spec");
+
+      // 범위 교집합이 없으면 범위를 지어내지 않도록 조립하지 않고 돌려준다. 처리 기록으로 운영자에게도 보인다.
+      const noIntersection = ranges.noIntersection(spec);
+      if (noIntersection.length > 0) {
+        feedback = noIntersection;
+        await log("verification", { attempt, feedback });
+        continue;
+      }
 
       const grids = gridsFor(spec, reinforcements);
       const verified = await assembleAndVerify(spec, grids);
@@ -374,6 +396,8 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
     await log("upload", rangeFeedback.length > 0 ? { feedback: rangeFeedback } : undefined);
 
     await log("intake", intake);
+    // 메모에서 어느 부위에도 붙지 않아 범위로 읽지 못한 "값~값"은 운영자가 의도를 확인하도록 남긴다
+    if (ranges.unreadMemo.length > 0) await log("intake", { memoUnread: ranges.unreadMemo });
 
     // 후보 제시로 돌아오는 고리. 회차마다 사람이 후보를 고르므로 사람 없이 끝없이 돌지는 않는다.
     const failures: CandidateFailure[] = [];

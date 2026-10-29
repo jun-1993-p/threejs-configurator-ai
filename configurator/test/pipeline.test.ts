@@ -11,6 +11,7 @@ import type { Feedback } from "../pipeline/feedback.ts";
 import { FUSION_NEEDED, FUSION_RECONNECTED, runPipeline, type Candidate, type FusionPort, type HumanPort, type Intake, type SampleRequest } from "../pipeline/runner.ts";
 import { scriptedAi, type Script } from "../pipeline/scripted-ai.ts";
 import { memoryStore } from "../pipeline/memory-store.ts";
+import type { DimensionRule } from "../pipeline/range-intersection.ts";
 import {
   crossCorners,
   crossDepth,
@@ -38,7 +39,18 @@ const fixtures = new URL("../../fixtures/synthetic/", import.meta.url);
 const bundle = JSON.parse(readFileSync(new URL("drawer.json", fixtures), "utf-8"));
 const spec: Spec = JSON.parse(readFileSync(new URL("drawer.spec.json", fixtures), "utf-8"));
 
-const intake: Intake = { name: "1단 서랍장", kind: "서랍장", memo: "폭 400~800, 높이는 고정", thickness: "ai" };
+// 메모의 폭은 범위를 스윕 끝(900)까지 넓힌 "틀린 명세"가 수치 검증까지 가도록 900까지 둔다.
+const intake: Intake = { name: "1단 서랍장", kind: "서랍장", memo: "폭 400~900, 높이는 고정", thickness: "ai" };
+
+/** 시험용 치수 규칙. 범위는 녹화본 명세들이 모두 들어가게 넉넉히 잡았다. */
+const rules: DimensionRule[] = [
+  { id: "치수규칙/서랍장/폭", kind: "서랍장", part: "폭", axis: "W", min: 300, max: 1200, origin: "시험용" },
+  { id: "치수규칙/서랍장/깊이", kind: "서랍장", part: "깊이", axis: "D", min: 250, max: 700, origin: "시험용" },
+  { id: "치수규칙/서랍장/서랍_깊이", kind: "서랍장", part: "서랍 깊이", axis: "D", min: 200, max: 650, origin: "시험용" },
+  { id: "치수규칙/서랍장/높이", kind: "서랍장", part: "높이", axis: "H", min: 300, max: 1200, origin: "시험용" },
+  { id: "치수규칙/선반/폭", kind: "선반", part: "폭", axis: "W", min: 400, max: 1800, origin: "시험용" },
+  { id: "치수규칙/선반/깊이", kind: "선반", part: "깊이", axis: "D", min: 150, max: 600, origin: "시험용" },
+];
 
 const candidates: Candidate[] = [
   { id: "c1", front: "-Y", parents: ["body_w"], showThickness: false, summary: "전체 폭 하나", diff: "정면 -Y" },
@@ -72,9 +84,9 @@ const approveFirst: HumanPort = {
   finalApproval: () => Promise.resolve({ decision: "approve" }),
 };
 
-function setup(script: Partial<Script> = {}, fusion: FusionPort = offline) {
+function setup(script: Partial<Script> = {}, fusion: FusionPort = offline, dimensionRules: DimensionRule[] = rules) {
   const ai = scriptedAi({ candidates: [candidates], style: [{ style: "natural" }], spec: [spec], ...script });
-  const store = memoryStore({ styles });
+  const store = memoryStore({ styles, rules: dimensionRules });
   return { ai, store, ports: { fusion, ai, store } };
 }
 
@@ -151,6 +163,139 @@ test("명세의 상품명이 정보 입력의 상품명과 다르면 다시 묻�
   await runPipeline({ bundle, intake, human: approveFirst, ports });
 
   assert.match((ai.calls.spec[1] as { schemaErrors: string[] }).schemaErrors.join(), /\/product/);
+});
+
+test("슬라이더의 source가 그 상품 종류의 치수 규칙에 없으면 이유를 붙여 다시 묻는다", async () => {
+  const unknown = { ...spec, sliders: [{ ...spec.sliders[0], source: "치수규칙/선반/폭" }] };
+  const { ai, ports } = setup({ spec: [unknown, spec] });
+
+  const result = await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  assert.deepEqual((ai.calls.spec[1] as { schemaErrors: string[] }).schemaErrors, [
+    "/sliders/0/source: 서랍장의 치수 규칙에 없는 이름(치수규칙/선반/폭)입니다",
+  ]);
+  // 명세 작성은 그 상품 종류의 치수 규칙만 받는다
+  assert.deepEqual((ai.calls.spec[0] as { rules: DimensionRule[] }).rules, rules.filter((r) => r.kind === "서랍장"));
+});
+
+test("슬라이더 범위가 정보 입력 메모나 스윕 범위를 벗어나면 세 범위의 교집합을 붙여 다시 묻는다", async () => {
+  // 메모는 폭 400~900, 스윕 범위는 300~900, 치수 규칙은 300~1200이다
+  const outside = { ...spec, sliders: [{ ...spec.sliders[0], min: 350, max: 950 }] };
+  const { ai, ports } = setup({ spec: [outside, spec] });
+
+  const result = await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  const why = "치수 규칙 치수규칙/서랍장/폭 300~1200, 정보 입력 메모 폭 400~900, 스윕 범위 300~900";
+  assert.deepEqual((ai.calls.spec[1] as { schemaErrors: string[] }).schemaErrors, [
+    `/sliders/0/min: 범위 교집합 400~900 밖의 값(350)입니다(${why})`,
+    `/sliders/0/max: 범위 교집합 400~900 밖의 값(950)입니다(${why})`,
+  ]);
+});
+
+test("메모의 범위는 조사·쌍점·쉼표·단위가 붙어도 읽고, 읽지 못한 범위는 정보 입력 처리 기록에 남긴다", async () => {
+  const outside = { ...spec, sliders: [{ ...spec.sliders[0], max: 850 }] };
+  const { ai, store, ports } = setup({ spec: [outside, spec] });
+
+  await runPipeline({ bundle, intake: { ...intake, memo: "폭은 40～80cm, 받침 100~200" }, human: approveFirst, ports });
+
+  assert.match((ai.calls.spec[1] as { schemaErrors: string[] }).schemaErrors.join(), /정보 입력 메모 폭 400~800/);
+  const unread = store.log.filter((e) => e.stage === "intake").map((e) => e.detail);
+  assert.deepEqual(unread.slice(1), [{ memoUnread: ["100~200"] }]);
+
+  const commas = setup({ spec: [{ ...spec, sliders: [{ ...spec.sliders[0], min: 300 }] }, spec] });
+  await runPipeline({ bundle, intake: { ...intake, memo: "폭: 400mm ~ 1,200mm" }, human: approveFirst, ports: commas.ports });
+  assert.match((commas.ai.calls.spec[1] as { schemaErrors: string[] }).schemaErrors.join(), /정보 입력 메모 폭 400~1200/);
+});
+
+test("source의 치수 규칙이 슬라이더와 다른 축의 부위면 이유를 붙여 다시 묻는다", async () => {
+  const otherAxis = { ...spec, sliders: [{ ...spec.sliders[0], source: "치수규칙/서랍장/높이" }] };
+  const { ai, ports } = setup({ spec: [otherAxis, spec] });
+
+  await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  assert.deepEqual((ai.calls.spec[1] as { schemaErrors: string[] }).schemaErrors, [
+    "/sliders/0/source: 치수규칙/서랍장/높이의 축(H)이 슬라이더 축(W)과 다릅니다",
+  ]);
+});
+
+test("메모의 범위는 긴 부위 이름부터 읽어 서랍 깊이의 범위가 깊이로 잡히지 않는다", async () => {
+  const { ai, ports } = setup({ spec: [depthSpec, spec] });
+
+  await runPipeline({ bundle, intake: { ...intake, memo: "깊이 300~600, 서랍 깊이 300~500" }, human: approveFirst, ports });
+
+  assert.deepEqual((ai.calls.spec[1] as { schemaErrors: string[] }).schemaErrors, [
+    "/sliders/1/max: 범위 교집합 300~500 밖의 값(600)입니다(치수 규칙 치수규칙/서랍장/서랍_깊이 200~650, 정보 입력 메모 서랍 깊이 300~500, 스윕 범위 215~645)",
+  ]);
+});
+
+test("메모에 범위가 없는 부위는 치수 규칙과 스윕 범위의 교집합만 본다", async () => {
+  const narrow = rules.map((r) => (r.id === "치수규칙/서랍장/폭" ? { ...r, min: 450, max: 850 } : r));
+  const fitted = { ...spec, sliders: [{ ...spec.sliders[0], min: 450 }] };
+  const { ai, ports } = setup({ spec: [spec, fitted] }, offline, narrow);
+
+  const result = await runPipeline({ bundle, intake: { ...intake, memo: "높이는 고정" }, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  assert.deepEqual((ai.calls.spec[1] as { schemaErrors: string[] }).schemaErrors, [
+    "/sliders/0/min: 범위 교집합 450~850 밖의 값(400)입니다(치수 규칙 치수규칙/서랍장/폭 450~850, 스윕 범위 300~900)",
+  ]);
+});
+
+test("치수 규칙·메모·스윕 범위의 교집합이 비면 조립하지 않고 범위 교집합 없음을 처리 기록과 명세 작성에 알린다", async () => {
+  // 메모의 폭 1000~1200은 스윕 범위 300~900과 겹치지 않는다. 다시 쓴 명세는 폭 슬라이더를 빼고 높이만 둔다.
+  const heightOnly: Spec = { ...spec, sliders: [widthHeightSpec.sliders[1]] };
+  const { ai, store, ports } = setup({ spec: [spec, heightOnly] });
+
+  const result = await runPipeline({ bundle, intake: { ...intake, memo: "폭 1000~1200" }, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  const expected: Feedback = {
+    path: "sliders[0].source",
+    slider: "body_w",
+    part: "",
+    kind: "no_range_intersection",
+    measured: { rule: { id: "치수규칙/서랍장/폭", min: 300, max: 1200 }, memo: { min: 1000, max: 1200 }, sweep: { min: 300, max: 900 }, default: 600 },
+    expected: "세 범위가 겹치고 기본값을 담는 구간",
+    hint:
+      "body_w의 세 범위(치수 규칙 치수규칙/서랍장/폭 300~1200, 정보 입력 메모 폭 1000~1200, 스윕 범위 300~900)가 겹치지 않습니다. " +
+      "범위를 지어내거나 다른 부위의 치수 규칙으로 바꾸지 말고 이 슬라이더를 빼세요. 운영자는 정보 입력 메모와 모델을 확인해야 합니다",
+  };
+  assert.deepEqual((ai.calls.spec[1] as { feedback: Feedback[] }).feedback, [expected]);
+  assert.deepEqual(verificationLog(store)[0], { attempt: 0, feedback: [expected] });
+  // 교집합이 빈 명세는 조립하지 않는다
+  assert.deepEqual(store.log.map((e) => e.stage).filter((s) => s === "assembly" || s === "verification"), ["verification", "assembly", "verification"]);
+});
+
+test("교집합이 업로드한 모델의 값(기본값)을 담지 않아도 범위 교집합 없음으로 알린다", async () => {
+  const heightOnly: Spec = { ...spec, sliders: [widthHeightSpec.sliders[1]] };
+  const { ai, ports } = setup({ spec: [spec, heightOnly] });
+
+  await runPipeline({ bundle, intake: { ...intake, memo: "폭 700~900" }, human: approveFirst, ports });
+
+  const [feedback] = (ai.calls.spec[1] as { feedback: Feedback[] }).feedback;
+  assert.equal(feedback.kind, "no_range_intersection");
+  assert.equal(
+    feedback.hint,
+    "body_w의 세 범위(치수 규칙 치수규칙/서랍장/폭 300~1200, 정보 입력 메모 폭 700~900, 스윕 범위 300~900)가 겹치는 700~900에 업로드한 모델의 값(600)이 없습니다. " +
+      "범위를 지어내거나 다른 부위의 치수 규칙으로 바꾸지 말고 이 슬라이더를 빼세요. 운영자는 정보 입력 메모와 모델을 확인해야 합니다",
+  );
+});
+
+test("슬라이더 기본값이 업로드한 모델의 값이 아니거나 범위 밖이면 이유를 붙여 다시 묻는다", async () => {
+  const otherDefault = { ...spec, sliders: [{ ...spec.sliders[0], default: 650 }] };
+  const aboveDefault = { ...spec, sliders: [{ ...spec.sliders[0], min: 650 }] };
+  const { ai, ports } = setup({ spec: [otherDefault, aboveDefault, spec] });
+
+  const result = await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  const errors = (ai.calls.spec as { schemaErrors: string[] }[]).slice(1).map((call) => call.schemaErrors);
+  assert.deepEqual(errors, [
+    ["/sliders/0/default: 업로드한 모델의 값(600)과 다릅니다"],
+    ["/sliders/0/default: 범위(650~800) 밖의 값(600)입니다"],
+  ]);
 });
 
 test("처리 기록의 단계 전이마다 어느 상품인지 남는다", async () => {
@@ -568,7 +713,7 @@ test("칸막이 수가 바뀌는 선반도 위상 묶음을 넘나드는 슬라�
     { id: "c2", front: "-Y", parents: ["shelf_w"], showThickness: false, summary: "폭 하나", diff: "깊이 고정" },
   ];
   const ai = scriptedAi({ candidates: [shelfCandidates], style: [{ style: "natural" }], spec: [shelfSpec] });
-  const store = memoryStore({ styles });
+  const store = memoryStore({ styles, rules });
   const fusion = recordedFusion(shelfCrossCorners);
 
   const result = await runPipeline({ bundle: shelfRecording, intake: shelfIntake, human: approveFirst, ports: { fusion: fusion.port, ai, store } });
@@ -590,7 +735,7 @@ const shelfThickness = { ids: ["t"], name: "판재 두께", default: 18, options
 /** 칸막이 선반 명세들을 차례로 쓰는 AI로 실행한다. 첫 명세의 재작성 이유(schemaErrors)를 돌려준다. */
 async function shelfSchemaErrors(first: Spec, bundle: unknown = shelfRecording) {
   const ai = scriptedAi({ candidates: [shelfCandidates], style: [{ style: "natural" }], spec: [first, shelfSpec] });
-  const store = memoryStore({ styles });
+  const store = memoryStore({ styles, rules });
   const result = await runPipeline({ bundle, intake: shelfIntake, human: approveFirst, ports: { fusion: recordedFusion(shelfCrossCorners).port, ai, store } });
   assert.equal(result.status, "submitted", JSON.stringify(store.log.at(-1)));
   return (ai.calls.spec[1] as { schemaErrors: string[] }).schemaErrors;
@@ -649,7 +794,7 @@ test("고정 두께 파라미터가 슬라이더의 자식에 있으면 명세�
 /** 칸막이 선반 두께 선택 명세를 실행한다. Fusion 연결은 교차 검증 모서리와 두께 후보 형상으로 답한다. */
 async function runShelfThickness(specs: Spec[], thicknessSamples: CrossSample[] = shelfThicknessSamples) {
   const ai = scriptedAi({ candidates: [shelfCandidates], style: [{ style: "natural" }], spec: specs });
-  const store = memoryStore({ styles });
+  const store = memoryStore({ styles, rules });
   const fusion = recordedFusion([...shelfCrossCorners, ...shelfThicknessCross, ...thicknessSamples]);
   const result = await runPipeline({ bundle: shelfRecording, intake: shelfIntake, human: approveFirst, ports: { fusion: fusion.port, ai, store } });
   return { ai, store, fusion, result };
@@ -764,7 +909,7 @@ const mixedThicknessSpec: Spec = { ...spec, thickness: [{ ids: ["t"], name: "몸
 
 test("두께 후보에서 슬라이더와 덧셈이 맞지 않으면 그 두께 선택과 슬라이더를 가리키는 피드백이 나오고, 다시 실패하면 격자로 보강해 제출한다", async () => {
   const ai = scriptedAi({ candidates: [candidates], style: [{ style: "natural" }], spec: [mixedThicknessSpec, mixedThicknessSpec] });
-  const store = memoryStore({ styles });
+  const store = memoryStore({ styles, rules });
   const fusion = recordedFusion(mixedThicknessSamples);
 
   const result = await runPipeline({ bundle: mixedThicknessRecording, intake, human: approveFirst, ports: { fusion: fusion.port, ai, store } });
@@ -808,7 +953,7 @@ async function runMixedThickness(specs: Spec[], change: (sample: CrossSample) =>
   const samples = structuredClone(mixedThicknessSamples);
   samples.forEach(change);
   const ai = scriptedAi({ candidates: [candidates], style: [{ style: "natural" }], spec: specs });
-  const store = memoryStore({ styles });
+  const store = memoryStore({ styles, rules });
   const result = await runPipeline({ bundle: mixedThicknessRecording, intake, human: approveFirst, ports: { fusion: recordedFusion(samples).port, ai, store } });
   assert.equal(result.status, "submitted", JSON.stringify(store.log.at(-1)));
   return ai.calls.spec.map((call) => (call as { feedback: Feedback[] }).feedback);

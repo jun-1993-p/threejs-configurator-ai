@@ -95,7 +95,7 @@ const beyond = (slider: Slider, sweep: BundleSweep, side: Reduction["side"]) =>
   side === "min" ? slider.min < sweep.range.min : slider.max > sweep.range.max;
 
 /**
- * 슬라이더 범위가 줄어든 스윕 범위를 넘으면 그쪽 끝을 좁히라는 검증 피드백. 줄지 않은 쪽은 범위 교집합(티켓 14)이 본다.
+ * 슬라이더 범위가 줄어든 스윕 범위를 넘으면 그쪽 끝을 좁히라는 검증 피드백. 줄지 않은 쪽은 범위 교집합(range-intersection.ts)이 명세 검사로 본다.
  * 위상 묶음 안의 단독 스윕은 묶음의 파라미터가 슬라이더이고 그 슬라이더 범위가 묶음에 닿을 때만 본다.
  */
 export function verifyRange(spec: Spec, bundle: UploadBundle): Feedback[] {
