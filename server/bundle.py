@@ -52,6 +52,11 @@ def _samples(bundle: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
     return [(sweep["parameter"], sample) for sweep in bundle["sweeps"] for sample in sweep["samples"]]
 
 
+def _samples_and_checks(bundle: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    """스윕 샘플과 검증점. 검증점도 기본 형상과 점이 짝지어져야 수치 검증이 잴 수 있다."""
+    return _samples(bundle) + [(sweep["parameter"], check) for sweep in bundle["sweeps"] for check in sweep["checks"]]
+
+
 def sample_topology(bundle: dict[str, Any]) -> list[tuple[str, float, str]]:
     """샘플마다 (파라미터, 값, same | changed | failed). changed는 기본 형상과 면이 짝지어지지 않는 샘플이다."""
     baseline = bundle["baseline"]["faces"]
@@ -78,7 +83,7 @@ def bundle_errors(bundle: dict[str, Any]) -> list[str]:
         n = len(face["points"])
         if any(i >= n for tri in face["triangles"] for i in tri):
             errors.append(f"기본 형상 바디 {face['body']} 면 {face['name']}: 연결(triangles)이 점 {n}개 밖을 가리킵니다")
-    for parameter, sample in _samples(bundle):
+    for parameter, sample in _samples_and_checks(bundle):
         pairs = pair_faces(baseline, sample["faces"]) if sample["status"] == "ok" else None
         if pairs is None:
             # 재계산 실패나 위상 변화. 위상 변화는 거절하지 않고 sample_topology로 알린다(티켓 10, 11).

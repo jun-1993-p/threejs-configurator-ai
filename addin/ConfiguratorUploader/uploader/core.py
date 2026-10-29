@@ -127,19 +127,24 @@ def _shape_json(model: FusionModel, baseline: bool = False) -> dict[str, Any]:
     return shape
 
 
+def _sample(model: FusionModel, parameter: ParameterInfo, value: float) -> dict[str, Any]:
+    recomputed = model.set_parameter(parameter.name, value)
+    shape = _shape_json(model) if recomputed else {"faces": [], "edges": []}
+    return {"value": value, "status": "ok" if recomputed else "recompute_failed", **shape}
+
+
 def _sweep(model: FusionModel, parameter: ParameterInfo) -> dict[str, Any]:
     values = [parameter.value * factor for factor in SWEEP_FACTORS]
-    samples = []
-    for value in values:
-        recomputed = model.set_parameter(parameter.name, value)
-        shape = _shape_json(model) if recomputed else {"faces": [], "edges": []}
-        samples.append({"value": value, "status": "ok" if recomputed else "recompute_failed", **shape})
+    samples = [_sample(model, parameter, value) for value in values]
+    # 검증점: 이웃 샘플 사이 가운데 값. 수치 검증이 이 형상과 변형 결과를 비교한다(ADR-0012).
+    checks = [_sample(model, parameter, (a + b) / 2) for a, b in zip(values, values[1:])]
     # 값이 아니라 원래 수식을 되돌린다. 수식으로 묶인 자식 관계를 상수로 덮지 않기 위해서다(ADR-0003).
     model.restore_parameter(parameter)
     return {
         "parameter": parameter.name,
         "range": {"min": values[0], "max": values[-1]},
         "samples": samples,
+        "checks": checks,
     }
 
 

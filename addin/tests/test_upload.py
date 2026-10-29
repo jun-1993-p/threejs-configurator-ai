@@ -47,6 +47,17 @@ def test_사용자_파라미터마다_기본값_50퍼센트_범위에서_5점_�
     assert [s["value"] for s in sweeps[1]["samples"]] == [200.0, 300.0, 400.0, 500.0, 600.0]
 
 
+def test_단독_스윕마다_이웃_샘플_사이_가운데_값에서_검증점_형상을_뽑는다() -> None:
+    server = FakeServer()
+
+    run_upload(FakeModel(), server, lambda _: None)
+
+    w = server.uploaded[0]["sweeps"][0]
+    assert [c["value"] for c in w["checks"]] == [500.0, 700.0, 900.0, 1100.0]
+    assert {c["status"] for c in w["checks"]} == {"ok"}
+    assert all(len(c["faces"]) == len(w["samples"][0]["faces"]) for c in w["checks"])
+
+
 def test_단독_스윕이_끝나면_파라미터를_기본값으로_되돌린다() -> None:
     model = FakeModel()
 

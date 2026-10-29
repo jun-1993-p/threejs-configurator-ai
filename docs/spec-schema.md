@@ -72,7 +72,49 @@
 ```
 
 - `path`: 고칠 명세 위치.
-- `kind`: 정해진 목록 — 치수 오차 초과, 형상 오차 초과, 예상하지 못한 형태 변경, 다른 축 변화, 두께 변화, 위상 변화, 재계산 실패, 범위 축소, 범위 교집합 없음, AI 판정(`ai_judgment`, 이미지 경로와 이유 한 줄 포함).
-- `hint`: 애드인이 규칙으로 만든다(AI가 쓰지 않음).
-- 같은 명세가 피드백과 재시도를 3번 넘게 거쳐도 통과하지 못하면, 실패 이유를 붙여 후보 제시로 돌아간다.
+- `kind`: 정해진 목록(`configurator/pipeline/feedback.ts`의 `FEEDBACK_KINDS`).
+
+  | `kind` | 뜻 |
+  | --- | --- |
+  | `dimension_error` | 치수 오차 초과 |
+  | `shape_error` | 형상 오차 초과 |
+  | `unexpected_shape_change` | 예상하지 못한 형태 변경 |
+  | `off_axis_change` | 다른 축 변화 |
+  | `thickness_change` | 두께 변화(두께 고정 위반) |
+  | `topology_change` | 위상 변화 |
+  | `recompute_failed` | 재계산 실패 |
+  | `range_shrunk` | 범위 축소 |
+  | `modeling_error_suspected` | 모델링 오류 의심 |
+  | `volume_jump` | 부피 튐(경고) |
+  | `no_range_intersection` | 범위 교집합 없음 |
+  | `ai_judgment` | AI 판정(이미지 경로와 이유 한 줄 포함) |
+
+- `part`: 부품과 무관한 실패(검증점 재계산 실패·위상 변화)는 빈 문자열이다.
+- `hint`: 규칙으로 만든다(AI가 쓰지 않음).
+
+### 수치 검증 (ADR-0012)
+
+업로드 묶음의 단독 스윕마다 `checks`(이웃 샘플 사이 가운데 값의 Fusion 형상, 검증점)가 있다. 슬라이더 범위 안의 검증점마다 그 슬라이더만 검증점 값으로 두고(나머지는 `default`) 변형 결과를 잰다.
+
+- 치수 오차: 부품별 W·D·H(`axes`에 따른 바운딩 박스 길이)와 판재 두께가 0.2 mm를 넘으면 `dimension_error`. 판재 두께는 같은 바디에서 서로 등진 두 평면 중 기본 형상 간격이 30 mm(표준 두께 목록의 최댓값) 이하인 쌍의 간격이며, 부품마다 가장 크게 어긋난 판 하나를 알린다.
+- 형상 오차: 부품별로 같은 꼭짓점끼리 잰 거리의 최댓값이 max(1 mm, 그 검증점 Fusion 형상 바운딩 박스 대각선의 0.1%)를 넘으면 `shape_error`.
+- `path`는 검증점이 기본값보다 작으면 `sliders[i].min`, 크면 `sliders[i].max`이고, 힌트는 그쪽 범위를 검증점 값 안쪽으로 좁히라고 한다.
+
+```json
+{
+  "path": "sliders[0].max",
+  "slider": "body_w",
+  "part": "DrawerBox",
+  "kind": "dimension_error",
+  "measured": { "value": 825, "dimension": "W", "engine_mm": 785, "fusion_mm": 785.3, "error_mm": 0.3 },
+  "expected": { "max_error_mm": 0.2 },
+  "hint": "DrawerBox의 W가 825에서 Fusion과 0.3 mm 다릅니다. body_w의 max를 825보다 작게 좁히세요"
+}
+```
+
+두께는 `measured.dimension`이 `thickness`이고 `faces`에 판의 두 면 이름이 붙는다. 형상 오차의 `measured`는 `{ value, error_mm }`, `expected`는 `{ max_error_mm }`이다.
+
+### 재시도
+
+- 같은 후보로 피드백과 재시도를 3번 넘게 거쳐도(처음 명세 + 다시 쓰기 3번) 통과하지 못하면, 마지막 피드백을 실패 이유로 붙여(`failures`) 후보 제시로 돌아간다.
 - 수치 검증과 축 반응은 통과했는데 AI 판정만 3번 실패하면, 판정 이유를 붙여 최종 승인으로 넘기고 사람이 결정한다.

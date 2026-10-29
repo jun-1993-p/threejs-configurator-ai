@@ -6,9 +6,11 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
 import type { Spec } from "../src/engine.ts";
+import type { Feedback } from "../pipeline/feedback.ts";
 import { runPipeline, type Candidate, type FusionPort, type HumanPort, type Intake } from "../pipeline/runner.ts";
 import { scriptedAi, type Script } from "../pipeline/scripted-ai.ts";
 import { memoryStore } from "../pipeline/memory-store.ts";
+import { pushMaxSide } from "./recording.ts";
 
 const fixtures = new URL("../../fixtures/synthetic/", import.meta.url);
 const bundle = JSON.parse(readFileSync(new URL("drawer.json", fixtures), "utf-8"));
@@ -119,4 +121,52 @@ test("처리 기록의 단계 전이마다 어느 상품인지 남는다", async
   await runPipeline({ bundle, intake, human: approveFirst, ports });
 
   assert.ok(store.log.every((e) => e.product === "1단 서랍장"));
+});
+
+/** body_w=825 검증점에서 Fusion 서랍이 보간보다 0.3 mm 넓은 녹화본. 범위가 825를 넘는 명세만 수치 검증에 걸린다. */
+const nonlinearAt825 = () => pushMaxSide(825, "DrawerBox", "X", 0.3);
+
+/** 수치 검증에 걸리는 명세: body_w 범위를 스윕 끝(900)까지 넓혔다 */
+const tooWide: Spec = { ...spec, sliders: [{ ...spec.sliders[0], max: 900 }] };
+
+test("수치 검증에 실패하면 검증 피드백을 붙여 명세 작성을 다시 하고, 고친 명세로 제출한다", async () => {
+  const { ai, store, ports } = setup({ spec: [tooWide, spec] });
+
+  const result = await runPipeline({ bundle: nonlinearAt825(), intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  const asked = ai.calls.spec as { feedback: Feedback[] }[];
+  assert.deepEqual(asked[0].feedback, []);
+  const drawer = asked[1].feedback.find((f) => f.part === "DrawerBox" && f.kind === "dimension_error");
+  assert.ok(drawer, JSON.stringify(asked[1].feedback));
+  assert.equal(drawer.path, "sliders[0].max");
+  assert.match(drawer.hint, /825/);
+  assert.deepEqual(JSON.parse(store.submissions[0].files["spec.json"]), spec);
+  assert.deepEqual(
+    store.log.filter((e) => e.stage === "verification").map((e) => (e.detail as { feedback: Feedback[] }).feedback.length > 0),
+    [true, false],
+  );
+});
+
+test("같은 후보로 3번 넘게 수치 검증에 실패하면 실패 이유를 붙여 후보 제시로 돌아간다", async () => {
+  const { ai, store, ports } = setup({
+    candidates: [candidates, candidates],
+    style: [{ style: "natural" }, { style: "natural" }],
+    spec: [tooWide, tooWide, tooWide, tooWide, spec],
+  });
+
+  const result = await runPipeline({ bundle: nonlinearAt825(), intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  // 처음 명세 + 피드백 재시도 3번이 모두 실패한 뒤 후보 제시로 돌아갔다
+  assert.equal(ai.calls.spec.length, 5);
+  const proposals = ai.calls.candidates as { failures: { candidate: Candidate; feedback: Feedback[] }[] }[];
+  assert.deepEqual(proposals[0].failures, []);
+  assert.equal(proposals[1].failures.length, 1);
+  assert.deepEqual(proposals[1].failures[0].candidate, candidates[0]);
+  assert.ok(proposals[1].failures[0].feedback.some((f) => f.kind === "dimension_error" && f.part === "DrawerBox"));
+  assert.deepEqual(
+    store.log.map((e) => e.stage).filter((s) => s === "candidates" || s === "verification"),
+    ["candidates", "verification", "verification", "verification", "verification", "candidates", "verification"],
+  );
 });

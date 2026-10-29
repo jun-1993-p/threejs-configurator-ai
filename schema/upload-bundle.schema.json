@@ -68,7 +68,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["parameter", "range", "samples"],
+        "required": ["parameter", "range", "samples", "checks"],
         "additionalProperties": false,
         "properties": {
           "parameter": { "type": "string", "minLength": 1 },
@@ -78,31 +78,39 @@
             "additionalProperties": false,
             "properties": { "min": { "type": "number" }, "max": { "type": "number" } }
           },
-          "samples": {
+          "samples": { "type": "array", "items": { "$ref": "#/$defs/sample" } },
+          "checks": {
+            "description": "검증점: 이웃 샘플 사이 가운데 값의 형상. 변형 결과와 비교하는 데만 쓰고 섞지 않는다(ADR-0012).",
             "type": "array",
-            "items": {
-              "type": "object",
-              "required": ["value", "status", "faces", "edges"],
-              "additionalProperties": false,
-              "properties": {
-                "value": { "type": "number" },
-                "status": { "enum": ["ok", "recompute_failed"] },
-                "faces": { "$ref": "#/$defs/faces" },
-                "edges": { "$ref": "#/$defs/edges" },
-                "bodies": { "$ref": "#/$defs/bodies" }
-              }
-            }
+            "items": { "$ref": "#/$defs/sample" }
           }
         }
       }
     }
   },
   "$defs": {
+    "sample": {
+      "type": "object",
+      "required": ["value", "status", "faces", "edges"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": "number" },
+        "status": { "enum": ["ok", "recompute_failed"] },
+        "faces": { "$ref": "#/$defs/faces" },
+        "edges": { "$ref": "#/$defs/edges" },
+        "bodies": { "$ref": "#/$defs/bodies" }
+      }
+    },
     "faces": { "type": "array", "items": { "$ref": "#/$defs/face" } },
     "face": {
       "type": "object",
       "required": ["body", "surface", "name", "points"],
       "additionalProperties": false,
+      "if": { "properties": { "surface": { "enum": ["plane", "cylinder"] } } },
+      "then": {
+        "description": "평면·원기둥은 표면 정의가 있어야 한다. 면 짝짓기 확인과 판재 두께 측정(수치 검증)에 쓴다.",
+        "required": ["geometry"]
+      },
       "properties": {
         "body": { "type": "string", "minLength": 1 },
         "surface": { "type": "string" },

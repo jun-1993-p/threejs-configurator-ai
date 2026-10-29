@@ -56,6 +56,9 @@ def _bundle() -> dict[str, Any]:
                     {"value": 400, "status": "ok", "faces": [_face("Body1", width=0.5)], "edges": _edges("Body1")},
                     {"value": 1200, "status": "recompute_failed", "faces": [], "edges": []},
                 ],
+                "checks": [
+                    {"value": 800, "status": "ok", "faces": [_face("Body1", width=0.75)], "edges": _edges("Body1")},
+                ],
             }
         ],
     }
@@ -87,6 +90,20 @@ def test_같은_이름의_면인데_점_수가_기본_형상과_다르면_거절
 
     assert response.status_code == 422
     assert "F1:+z" in response.text and "기본 형상" in response.text
+
+
+def test_검증점의_면도_점_수가_기본_형상과_다르면_거절한다() -> None:
+    bundle = _bundle()
+    bundle["sweeps"][0]["checks"][0]["faces"][0]["points"].pop()
+
+    assert any("W=800" in e for e in bundle_errors(bundle))
+
+
+def test_평면_면에_표면_정의가_없으면_거절한다() -> None:
+    bundle = _bundle()
+    del bundle["baseline"]["faces"][0]["geometry"]
+
+    assert any("geometry" in e for e in bundle_errors(bundle))
 
 
 def test_면_이름이나_모서리가_없으면_거절한다(client: TestClient) -> None:

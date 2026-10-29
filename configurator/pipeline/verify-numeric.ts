@@ -1,0 +1,223 @@
+// 수치 검증: 슬라이더 범위 안의 검증점마다 변형 엔진 결과와 녹화된 Fusion 형상을 비교한다(ADR-0012).
+// 검증기는 구성기와 같은 변형 엔진(src/engine.ts)을 그대로 불러, 실제로 내보낼 결과를 잰다.
+import { createMorph, faceKey, type Axis, type Morph, type MorphFace, type SampleFace, type Spec, type SweepData, type Vector } from "../src/engine.ts";
+import type { Feedback } from "./feedback.ts";
+import type { UploadBundle } from "./upload-bundle.ts";
+
+/** 부품 치수(W·D·H와 두께) 오차의 합격선, mm */
+export const DIMENSION_TOLERANCE = 0.2;
+
+/** 형상 오차의 합격선: 1 mm와 그 검증점 Fusion 형상(상품 전체) 바운딩 박스 대각선의 0.1% 중 큰 값 */
+export const shapeTolerance = (diagonal: number) => Math.max(1, diagonal * 0.001);
+
+/** 판재 두께로 보는 맞선 두 평면의 최대 간격: 표준 두께 목록의 가장 두꺼운 값, mm */
+const MAX_THICKNESS = 30;
+
+const AXIS_INDEX = { X: 0, Y: 1, Z: 2 } as const;
+const DIMENSIONS: Axis[] = ["W", "D", "H"];
+
+/** 보고하는 mm 값의 자릿수. 부동소수 끝자리가 피드백에 섞이지 않게 한다. */
+const round = (mm: number) => Math.round(mm * 1e4) / 1e4;
+
+const dot = (a: ArrayLike<number>, b: ArrayLike<number>) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+
+/** 검증점 하나에서 잰 부품의 실패. path·slider는 verifyNumeric이 채운다. */
+type PartFailure = Omit<Feedback, "path" | "slider">;
+
+/** 검증점 하나에서 같은 부품을 엔진과 Fusion으로 잰 결과를 비교하는 데 필요한 것 */
+interface PartReading {
+  part: string;
+  value: number;
+  faces: MorphFace[];
+  engine: Float64Array;
+  fusion: Float64Array;
+  /** 검증점 값 쪽 범위를 좁히라는 힌트 꼬리 */
+  narrow: string;
+}
+
+/**
+ * 검증점에서 합격선을 넘은 항목을 검증 피드백으로 돌려준다. 통과하면 빈 목록이다.
+ * sweeps: 결과물에 담긴 스윕 데이터(엔진 입력), bundle: 검증점 형상이 든 업로드 묶음.
+ */
+export function verifyNumeric(spec: Spec, sweeps: SweepData, bundle: UploadBundle): Feedback[] {
+  const morph = createMorph(spec, sweeps);
+  const parts = [...new Set(morph.faces.map((f) => f.part))];
+  const panels = panelPairs(morph, bundle);
+  const feedback: Feedback[] = [];
+
+  spec.sliders.forEach((slider, i) => {
+    const checks = bundle.sweeps.find((s) => s.parameter === slider.id)?.checks ?? [];
+    for (const check of checks.filter((c) => c.value >= slider.min && c.value <= slider.max)) {
+      // 범위 끝 쪽을 좁히라고 알린다. 검증점은 샘플 사이 값이라 기본값(샘플)과 같을 수 없다.
+      const side = check.value < slider.default ? "min" : "max";
+      const narrow = `${slider.id}의 ${side}를 ${check.value}${side === "max" ? "보다 작게" : "보다 크게"} 좁히세요`;
+      const fail = (failure: PartFailure) => feedback.push({ path: `sliders[${i}].${side}`, slider: slider.id, ...failure });
+
+      // 부품과 무관한 실패는 part를 비워 둔다.
+      if (check.status !== "ok") {
+        fail({ part: "", kind: "recompute_failed", measured: { value: check.value }, expected: "재계산 성공", hint: `Fusion이 ${check.value}에서 재계산하지 못합니다. ${narrow}` });
+        continue;
+      }
+      // 위상 묶음(티켓 10·11)이 들어오면 묶음마다의 면 구성과 비교해야 한다. 지금은 엔진도 기본 형상의 면 구성만 받는다.
+      const fusion = recordedPositions(morph, check.faces);
+      if (!fusion) {
+        fail({ part: "", kind: "topology_change", measured: { value: check.value }, expected: "기본 형상과 같은 면 구성", hint: `${check.value}에서 면 구성이 기본 형상과 다릅니다. ${narrow}` });
+        continue;
+      }
+      const engine = morph.positions({ [slider.id]: check.value });
+      const tolerance = shapeTolerance(diagonal(bounds(morph.faces, fusion)));
+      for (const part of parts) {
+        const reading: PartReading = { part, value: check.value, faces: morph.faces.filter((f) => f.part === part), engine, fusion, narrow };
+        for (const failure of [
+          ...shapeFailures(reading, tolerance),
+          ...sizeFailures(reading, spec),
+          ...thicknessFailures(reading, panels),
+        ]) {
+          fail(failure);
+        }
+      }
+    }
+  });
+  return feedback;
+}
+
+/** 형상 오차: 부품에서 같은 꼭짓점끼리 잰 거리의 최댓값 */
+function shapeFailures({ part, value, faces, engine, fusion, narrow }: PartReading, tolerance: number): PartFailure[] {
+  const error = maxDistance(faces, engine, fusion);
+  if (error <= tolerance) return [];
+  return [
+    {
+      part,
+      kind: "shape_error",
+      measured: { value, error_mm: round(error) },
+      expected: { max_error_mm: round(tolerance) },
+      hint: `${part}의 꼭짓점이 ${value}에서 Fusion과 최대 ${round(error)} mm 어긋납니다. ${narrow}`,
+    },
+  ];
+}
+
+/** 치수 오차 하나. dimension은 W·D·H 또는 thickness, label은 힌트에 쓰는 이름이다. */
+function dimensionFailure(
+  { part, value, narrow }: PartReading,
+  dimension: Axis | "thickness",
+  label: string,
+  engineMm: number,
+  fusionMm: number,
+  extra: object = {},
+): PartFailure[] {
+  const error = Math.abs(engineMm - fusionMm);
+  if (error <= DIMENSION_TOLERANCE) return [];
+  return [
+    {
+      part,
+      kind: "dimension_error",
+      measured: { value, dimension, ...extra, engine_mm: round(engineMm), fusion_mm: round(fusionMm), error_mm: round(error) },
+      expected: { max_error_mm: DIMENSION_TOLERANCE },
+      hint: `${part}의 ${label}가 ${value}에서 Fusion과 ${round(error)} mm 다릅니다. ${narrow}`,
+    },
+  ];
+}
+
+/** 부품의 W·D·H: 명세의 축 대응에 따른 Fusion 축 방향 바운딩 박스 길이 */
+function sizeFailures(reading: PartReading, spec: Spec): PartFailure[] {
+  const engineBox = bounds(reading.faces, reading.engine);
+  const fusionBox = bounds(reading.faces, reading.fusion);
+  return DIMENSIONS.flatMap((dimension) => {
+    const c = AXIS_INDEX[spec.axes[dimension] as keyof typeof AXIS_INDEX];
+    return dimensionFailure(reading, dimension, dimension, engineBox.hi[c] - engineBox.lo[c], fusionBox.hi[c] - fusionBox.lo[c]);
+  });
+}
+
+/** 판재 두께: 부품 안의 판마다 재고, 가장 크게 어긋난 판 하나만 알린다. */
+function thicknessFailures(reading: PartReading, panels: PanelPair[]): PartFailure[] {
+  const worst = panels
+    .filter((pair) => pair.part === reading.part)
+    .map((pair) => ({ pair, engine: pair.gap(reading.engine), fusion: pair.gap(reading.fusion) }))
+    .reduce<{ pair: PanelPair; engine: number; fusion: number } | undefined>(
+      (w, x) => (w === undefined || Math.abs(x.engine - x.fusion) > Math.abs(w.engine - w.fusion) ? x : w),
+      undefined,
+    );
+  if (!worst) return [];
+  const label = `판 두께(${worst.pair.faces.join("·")})`;
+  return dimensionFailure(reading, "thickness", label, worst.engine, worst.fusion, { faces: worst.pair.faces });
+}
+
+/** 녹화된 면 점을 엔진의 면 순서대로 이어 붙인다. 면은 (바디, 이름)으로 짝짓고, 면 구성이 다르면 undefined다. */
+function recordedPositions(morph: Morph, faces: SampleFace[]): Float64Array | undefined {
+  if (faces.length !== morph.faces.length) return undefined;
+  const byKey = new Map(faces.map((f) => [faceKey(f), f]));
+  const out = new Float64Array(morph.faces.reduce((n, f) => n + f.count, 0) * 3);
+  for (const face of morph.faces) {
+    const recorded = byKey.get(faceKey(face));
+    if (recorded?.points.length !== face.count) return undefined;
+    recorded.points.forEach((p, j) => out.set(p, (face.start + j) * 3));
+  }
+  return out;
+}
+
+type Bounds = { lo: number[]; hi: number[] };
+
+/** 면들의 꼭짓점을 감싸는 바운딩 박스 */
+function bounds(faces: MorphFace[], positions: Float64Array): Bounds {
+  const lo = [Infinity, Infinity, Infinity];
+  const hi = [-Infinity, -Infinity, -Infinity];
+  for (const face of faces) {
+    for (let i = face.start; i < face.start + face.count; i++) {
+      for (let c = 0; c < 3; c++) {
+        lo[c] = Math.min(lo[c], positions[i * 3 + c]);
+        hi[c] = Math.max(hi[c], positions[i * 3 + c]);
+      }
+    }
+  }
+  return { lo, hi };
+}
+
+const diagonal = ({ lo, hi }: Bounds) => Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]);
+
+/** 면들에서 같은 꼭짓점끼리 잰 거리의 최댓값 */
+function maxDistance(faces: MorphFace[], a: Float64Array, b: Float64Array): number {
+  let max = 0;
+  for (const face of faces) {
+    for (let i = face.start * 3; i < (face.start + face.count) * 3; i += 3) {
+      max = Math.max(max, Math.hypot(a[i] - b[i], a[i + 1] - b[i + 1], a[i + 2] - b[i + 2]));
+    }
+  }
+  return max;
+}
+
+interface PanelPair {
+  part: string;
+  /** 판의 두 면 이름 */
+  faces: [string, string];
+  /** 두 면 사이 간격(첫 면 법선 방향 평균 위치의 차) */
+  gap(positions: Float64Array): number;
+}
+
+/**
+ * 판재 두께를 재는 면 쌍. 같은 바디에서 법선이 서로 반대이고 서로 등지고 있으며(사이가 재료),
+ * 기본 형상에서 간격이 MAX_THICKNESS 이하인 두 평면이다. 연결과 마찬가지로 기본 형상에서 한 번 정한다.
+ */
+function panelPairs(morph: Morph, bundle: UploadBundle): PanelPair[] {
+  const planes = bundle.baseline.faces.flatMap((face, i) =>
+    face.geometry?.type === "plane" ? [{ i, face: morph.faces[i], normal: face.geometry.normal }] : [],
+  );
+  const base = morph.positions({});
+  /** 면 점들을 법선 n에 내린 평균 위치 */
+  const offset = (face: MorphFace, n: Vector, positions: Float64Array) => {
+    let sum = 0;
+    for (let i = face.start; i < face.start + face.count; i++) sum += dot(positions.subarray(i * 3, i * 3 + 3), n);
+    return sum / face.count;
+  };
+  const pairs: PanelPair[] = [];
+  for (const a of planes) {
+    for (const b of planes) {
+      if (b.i <= a.i || a.face.body !== b.face.body || dot(a.normal, b.normal) > -0.999) continue;
+      // b가 a의 뒤(법선 반대쪽)에 있어야 둘 사이가 재료다
+      const gap = (positions: Float64Array) => offset(a.face, a.normal, positions) - offset(b.face, a.normal, positions);
+      const baseGap = gap(base);
+      if (baseGap <= 0 || baseGap > MAX_THICKNESS) continue;
+      pairs.push({ part: a.face.part, faces: [a.face.name, b.face.name], gap });
+    }
+  }
+  return pairs;
+}

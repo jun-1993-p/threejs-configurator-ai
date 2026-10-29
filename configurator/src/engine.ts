@@ -72,7 +72,8 @@ interface Track {
   deltas: Float64Array[];
 }
 
-const key = (f: { body: string; name: string }) => `${f.body}/${f.name}`;
+/** 샘플 사이에서 면을 짝짓는 키: (바디, 면 이름) */
+export const faceKey = (f: { body: string; name: string }) => `${f.body}/${f.name}`;
 
 export function createMorph(spec: Spec, data: SweepData): Morph {
   const baseline = data.baseline.faces;
@@ -89,7 +90,7 @@ export function createMorph(spec: Spec, data: SweepData): Morph {
     for (const t of face.triangles) triangles.push(start + t[0], start + t[1], start + t[2]);
   });
   const basePositions = Float64Array.from(base);
-  const faceIndex = new Map(baseline.map((f, i) => [key(f), i]));
+  const faceIndex = new Map(baseline.map((f, i) => [faceKey(f), i]));
 
   const tracks: Track[] = spec.sliders.map((slider) => {
     const sweep = data.sweeps.find((s) => s.parameter === slider.id);
@@ -104,7 +105,7 @@ export function createMorph(spec: Spec, data: SweepData): Morph {
         const delta = new Float64Array(basePositions.length);
         if (s.faces.length !== baseline.length) throw topologyChanged(slider.id, s.value);
         for (const face of s.faces) {
-          const i = faceIndex.get(key(face));
+          const i = faceIndex.get(faceKey(face));
           if (i === undefined || face.points.length !== faces[i].count) throw topologyChanged(slider.id, s.value);
           const offset = faces[i].start * 3;
           face.points.forEach((p, j) => {
