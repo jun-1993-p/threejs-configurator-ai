@@ -1,0 +1,329 @@
+[
+  {
+    "series": "body_d",
+    "axis": "Y(±Ì¿Ã)",
+    "base_value": 450.0,
+    "rows": [
+      {
+        "file": "body_d_1_225.obj",
+        "step": 1,
+        "value": 225.0,
+        "sha1": "783d68e16a",
+        "raw_vertices": 54,
+        "welded_vertices": 32,
+        "faces": 56,
+        "per_object_raw": {
+          "Carcass": 30,
+          "DrawerBox": 24
+        },
+        "same_raw_count": false,
+        "same_face_count": true,
+        "same_raw_face_indices": false,
+        "same_welded_face_indices": true,
+        "raw_disp": null,
+        "welded_disp": {
+          "max_off_axis_mm": 5.684341886080802e-14,
+          "distinct_axis_moves_mm": [
+            -225.0
+          ]
+        },
+        "label_count": 32,
+        "same_label_faces_ordered": true,
+        "same_label_tri_set": true,
+        "tri_only_here": 0,
+        "label_disp": {
+          "max_off_axis_mm": 5.684341886080802e-14,
+          "distinct_axis_moves_mm": [
+            -225.0
+          ]
+        }
+      },
+      {
+        "file": "body_d_2_337.5.obj",
+        "step": 2,
+        "value": 337.5,
+        "sha1": "5b946deaf7",
+        "raw_vertices": 57,
+        "welded_vertices": 32,
+        "faces": 56,
+        "per_object_raw": {
+          "Carcass": 30,
+          "DrawerBox": 27
+        },
+        "same_raw_count": false,
+        "same_face_count": true,
+        "same_raw_face_indices": false,
+        "same_welded_face_indices": false,
+        "raw_disp": null,
+        "welded_disp": null,
+        "label_count": 32,
+        "same_label_faces_ordered": false,
+        "same_label_tri_set": false,
+        "tri_only_here": 12,
+        "label_disp": {
+          "max_off_axis_mm": 2.2737367544323206e-13,
+          "distinct_axis_moves_mm": [
+            -112.5
+          ]
+        }
+      },
+      {
+        "file": "body_d_3_450.obj",
+        "step": 3,
+        "value": 450.0,
+        "sha1": "9ea0d49cd3",
+        "raw_vertices": 59,
+        "welded_vertices": 32,
+        "faces": 56,
+        "per_object_raw": {
+          "Carcass": 22,
+          "DrawerBox": 37
+        },
+        "same_raw_count": true,
+        "same_face_count": true,
+        "same_raw_face_indices": true,
+        "same_welded_face_indices": true,
+        "raw_disp": {
+          "max_off_axis_mm": 0.0,
+          "distinct_axis_moves_mm": []
+        },
+        "welded_disp": {
+          "max_off_axis_mm": 0.0,
+          "distinct_axis_moves_mm": []
+        },
+        "label_count": 32,
+        "same_label_faces_ordered": true,
+        "same_label_tri_set": true,
+        "tri_only_here": 0,
+        "label_disp": {
+          "max_off_axis_mm": 0.0,
+          "distinct_axis_moves_mm": []
+        }
+      },
+      {
+        "file": "body_d_4_562.5.obj",
+        "step": 4,
+        "value": 562.5,
+        "sha1": "3b915fa365",
+        "raw_vertices": 57,
+        "welded_vertices": 32,
+        "faces": 56,
+        "per_object_raw": {
+          "Carcass": 30,
+          "DrawerBox": 27
+        },
+        "same_raw_count": false,
+        "same_face_count": true,
+        "same_raw_face_indices": false,
+        "same_welded_face_indices": false,
+        "raw_disp": null,
+        "welded_disp": null,
+        "label_count": 32,
+        "same_label_faces_ordered": false,
+        "same_label_tri_set": false,
+        "tri_only_here": 2,
+        "label_disp": {
+          "max_off_axis_mm": 1.1368683772161603e-13,
+          "distinct_axis_moves_mm": [
+            112.5
+          ]
+        }
+      },
+      {
+        "file": "body_d_5_675.obj",
+        "step": 5,
+        "value": 675.0,
+        "sha1": "9cc6a41ac7",
+        "raw_vertices": 54,
+        "welded_vertices": 32,
+        "faces": 56,
+        "per_object_raw": {
+          "Carcass": 22,
+          "DrawerBox": 32
+        },
+        "same_raw_count": false,
+        "same_face_count": true,
+        "same_raw_face_indices": false,
+        "same_welded_face_indices": false,
+        "raw_disp": null,
+        "welded_disp": null,
+        "label_count": 32,
+        "same_label_faces_ordered": false,
+        "same_label_tri_set": false,
+        "tri_only_here": 4,
+        "label_disp": {
+          "max_off_axis_mm": 5.684341886080802e-14,
+          "distinct_axis_moves_mm": [
+            225.0
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "series": "d6",
+    "axis": "Z(≥Ù¿Ã)",
+    "base_value": 200.0,
+    "rows": [
+      {
+        "file": "d6_1_100.obj",
+        "step": 1,
+        "value": 100.0,
+        "sha1": "0cfb46a0ac",
+        "raw_vertices": 59,
+        "welded_vertices": 32,
+        "faces": 56,
+        "per_object_raw": {
+          "Carcass": 22,
+          "DrawerBox": 37
+        },
+        "same_raw_count": true,
+        "same_face_count": true,
+        "same_raw_face_indices": true,
+        "same_welded_face_indices": true,
+        "raw_disp": {
+          "max_off_axis_mm": 0.0,
+          "distinct_axis_moves_mm": [
+            -100.0
+          ]
+        },
+        "welded_disp": {
+          "max_off_axis_mm": 0.0,
+          "distinct_axis_moves_mm": [
+            -100.0
+          ]
+        },
+        "label_count": 32,
+        "same_label_faces_ordered": true,
+        "same_label_tri_set": true,
+        "tri_only_here": 0,
+        "label_disp": {
+          "max_off_axis_mm": 0.0,
+          "distinct_axis_moves_mm": [
+            -100.0
+          ]
+        }
+      },
+      {
+        "file": "d6_2_150.obj",
+        "step": 2,
+        "value": 150.0,
+        "sha1": "84ef96249b",
+        "raw_vertices": 52,
+        "welded_vertices": 32,
+        "faces": 56,
+        "per_object_raw": {
+          "Carcass": 22,
+          "DrawerBox": 30
+        },
+        "same_raw_count": false,
+        "same_face_count": true,
+        "same_raw_face_indices": false,
+        "same_welded_face_indices": false,
+        "raw_disp": null,
+        "welded_disp": null,
+        "label_count": 32,
+        "same_label_faces_ordered": false,
+        "same_label_tri_set": false,
+        "tri_only_here": 2,
+        "label_disp": {
+          "max_off_axis_mm": 5.684341886080802e-14,
+          "distinct_axis_moves_mm": [
+            -50.0
+          ]
+        }
+      },
+      {
+        "file": "d6_3_200.obj",
+        "step": 3,
+        "value": 200.0,
+        "sha1": "9ea0d49cd3",
+        "raw_vertices": 59,
+        "welded_vertices": 32,
+        "faces": 56,
+        "per_object_raw": {
+          "Carcass": 22,
+          "DrawerBox": 37
+        },
+        "same_raw_count": true,
+        "same_face_count": true,
+        "same_raw_face_indices": true,
+        "same_welded_face_indices": true,
+        "raw_disp": {
+          "max_off_axis_mm": 0.0,
+          "distinct_axis_moves_mm": []
+        },
+        "welded_disp": {
+          "max_off_axis_mm": 0.0,
+          "distinct_axis_moves_mm": []
+        },
+        "label_count": 32,
+        "same_label_faces_ordered": true,
+        "same_label_tri_set": true,
+        "tri_only_here": 0,
+        "label_disp": {
+          "max_off_axis_mm": 0.0,
+          "distinct_axis_moves_mm": []
+        }
+      },
+      {
+        "file": "d6_4_250.obj",
+        "step": 4,
+        "value": 250.0,
+        "sha1": "ab69c41c87",
+        "raw_vertices": 51,
+        "welded_vertices": 32,
+        "faces": 56,
+        "per_object_raw": {
+          "Carcass": 22,
+          "DrawerBox": 29
+        },
+        "same_raw_count": false,
+        "same_face_count": true,
+        "same_raw_face_indices": false,
+        "same_welded_face_indices": false,
+        "raw_disp": null,
+        "welded_disp": null,
+        "label_count": 32,
+        "same_label_faces_ordered": false,
+        "same_label_tri_set": false,
+        "tri_only_here": 4,
+        "label_disp": {
+          "max_off_axis_mm": 5.684341886080802e-14,
+          "distinct_axis_moves_mm": [
+            50.0
+          ]
+        }
+      },
+      {
+        "file": "d6_5_300.obj",
+        "step": 5,
+        "value": 300.0,
+        "sha1": "4b8de1273a",
+        "raw_vertices": 49,
+        "welded_vertices": 32,
+        "faces": 56,
+        "per_object_raw": {
+          "Carcass": 22,
+          "DrawerBox": 27
+        },
+        "same_raw_count": false,
+        "same_face_count": true,
+        "same_raw_face_indices": false,
+        "same_welded_face_indices": false,
+        "raw_disp": null,
+        "welded_disp": null,
+        "label_count": 32,
+        "same_label_faces_ordered": false,
+        "same_label_tri_set": false,
+        "tri_only_here": 2,
+        "label_disp": {
+          "max_off_axis_mm": 5.684341886080802e-14,
+          "distinct_axis_moves_mm": [
+            100.0
+          ]
+        }
+      }
+    ]
+  }
+]
