@@ -16,6 +16,7 @@ export const FEEDBACK_KINDS = [
   "volume_jump",
   "no_range_intersection",
   "ai_judgment",
+  "grid_limit",
 ] as const;
 
 export type FeedbackKind = (typeof FEEDBACK_KINDS)[number];

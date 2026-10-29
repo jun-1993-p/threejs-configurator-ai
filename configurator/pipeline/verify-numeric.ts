@@ -67,8 +67,12 @@ export function shapeComparer(spec: Spec, sweeps: SweepData, bundle: UploadBundl
 export function verifyNumeric(spec: Spec, sweeps: SweepData, bundle: UploadBundle): Feedback[] {
   const compare = shapeComparer(spec, sweeps, bundle);
   const feedback: Feedback[] = [];
+  // 격자 보강 쌍의 슬라이더는 단독 스윕 검증점을 재지 않는다. 짝 슬라이더가 Fusion 수식으로 따라가는 단독 스윕은
+  // 짝 슬라이더 값을 고정한 구성기 상태가 아니기 때문이다. 이 쌍은 교차 검증에서 격자 칸 가운데로 잰다.
+  const gridded = new Set((sweeps.grids ?? []).flatMap((g) => g.parameters));
 
   spec.sliders.forEach((slider, i) => {
+    if (gridded.has(slider.id)) return;
     const checks = bundle.sweeps.find((s) => s.parameter === slider.id)?.checks ?? [];
     for (const check of checks.filter((c) => c.value >= slider.min && c.value <= slider.max)) {
       // 범위 끝 쪽을 좁히라고 알린다. 검증점은 샘플 사이 값이라 기본값(샘플)과 같을 수 없다.

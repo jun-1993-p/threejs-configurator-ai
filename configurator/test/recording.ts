@@ -97,3 +97,15 @@ export const crossCorners: CrossSample[] = JSON.parse(readFileSync(new URL("draw
 
 /** depthSpec 범위의 모서리 조합 4개(전체 깊이 300·600 × 서랍 깊이 300·600). 서랍 깊이는 Fusion 수식으로 전체 깊이를 따른다. */
 export const crossDepth: CrossSample[] = JSON.parse(readFileSync(new URL("drawer.cross-depth.json", fixtures), "utf-8")).samples;
+
+/** depthSpec 범위의 3×3 격자(전체 깊이 300·450·600 × 서랍 깊이 300·430·600)에서 녹화한 격자 보강 샘플 */
+export const gridDepth: CrossSample[] = JSON.parse(readFileSync(new URL("drawer.grid-depth.json", fixtures), "utf-8")).samples;
+
+/** 격자 검증점 8곳(격자 칸 가운데 4곳, 기본값 줄 위 마디 사이 4곳)의 Fusion 형상. 격자 보간을 재는 정답이다. */
+export const gridDepthChecks: CrossSample[] = JSON.parse(readFileSync(new URL("drawer.grid-depth-checks.json", fixtures), "utf-8")).samples;
+
+/** 서로 영향이 없는 세 슬라이더: 전체 폭·전체 높이·전체 깊이 */
+export const threeSpec: Spec = { ...widthHeightSpec, sliders: [...widthHeightSpec.sliders, depthSpec.sliders[0]] };
+
+/** threeSpec의 세 쌍 모서리 조합 12개에서 녹화한 교차 검증 샘플 */
+export const crossThree: CrossSample[] = JSON.parse(readFileSync(new URL("drawer.cross-three.json", fixtures), "utf-8")).samples;

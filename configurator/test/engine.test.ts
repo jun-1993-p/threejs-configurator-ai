@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { createMorph, type Morph, type SampleFace, type Spec, type SweepData } from "../src/engine.ts";
 import { boundsOf, diagonal } from "../pipeline/measure.ts";
 import { shapeTolerance } from "../pipeline/verify-numeric.ts";
-import { crossChecks, widthHeightSpec } from "./recording.ts";
+import { crossChecks, depthSpec, gridDepth, gridDepthChecks, widthHeightSpec } from "./recording.ts";
 
 const fixtures = new URL("../../fixtures/synthetic/", import.meta.url);
 const recording: SweepData = JSON.parse(readFileSync(new URL("drawer.json", fixtures), "utf-8"));
@@ -73,6 +73,20 @@ test("슬라이더 하나만 움직이면 단독 스윕 보간과 결과가 같�
   }
 });
 
+/** 여러 슬라이더 값 묶음의 변형 결과와 녹화된 Fusion 형상의 형상 오차와 그 합격선 */
+function crossError(morph: Morph, sample: { values: Record<string, number>; faces: SampleFace[] }) {
+  const expected = recordedPositions(morph, sample.faces);
+  // 형상 오차 합격선(ADR-0012): 1 mm와 Fusion 형상 대각선의 0.1% 중 큰 값
+  const tolerance = shapeTolerance(
+    diagonal(
+      boundsOf((visit) => {
+        for (let i = 0; i < expected.length; i += 3) visit(expected[i], expected[i + 1], expected[i + 2]);
+      }),
+    ),
+  );
+  return { error: maxDistance(morph.positions(sample.values), expected), tolerance };
+}
+
 test("두 슬라이더를 함께 움직이면 이동량을 더한 결과가 교차 검증 샘플과 형상 오차 합격선 안에서 맞는다", () => {
   const morph = createMorph(widthHeightSpec, recording);
   assert.ok(crossChecks.length >= 2);
@@ -83,16 +97,39 @@ test("두 슬라이더를 함께 움직이면 이동량을 더한 결과가 교�
       const value = sample.values[slider.id];
       assert.ok(slider.min <= value && value <= slider.max, `${slider.id}=${value}가 슬라이더 범위 밖`);
     }
-    const expected = recordedPositions(morph, sample.faces);
-    // 형상 오차 합격선(ADR-0012): 1 mm와 Fusion 형상 대각선의 0.1% 중 큰 값
-    const tolerance = shapeTolerance(
-      diagonal(
-        boundsOf((visit) => {
-          for (let i = 0; i < expected.length; i += 3) visit(expected[i], expected[i + 1], expected[i + 2]);
-        }),
-      ),
-    );
-    const error = maxDistance(morph.positions(sample.values), expected);
+    const { error, tolerance } = crossError(morph, sample);
     assert.ok(error <= tolerance, `${JSON.stringify(sample.values)}: 오차 ${error} mm > ${tolerance} mm`);
   }
+});
+
+/** depthSpec 쌍(전체 깊이 × 서랍 깊이)을 3×3 격자로 보강한 스윕 데이터 */
+const withDepthGrid: SweepData = { ...recording, grids: [{ parameters: ["body_d", "drawer_d"], samples: gridDepth }] };
+
+test("서로 영향을 주는 쌍은 덧셈이 틀리고, 격자 보강하면 격자 마디 사이에서도 Fusion 형상과 합격선 안에서 맞는다", () => {
+  const additive = createMorph(depthSpec, recording);
+  const grid = createMorph(depthSpec, withDepthGrid);
+  assert.ok(gridDepthChecks.length >= 2);
+  for (const sample of gridDepthChecks) {
+    assert.equal(sample.status, "ok");
+    // 서랍 깊이는 Fusion 수식으로 전체 깊이를 따르므로, 전체 깊이가 기본값에서 벗어나면 덧셈이 서랍 깊이를 두 번 바꾼다
+    if (sample.values.body_d !== 450) {
+      const add = crossError(additive, sample);
+      assert.ok(add.error > add.tolerance, `${JSON.stringify(sample.values)}: 덧셈이 이미 맞는다(${add.error} mm)`);
+    }
+    const { error, tolerance } = crossError(grid, sample);
+    assert.ok(error <= tolerance, `${JSON.stringify(sample.values)}: 오차 ${error} mm > ${tolerance} mm`);
+  }
+});
+
+test("격자 마디에서는 녹화한 격자 보강 샘플과 일치한다", () => {
+  const grid = createMorph(depthSpec, withDepthGrid);
+  assert.equal(gridDepth.length, 9);
+  for (const sample of gridDepth) {
+    assert.ok(maxDistance(grid.positions(sample.values), recordedPositions(grid, sample.faces)) < 1e-6, JSON.stringify(sample.values));
+  }
+});
+
+test("격자 보강 쌍이 아닌 슬라이더는 격자와 무관하게 덧셈으로 섞인다", () => {
+  const values = { body_w: 500, body_h: 900 };
+  assert.deepEqual(createMorph(widthHeightSpec, withDepthGrid).positions(values), createMorph(widthHeightSpec, recording).positions(values));
 });

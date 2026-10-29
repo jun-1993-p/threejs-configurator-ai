@@ -11,7 +11,7 @@ import type { Feedback } from "../pipeline/feedback.ts";
 import { FUSION_NEEDED, FUSION_RECONNECTED, runPipeline, type Candidate, type FusionPort, type HumanPort, type Intake, type SampleRequest } from "../pipeline/runner.ts";
 import { scriptedAi, type Script } from "../pipeline/scripted-ai.ts";
 import { memoryStore } from "../pipeline/memory-store.ts";
-import { crossCorners, crossDepth, depthSpec, pushMaxSide, widthHeightSpec } from "./recording.ts";
+import { crossCorners, crossDepth, crossThree, depthSpec, gridDepth, gridDepthChecks, pushMaxSide, threeSpec, widthHeightSpec } from "./recording.ts";
 import type { CrossSample } from "../pipeline/verify-cross.ts";
 
 const fixtures = new URL("../../fixtures/synthetic/", import.meta.url);
@@ -377,4 +377,110 @@ test("애드인이 추가 샘플을 뽑지 못했다고 알리면 그 이유로 
   assert.equal(result.status === "stopped" && result.stage, "verification");
   assert.match(result.status === "stopped" ? result.reason : "", /모델에 없는 파라미터: body_h/);
   assert.equal(store.submissions.length, 0);
+});
+
+/** 전체 깊이·서랍 깊이 쌍의 녹화본: 교차 검증 모서리, 3×3 격자, 격자 칸 가운데 */
+const depthRecordings = () => [...crossDepth, ...gridDepth, ...gridDepthChecks];
+
+const depthGridValues = [
+  ...[300, 450, 600].flatMap((body_d) => [300, 430, 600].map((drawer_d) => ({ body_d, drawer_d }))),
+  ...[375, 525].flatMap((body_d) => [365, 515].map((drawer_d) => ({ body_d, drawer_d }))),
+  { body_d: 375, drawer_d: 430 },
+  { body_d: 525, drawer_d: 430 },
+  { body_d: 450, drawer_d: 365 },
+  { body_d: 450, drawer_d: 515 },
+];
+
+test("명세를 고쳐 다시 써도 교차 검증에 실패한 쌍은 3×3 격자 샘플로 보강하고, 격자 보간으로 통과하면 제출한다", async () => {
+  // AI가 피드백을 받고도 같은 쌍을 다시 냈다
+  const fusion = recordedFusion(depthRecordings());
+  const { ai, store, ports } = setup({ spec: [depthSpec, depthSpec] }, fusion.port);
+
+  const result = await runPipeline({ bundle, intake: depthIntake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  // 처음 실패에는 격자를 요청하지 않고 피드백으로 명세를 다시 쓴다
+  assert.equal(ai.calls.spec.length, 2);
+  assert.ok((ai.calls.spec[1] as { feedback: Feedback[] }).feedback.length > 0);
+  // 격자 9곳 다음에 검증점(격자 칸 가운데 4곳, 기본값 줄 위 마디 사이 4곳)을 요청한다. 같은 교차 검증 요청은 다시 보내지 않는다.
+  assert.deepEqual(
+    fusion.requests.map((r) => r.kind),
+    ["cross", "grid"],
+  );
+  assert.deepEqual(fusion.requests[1].values, depthGridValues);
+  // 격자 보강 쌍은 명세가 아니라 결과물의 스윕 데이터에 담긴다
+  const files = store.submissions[0].files;
+  assert.deepEqual(JSON.parse(files["spec.json"]), depthSpec);
+  const grids = JSON.parse(files["sweeps.json"]).grids as { parameters: string[]; samples: { values: object }[] }[];
+  assert.deepEqual(grids.map((g) => g.parameters), [["body_d", "drawer_d"]]);
+  assert.deepEqual(grids[0].samples.map((s) => s.values), depthGridValues.slice(0, 9));
+  assert.ok(verificationLog(store).some((d) => JSON.stringify(d) === JSON.stringify({ grid: ["body_d", "drawer_d"] })));
+});
+
+test("격자 보강해도 격자 검증점에서 합격선을 넘으면 격자 보간이 맞지 않는다는 피드백으로 명세를 다시 쓴다", async () => {
+  // 격자 칸 가운데 하나에서 서랍이 3 mm 더 깊다
+  const recordings = depthRecordings();
+  const bent = recordings.find((s) => s.values.body_d === 525 && s.values.drawer_d === 515 && gridDepthChecks.includes(s))!;
+  const shifted = structuredClone(bent);
+  for (const f of shifted.faces) if (f.body === "DrawerBox") for (const p of f.points) if (Math.abs(p[1] - 515) < 1e-6) p[1] += 3;
+  const fusion = recordedFusion(recordings.map((s) => (s === bent ? shifted : s)));
+  const { ai, store, ports } = setup({ spec: [depthSpec, depthSpec, spec] }, fusion.port);
+
+  const result = await runPipeline({ bundle, intake: depthIntake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  const feedback = (ai.calls.spec[2] as { feedback: Feedback[] }).feedback;
+  assert.ok(feedback.length > 0);
+  for (const f of feedback) {
+    assert.equal(f.slider, "body_d");
+    assert.equal(f.part, "DrawerBox");
+    assert.deepEqual((f.measured as { values: object }).values, { body_d: 525, drawer_d: 515 });
+    assert.match(f.hint, /격자/);
+  }
+  assert.deepEqual(JSON.parse(store.submissions[0].files["spec.json"]), spec);
+});
+
+test("격자 보강이 필요한 쌍이 2쌍을 넘으면 격자를 요청하지 않고 검증 피드백으로 명세를 다시 쓴다", async () => {
+  // 모든 교차 검증 샘플에서 몸통 윗면이 3 mm 높아 세 쌍이 모두 덧셈에 실패한다
+  const raised = structuredClone(crossThree);
+  for (const sample of raised) {
+    const carcass = sample.faces.filter((f) => f.body === "Carcass");
+    const top = Math.max(...carcass.flatMap((f) => f.points.map((p) => p[2])));
+    for (const f of carcass) for (const p of f.points) if (Math.abs(p[2] - top) < 1e-6) p[2] += 3;
+  }
+  const fusion = recordedFusion(raised);
+  const { ai, store, ports } = setup({ spec: [threeSpec, threeSpec, spec] }, fusion.port);
+
+  const result = await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  assert.deepEqual(fusion.requests.map((r) => r.kind), ["cross"]);
+  const feedback = (ai.calls.spec[2] as { feedback: Feedback[] }).feedback;
+  const limit = feedback.filter((f) => f.kind === "grid_limit");
+  assert.equal(limit.length, 1, JSON.stringify(feedback));
+  assert.deepEqual(limit[0].measured, { pairs: [["body_w", "body_h"], ["body_w", "body_d"], ["body_h", "body_d"]] });
+  assert.deepEqual(limit[0].expected, { max_pairs: 2 });
+  assert.match(limit[0].hint, /2쌍/);
+  // 덧셈이 틀린 쌍의 교차 검증 피드백도 함께 간다
+  assert.ok(feedback.some((f) => f.kind === "shape_error"));
+  assert.deepEqual(JSON.parse(store.submissions[0].files["spec.json"]), spec);
+});
+
+test("격자 샘플 하나라도 재계산에 실패하면 그 쌍은 보강하지 않고 재계산 실패 피드백으로 명세를 다시 쓴다", async () => {
+  const recordings = depthRecordings().map((s) =>
+    gridDepth.includes(s) && s.values.body_d === 450 && s.values.drawer_d === 600 ? { ...s, status: "recompute_failed" as const, faces: [] } : s,
+  );
+  const fusion = recordedFusion(recordings);
+  const { ai, store, ports } = setup({ spec: [depthSpec, depthSpec, spec] }, fusion.port);
+
+  const result = await runPipeline({ bundle, intake: depthIntake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  const feedback = (ai.calls.spec[2] as { feedback: Feedback[] }).feedback;
+  const failed = feedback.filter((f) => f.kind === "recompute_failed");
+  assert.equal(failed.length, 1, JSON.stringify(feedback));
+  assert.deepEqual(failed[0].measured, { values: { body_d: 450, drawer_d: 600 } });
+  assert.match(failed[0].hint, /격자 보강 샘플/);
+  assert.ok(!verificationLog(store).some((d) => JSON.stringify(d).includes('"grid"')));
+  assert.equal(JSON.parse(store.submissions[0].files["sweeps.json"]).grids, undefined);
 });
