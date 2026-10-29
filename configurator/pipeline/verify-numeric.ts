@@ -1,6 +1,6 @@
 // 수치 검증: 슬라이더 범위 안의 검증점마다 변형 엔진 결과와 녹화된 Fusion 형상을 비교한다(ADR-0012).
 // 검증기는 구성기와 같은 변형 엔진(src/engine.ts)을 그대로 불러, 실제로 내보낼 결과를 잰다.
-import { createMorph, faceKey, reaches, type Axis, type MorphFace, type SampleFace, type Slider, type Spec, type SweepData, type Topology, type Vector } from "../src/engine.ts";
+import { createMorph, faceKey, findPair, placeOf, reaches, type Axis, type MorphFace, type SampleFace, type Slider, type Spec, type SweepData, type Topology, type Vector } from "../src/engine.ts";
 import type { Feedback } from "./feedback.ts";
 import { boundsOf, coordinateOf, diagonal, DIMENSIONS, round, type Bounds } from "./measure.ts";
 import type { Geometry, UploadBundle } from "./upload-bundle.ts";
@@ -61,10 +61,73 @@ export function shapeComparer(spec: Spec, sweeps: SweepData, bundle: UploadBundl
   };
 }
 
+/** 판 하나를 한 형상에서 잰 두께와, 그 위상 묶음 기준 형상에서 잰 두께 */
+export interface PanelReading {
+  part: string;
+  /** 판의 두 면 이름 */
+  faces: [string, string];
+  baseMm: number;
+  fusionMm: number;
+}
+
+/**
+ * 녹화된 Fusion 형상에서 판재 두께를 판마다 잰다(두께 고정 실측). 판은 값이 든 위상 묶음의 기준 형상에서 정하고,
+ * 면 구성이 그 기준 형상과 다르면 undefined다. 변형 엔진에서는 위상 묶음과 면 순서만 빌린다.
+ */
+export function panelReader(spec: Spec, sweeps: SweepData, bundle: UploadBundle) {
+  const morph = createMorph(spec, sweeps);
+  const geometry = surfaces(bundle);
+  const panels = new Map<MorphFace[], PanelPair[]>();
+  return (values: Record<string, number>, faces: SampleFace[]): PanelReading[] | undefined => {
+    const shape = morph.shape(values);
+    const fusion = recordedPositions(shape, faces);
+    if (!fusion) return undefined;
+    if (!panels.has(shape.faces)) panels.set(shape.faces, panelPairs(shape, geometry));
+    return panels.get(shape.faces)!.map((pair) => ({ part: pair.part, faces: pair.faces, baseMm: pair.gap(shape.base), fusionMm: pair.gap(fusion) }));
+  };
+}
+
 /** 면 표면: 기본 형상과 위상 묶음 기준 형상의 면, (바디, 이름)으로 찾는다 */
 function surfaces(bundle: UploadBundle): Map<string, Geometry> {
   const faces = [bundle.baseline.faces, ...bundle.sweeps.flatMap((s) => (s.groups ?? []).map((g) => g.baseline.faces))].flat();
   return new Map(faces.flatMap((f) => (f.geometry ? [[faceKey(f), f.geometry] as const] : [])));
+}
+
+type BundleSweep = UploadBundle["sweeps"][number];
+
+/** 슬라이더 i의 단독 스윕 하나와, 함께 고정한 다른 슬라이더 값(위상 묶음 기준 값, 기본 묶음이면 빈 묶음) */
+export interface SliderSweep {
+  i: number;
+  sweep: Pick<BundleSweep, "samples" | "checks">;
+  fixed: Record<string, number>;
+}
+
+/**
+ * 슬라이더마다 그 단독 스윕, 그다음 슬라이더 범위가 닿는 위상 묶음마다 묶음 안 다른 슬라이더의 단독 스윕(그 슬라이더는 묶음 기준 값).
+ * 수치 검증과 두께 고정 실측이 같은 순서로 돈다.
+ */
+export function sliderSweeps(spec: Spec, bundle: UploadBundle): SliderSweep[] {
+  const sweepOf = (id: string) => bundle.sweeps.find((s) => s.parameter === id);
+  return spec.sliders.flatMap((slider, i) => {
+    const own = sweepOf(slider.id);
+    if (!own) return [];
+    const inGroups = (own.groups ?? [])
+      .filter((g) => reaches(slider, g))
+      .flatMap((group) =>
+        spec.sliders.flatMap((other, j) => {
+          const sweep = group.sweeps.find((s) => s.parameter === other.id);
+          return j === i || !sweep ? [] : [{ i: j, sweep, fixed: { [slider.id]: group.anchor } }];
+        }),
+      );
+    return [{ i, sweep: own, fixed: {} }, ...inGroups];
+  });
+}
+
+/** 단독 스윕의 한 값을 피드백에 쓰는 말: 엔진에 줄 값 묶음, measured 앞부분, 힌트의 자리 */
+export function sweepPoint(id: string, value: number, fixed: Record<string, number>) {
+  const values = { [id]: value, ...fixed };
+  const grouped = Object.keys(fixed).length > 0;
+  return { values, measured: grouped ? { values } : { value }, place: grouped ? placeOf(values) : String(value) };
 }
 
 /**
@@ -76,22 +139,19 @@ export function verifyNumeric(spec: Spec, sweeps: SweepData, bundle: UploadBundl
   const compare = shapeComparer(spec, sweeps, bundle);
   // 격자 보강 쌍의 슬라이더는 단독 스윕 검증점을 재지 않는다. 짝 슬라이더가 Fusion 수식으로 따라가는 단독 스윕은
   // 짝 슬라이더 값을 고정한 구성기 상태가 아니기 때문이다. 이 쌍은 교차 검증에서 격자 칸 가운데로 잰다.
-  const gridded = new Set((sweeps.grids ?? []).flatMap((g) => g.parameters));
-  const sweepOf = (slider: Slider) => bundle.sweeps.find((s) => s.parameter === slider.id);
+  // 두께 쌍의 격자는 기본 두께에서 더하지 않으므로 그 슬라이더의 단독 스윕 검증점은 그대로 잰다.
+  const gridded = new Set((sweeps.grids ?? []).filter((g) => findPair(spec, g.parameters)?.kind === "sliders").flatMap((g) => g.parameters));
 
   /** 슬라이더 하나의 단독 스윕 검증점. fixed는 함께 고정한 다른 슬라이더 값(위상 묶음 기준 값)이다. */
   const checkSweep = (i: number, checks: Check[], fixed: Record<string, number>) => {
     const slider = spec.sliders[i];
-    const at = Object.entries(fixed).map(([id, v]) => `·${id}=${v}`).join("");
     return checks
       .filter((c) => c.value >= slider.min && c.value <= slider.max)
       .flatMap((check): Feedback[] => {
         // 범위 끝 쪽을 좁히라고 알린다. 검증점은 샘플 사이 값이라 기본값(샘플)과 같을 수 없다.
         const side = check.value < slider.default ? "min" : "max";
         const narrow = `${slider.id}의 ${side}를 ${check.value}${side === "max" ? "보다 작게" : "보다 크게"} 좁히세요`;
-        const values = { [slider.id]: check.value, ...fixed };
-        const measured = at ? { values } : { value: check.value };
-        const place = at ? `${slider.id}=${check.value}${at}` : String(check.value);
+        const { values, measured, place } = sweepPoint(slider.id, check.value, fixed);
         const fail = (failure: PartFailure): Feedback => ({ path: `sliders[${i}].${side}`, slider: slider.id, ...failure });
 
         // 부품과 무관한 실패는 part를 비워 둔다.
@@ -106,22 +166,12 @@ export function verifyNumeric(spec: Spec, sweeps: SweepData, bundle: UploadBundl
       });
   };
 
-  return spec.sliders.flatMap((slider, i) => {
-    const own = gridded.has(slider.id) ? [] : checkSweep(i, sweepOf(slider)?.checks ?? [], {});
-    // 슬라이더 범위가 닿는 위상 묶음마다, 그 묶음 안 단독 스윕의 검증점
-    const groups = (sweepOf(slider)?.groups ?? []).filter((g) => reaches(slider, g));
-    const inGroups = groups.flatMap((group) =>
-      spec.sliders.flatMap((other, j) => {
-        if (j === i || gridded.has(other.id)) return [];
-        const checks = group.sweeps.find((s) => s.parameter === other.id)?.checks ?? [];
-        return checkSweep(j, checks, { [slider.id]: group.anchor });
-      }),
-    );
-    return [...own, ...inGroups];
-  });
+  return sliderSweeps(spec, bundle)
+    .filter(({ i }) => !gridded.has(spec.sliders[i].id))
+    .flatMap(({ i, sweep, fixed }) => checkSweep(i, sweep.checks, fixed));
 }
 
-type Check = UploadBundle["sweeps"][number]["checks"][number];
+type Check = BundleSweep["checks"][number];
 
 /** 형상 오차: 부품에서 같은 꼭짓점끼리 잰 거리의 최댓값 */
 function shapeFailures({ part, measured, place, faces, engine, fusion, hintTail }: PartReading, tolerance: number): PartFailure[] {

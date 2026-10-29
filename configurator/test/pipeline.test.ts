@@ -11,7 +11,27 @@ import type { Feedback } from "../pipeline/feedback.ts";
 import { FUSION_NEEDED, FUSION_RECONNECTED, runPipeline, type Candidate, type FusionPort, type HumanPort, type Intake, type SampleRequest } from "../pipeline/runner.ts";
 import { scriptedAi, type Script } from "../pipeline/scripted-ai.ts";
 import { memoryStore } from "../pipeline/memory-store.ts";
-import { crossCorners, crossDepth, crossThree, depthSpec, gridDepth, gridDepthChecks, pushMaxSide, shellPointRecording, shelfCrossCorners, shelfRecording, shelfSpec, shelfThicknessSamples, shelfThicknessSpec, threeSpec, widthHeightSpec } from "./recording.ts";
+import {
+  crossCorners,
+  crossDepth,
+  crossThree,
+  depthSpec,
+  gridDepth,
+  gridDepthChecks,
+  mixedThicknessRecording,
+  mixedThicknessSamples,
+  pushMaxSide,
+  ratioThicknessRecording,
+  shellPointRecording,
+  shelfCrossCorners,
+  shelfRecording,
+  shelfSpec,
+  shelfThicknessCross,
+  shelfThicknessSamples,
+  shelfThicknessSpec,
+  threeSpec,
+  widthHeightSpec,
+} from "./recording.ts";
 import type { CrossSample } from "../pipeline/verify-cross.ts";
 
 const fixtures = new URL("../../fixtures/synthetic/", import.meta.url);
@@ -630,7 +650,7 @@ test("고정 두께 파라미터가 슬라이더의 자식에 있으면 명세�
 async function runShelfThickness(specs: Spec[], thicknessSamples: CrossSample[] = shelfThicknessSamples) {
   const ai = scriptedAi({ candidates: [shelfCandidates], style: [{ style: "natural" }], spec: specs });
   const store = memoryStore({ styles });
-  const fusion = recordedFusion([...shelfCrossCorners, ...thicknessSamples]);
+  const fusion = recordedFusion([...shelfCrossCorners, ...shelfThicknessCross, ...thicknessSamples]);
   const result = await runPipeline({ bundle: shelfRecording, intake: shelfIntake, human: approveFirst, ports: { fusion: fusion.port, ai, store } });
   return { ai, store, fusion, result };
 }
@@ -698,4 +718,148 @@ test("두께 선택의 파라미터가 슬라이더의 자식이거나 고정 �
     "/thickness/1/ids: t는 슬라이더 shelf_w의 children에 있어 두께 선택에 둘 수 없습니다",
     "/thickness/1/ids: t는 thickness[0]의 두께 선택에도 있습니다",
   ]);
+});
+
+test("슬라이더를 움직이면 판재 두께가 바뀌는 모델은 그 슬라이더와 부품을 가리키는 두께 변화 피드백이 나온다", async () => {
+  // 몸통 셸 두께가 body_w × 0.03이라 전체 폭을 움직이면 몸통 판재가 두꺼워지거나 얇아진다
+  const depthOnly = { ...spec, sliders: [depthSpec.sliders[0]] };
+  const { ai, store, ports } = setup({ spec: [spec, depthOnly] });
+
+  const result = await runPipeline({ bundle: ratioThicknessRecording, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted", JSON.stringify(store.log.at(-1)));
+  const { feedback } = ai.calls.spec[1] as { feedback: Feedback[] };
+  assert.deepEqual(
+    feedback.map(({ path, slider, part, kind }) => ({ path, slider, part, kind })),
+    [{ path: "sliders[0]", slider: "body_w", part: "Carcass", kind: "thickness_change" }],
+  );
+  // 범위 끝 쪽 검증점·샘플에서 가장 크게 바뀐 곳을 알린다: 기본 18 mm에서 전체 폭에 비례해 바뀐다
+  const measured = feedback[0].measured as { value: number; baseline_mm: number; fusion_mm: number };
+  assert.equal(measured.baseline_mm, 18);
+  assert.ok(Math.abs(measured.fusion_mm - measured.value * 0.03) < 0.01, JSON.stringify(measured));
+  assert.match(feedback[0].hint, /슬라이더 body_w가 부품 Carcass의 두께를 바꿉니다/);
+});
+
+test("두께 후보마다 각 슬라이더의 범위 끝에서 교차 검증 샘플을 받아, 덧셈이 맞으면 제출한다", async () => {
+  const { store, fusion, result } = await runShelfThickness([shelfThicknessSpec]);
+
+  assert.equal(result.status, "submitted", JSON.stringify(store.log.at(-1)));
+  const cross = fusion.requests.filter((r) => r.kind === "cross");
+  assert.equal(cross.length, 1);
+  // 슬라이더 쌍의 모서리 4곳 다음에, 두께 후보 15·24마다 전체 폭 500·1300(전체 깊이 기본값)과 전체 깊이 200·400(전체 폭 기본값)
+  assert.deepEqual(cross[0].values.slice(4), [
+    { shelf_w: 500, shelf_d: 300, t: 15 },
+    { shelf_w: 1300, shelf_d: 300, t: 15 },
+    { shelf_w: 900, shelf_d: 200, t: 15 },
+    { shelf_w: 900, shelf_d: 400, t: 15 },
+    { shelf_w: 500, shelf_d: 300, t: 24 },
+    { shelf_w: 1300, shelf_d: 300, t: 24 },
+    { shelf_w: 900, shelf_d: 200, t: 24 },
+    { shelf_w: 900, shelf_d: 400, t: 24 },
+  ]);
+});
+
+/** 서랍 폭 수식에 두께가 비율로 섞인 서랍장의 몸통 두께 선택 명세 */
+const mixedThicknessSpec: Spec = { ...spec, thickness: [{ ids: ["t"], name: "몸통 두께", default: 18, options: [15, 18, 24] }] };
+
+test("두께 후보에서 슬라이더와 덧셈이 맞지 않으면 그 두께 선택과 슬라이더를 가리키는 피드백이 나오고, 다시 실패하면 격자로 보강해 제출한다", async () => {
+  const ai = scriptedAi({ candidates: [candidates], style: [{ style: "natural" }], spec: [mixedThicknessSpec, mixedThicknessSpec] });
+  const store = memoryStore({ styles });
+  const fusion = recordedFusion(mixedThicknessSamples);
+
+  const result = await runPipeline({ bundle: mixedThicknessRecording, intake, human: approveFirst, ports: { fusion: fusion.port, ai, store } });
+
+  assert.equal(result.status, "submitted", JSON.stringify(store.log.at(-1)));
+  // 처음 실패는 명세 수정으로 돌려준다
+  const { feedback } = ai.calls.spec[1] as { feedback: Feedback[] };
+  assert.ok(feedback.length > 0);
+  for (const f of feedback) {
+    assert.equal(f.path, "thickness[0].options");
+    assert.equal(f.slider, "body_w");
+    assert.match(f.hint, /두께 t와 body_w를 함께 움직이면 덧셈이 맞지 않습니다/);
+  }
+  assert.ok(feedback.some((f) => f.part === "DrawerBox" && f.kind === "dimension_error"), JSON.stringify(feedback));
+  // 다시 쓴 명세에서도 실패해 두께 후보 15·24 × 전체 폭 400·600·800 격자와 마디 사이 검증점을 받았다
+  const grid = fusion.requests.filter((r) => r.kind === "grid");
+  assert.deepEqual(grid, [
+    {
+      kind: "grid",
+      values: [
+        { body_w: 400, t: 15 },
+        { body_w: 600, t: 15 },
+        { body_w: 800, t: 15 },
+        { body_w: 400, t: 24 },
+        { body_w: 600, t: 24 },
+        { body_w: 800, t: 24 },
+        { body_w: 500, t: 15 },
+        { body_w: 700, t: 15 },
+        { body_w: 500, t: 24 },
+        { body_w: 700, t: 24 },
+      ],
+    },
+  ]);
+  const sweeps = JSON.parse(store.submissions[0].files["sweeps.json"]);
+  assert.deepEqual(sweeps.grids.map((g: { parameters: string[] }) => g.parameters), [["t", "body_w"]]);
+  assert.deepEqual(JSON.parse(store.submissions[0].files["spec.json"]), mixedThicknessSpec);
+});
+
+/** 섞인 두께 서랍장을 명세들로 실행한다. change로 추가 샘플 하나를 바꿀 수 있다. */
+async function runMixedThickness(specs: Spec[], change: (sample: CrossSample) => void = () => {}) {
+  const samples = structuredClone(mixedThicknessSamples);
+  samples.forEach(change);
+  const ai = scriptedAi({ candidates: [candidates], style: [{ style: "natural" }], spec: specs });
+  const store = memoryStore({ styles });
+  const result = await runPipeline({ bundle: mixedThicknessRecording, intake, human: approveFirst, ports: { fusion: recordedFusion(samples).port, ai, store } });
+  assert.equal(result.status, "submitted", JSON.stringify(store.log.at(-1)));
+  return ai.calls.spec.map((call) => (call as { feedback: Feedback[] }).feedback);
+}
+
+const at = (values: Record<string, number>) => (s: CrossSample) => JSON.stringify(s.values) === JSON.stringify(values);
+
+test("두께 후보에서 슬라이더가 판 두께를 바꾸면 그 두께 선택과 슬라이더를 가리키는 두께 변화 피드백이 나온다", async () => {
+  // t=24·전체 폭 800의 Fusion 형상에서 몸통 오른쪽 바깥 면만 2 mm 밀었다: 몸통 오른쪽 판이 2 mm 두꺼워졌다
+  const names = new Set(mixedThicknessRecording.parts.find((p) => p.name === "Carcass")!.faces.map((i) => mixedThicknessRecording.baseline.faces[i].name));
+  const feedback = await runMixedThickness([mixedThicknessSpec, spec], (sample) => {
+    if (!at({ body_w: 800, t: 24 })(sample)) return;
+    const faces = sample.faces.filter((f) => names.has(f.name));
+    const max = Math.max(...faces.flatMap((f) => f.points.map((p) => p[0])));
+    for (const f of faces) for (const p of f.points) if (Math.abs(p[0] - max) < 1e-6) p[0] += 2;
+  });
+
+  const changed = feedback[1].filter((f) => f.kind === "thickness_change");
+  assert.deepEqual(
+    changed.map(({ path, slider, part, measured }) => ({ path, slider, part, values: (measured as { values: unknown }).values })),
+    [{ path: "thickness[0].options", slider: "body_w", part: "Carcass", values: { t: 24, body_w: 800 } }],
+  );
+  assert.match(changed[0].hint, /슬라이더 body_w가 두께 t=24에서 부품 Carcass의 두께를 바꿉니다/);
+});
+
+test("두께 쌍의 격자 샘플을 재계산하지 못하면 보강하지 않고 그 두께 선택을 가리키는 피드백으로 명세를 다시 쓴다", async () => {
+  const feedback = await runMixedThickness([mixedThicknessSpec, mixedThicknessSpec, spec], (sample) => {
+    if (!at({ body_w: 600, t: 24 })(sample)) return;
+    sample.status = "recompute_failed";
+    sample.faces = [];
+  });
+
+  // 교차 검증 피드백 뒤에 격자 샘플의 재계산 실패가 붙는다
+  const failed = feedback[2].filter((f) => f.kind === "recompute_failed");
+  assert.deepEqual(
+    failed.map(({ path, slider, measured }) => ({ path, slider, measured })),
+    [{ path: "thickness[0].options", slider: "body_w", measured: { values: { t: 24, body_w: 600 } } }],
+  );
+  assert.match(failed[0].hint, /두께 t와 body_w의 격자 보강 샘플을 뽑을 수 없습니다/);
+});
+
+test("두께 쌍의 격자 검증점에서 격자 보간이 Fusion과 맞지 않으면 그 두께 선택을 가리키는 피드백이 나온다", async () => {
+  // 격자 마디 사이 t=24·전체 폭 700의 Fusion 형상을 통째로 3 mm 옮겼다
+  const feedback = await runMixedThickness([mixedThicknessSpec, mixedThicknessSpec, spec], (sample) => {
+    if (at({ body_w: 700, t: 24 })(sample)) for (const f of sample.faces) for (const p of f.points) p[0] += 3;
+  });
+
+  assert.ok(feedback[2].length > 0);
+  for (const f of feedback[2]) {
+    assert.equal(f.path, "thickness[0].options");
+    assert.deepEqual((f.measured as { values: unknown }).values, { t: 24, body_w: 700 });
+    assert.match(f.hint, /두께 t와 body_w는 격자 보간으로도 맞지 않습니다/);
+  }
 });

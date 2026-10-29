@@ -25,13 +25,14 @@ import {
   GRID_PAIR_LIMIT,
   gridLimitFeedback,
   gridValues,
+  pairInSpec,
   verifyCross,
   verifyGrid,
   type CrossSample,
   type PairFailure,
 } from "./verify-cross.ts";
 import { verifyNumeric } from "./verify-numeric.ts";
-import { checkThicknessSamples } from "./verify-thickness.ts";
+import { checkThicknessSamples, verifyThicknessFixed } from "./verify-thickness.ts";
 import { uploadRangeFeedback, verifyRange } from "./verify-range.ts";
 
 /** 단계 이름. 순서는 runPipeline의 코드가 정한다. */
@@ -258,9 +259,9 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
   }
 
   const gridKey = (spec: Spec, pair: Pair) => JSON.stringify(gridValues(spec, pair));
-  /** 이 명세에 쓸 수 있는 격자: 두 슬라이더가 명세에 있고, 요청한 값 묶음이 지금 범위·기본값과 같다 */
+  /** 이 명세에 쓸 수 있는 격자: 쌍(두 슬라이더, 또는 두께 선택과 슬라이더)이 명세에 있고, 요청한 값 묶음이 지금 범위·기본값·두께 후보와 같다 */
   const gridsFor = (spec: Spec, reinforcements: Reinforcement[]) =>
-    reinforcements.filter((r) => r.pair.every((id) => spec.sliders.some((s) => s.id === id)) && r.key === gridKey(spec, r.pair));
+    reinforcements.filter((r) => pairInSpec(spec, r.pair) && r.key === gridKey(spec, r.pair));
 
   /**
    * 조립하고 수치 검증 → 축 반응 → 교차 검증(격자 보강 쌍은 격자 검증점까지)을 차례로 본다. 첫 실패 단계의 피드백과,
@@ -276,16 +277,20 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
     const thicknessProblems = checkThicknessSamples(plan, thickness);
     if (thicknessProblems.length > 0) return { files, feedback: thicknessProblems, failedPairs: [] };
 
-    // 수치 검증은 결과물에 담긴 스윕 데이터로 잰다. 통과하면 축 반응을 녹화된 단독 스윕으로 보고,
+    // 두께 고정 실측은 녹화된 단독 스윕으로, 수치 검증은 결과물에 담긴 스윕 데이터로 잰다. 통과하면 축 반응을 녹화된 단독 스윕으로 보고,
     // 그것도 통과하면 애드인에 교차 검증 샘플을 받아 슬라이더 덧셈을 본다. AI 판정(티켓 19)이 뒤에 붙는다.
     // 슬라이더가 애드인이 줄인 스윕 범위를 넘으면 엔진이 그 밖을 끝 샘플에 붙이므로, 재기 전에 범위부터 좁히게 한다.
     const sweeps: SweepData = JSON.parse(files["sweeps.json"]);
     let feedback = verifyRange(spec, uploaded);
+    // 두께 고정 실측은 수치 검증보다 먼저 본다. 슬라이더가 판 두께를 바꾸면 수치 검증의 판 두께 치수 오차보다
+    // "슬라이더 X가 부품 Y의 두께를 바꿈"이 원인을 바로 가리키고, 비율 수식이면 수치 검증은 통과하기 때문이다.
+    if (feedback.length === 0) feedback = verifyThicknessFixed(spec, sweeps, uploaded);
     if (feedback.length === 0) feedback = verifyNumeric(spec, sweeps, uploaded);
     if (feedback.length === 0) feedback = verifyAxisResponse(spec, uploaded);
-    if (feedback.length > 0 || spec.sliders.length < 2) return { files, feedback, failedPairs: [] };
+    const crossValues = crossCheckValues(spec);
+    if (feedback.length > 0 || crossValues.length === 0) return { files, feedback, failedPairs: [] };
 
-    const samples = await requestSamples({ kind: "cross", values: crossCheckValues(spec) });
+    const samples = await requestSamples({ kind: "cross", values: crossValues });
     const failedPairs = verifyCross(spec, sweeps, uploaded, samples);
     feedback = [...failedPairs.flatMap((f) => f.feedback), ...grids.flatMap((r) => verifyGrid(spec, sweeps, uploaded, r.pair, r.checks))];
     return { files, feedback, failedPairs };

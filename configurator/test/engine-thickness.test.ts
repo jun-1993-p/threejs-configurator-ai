@@ -6,7 +6,16 @@ import assert from "node:assert/strict";
 import { createMorph, faceKey, thicknessOptions, type MorphShape, type SampleFace } from "../src/engine.ts";
 import { boundsOf, diagonal } from "../pipeline/measure.ts";
 import { shapeTolerance } from "../pipeline/verify-numeric.ts";
-import { shelfRecording, shelfSpec, shelfThicknessChecks, shelfThicknessSamples, shelfThicknessSpec as spec } from "./recording.ts";
+import {
+  drawerSpec,
+  mixedThicknessRecording,
+  mixedThicknessSamples,
+  shelfRecording,
+  shelfSpec,
+  shelfThicknessChecks,
+  shelfThicknessSamples,
+  shelfThicknessSpec as spec,
+} from "./recording.ts";
 
 const data = { ...shelfRecording, thickness: shelfThicknessSamples };
 
@@ -80,4 +89,46 @@ test("두께 선택 값은 묶인 파라미터 중 아무 이름으로 줘도 �
   const morph = createMorph(twoBoards, renamed);
   assert.deepEqual(morph.positions({ t: 24 }), morph.positions({ t_side: 24 }));
   assert.notDeepEqual(morph.positions({ t: 24 }), morph.positions({}));
+});
+
+/** 서랍 폭 수식에 두께가 비율로 섞인 서랍장(drawer-mixed-t): 몸통 두께 t 선택과 전체 폭 슬라이더 */
+const mixedSpec = { ...drawerSpec, thickness: [{ ids: ["t"], name: "몸통 두께", default: 18, options: [15, 18, 24] }] };
+const isGrid = (s: { values: Record<string, number> }) => [400, 600, 800].includes(s.values.body_w);
+const isMid = (s: { values: Record<string, number> }) => [500, 700].includes(s.values.body_w);
+const mixedData = {
+  ...mixedThicknessRecording,
+  thickness: mixedThicknessSamples.filter((s) => s.values.body_w === undefined),
+  grids: [{ parameters: ["t", "body_w"] as [string, string], samples: mixedThicknessSamples.filter(isGrid) }],
+};
+
+/** 녹화된 형상과 형상 오차 합격선 */
+function expectedOf(shape: MorphShape, sample: { faces: SampleFace[] }) {
+  const expected = recordedPositions(shape, sample.faces);
+  const box = boundsOf((visit) => {
+    for (let i = 0; i < expected.length; i += 3) visit(expected[i], expected[i + 1], expected[i + 2]);
+  });
+  return { expected, tolerance: shapeTolerance(diagonal(box)) };
+}
+
+test("두께 후보와 덧셈이 틀리는 슬라이더는 두께 격자 보강으로 마디 사이에서도 Fusion 형상과 형상 오차 합격선 안에서 맞는다", () => {
+  const plain = createMorph(mixedSpec, { ...mixedData, grids: [] });
+  const morph = createMorph(mixedSpec, mixedData);
+  for (const sample of mixedThicknessSamples.filter(isMid)) {
+    const shape = morph.shape(sample.values);
+    const { expected, tolerance } = expectedOf(shape, sample);
+    const error = maxDistance(shape.positions, expected);
+    assert.ok(error <= tolerance, `${JSON.stringify(sample.values)}: 오차 ${error} mm > ${tolerance} mm`);
+    // 격자 없이 덧셈만으로는 이 자리에서 합격선을 넘는다(녹화본이 시험하는 차이가 있다)
+    assert.ok(maxDistance(plain.positions(sample.values), expected) > tolerance, JSON.stringify(sample.values));
+  }
+});
+
+test("두께 격자 마디에서는 녹화 샘플과 일치하고, 기본 두께에서는 격자를 더하지 않는다", () => {
+  const plain = createMorph(mixedSpec, { ...mixedData, grids: [] });
+  const morph = createMorph(mixedSpec, mixedData);
+  for (const sample of mixedThicknessSamples.filter(isGrid)) {
+    const shape = morph.shape(sample.values);
+    assert.ok(maxDistance(shape.positions, recordedPositions(shape, sample.faces)) < 1e-6, JSON.stringify(sample.values));
+  }
+  for (const body_w of [400, 550, 800]) assert.deepEqual(morph.positions({ body_w, t: 18 }), plain.positions({ body_w, t: 18 }));
 });

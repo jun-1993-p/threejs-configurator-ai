@@ -31,14 +31,17 @@ export function withCheck(value: number, change: (check: Check) => void): Upload
 export const facesOf = (part: string) =>
   new Set(recording.parts.find((p) => p.name === part)!.faces.map((i) => recording.baseline.faces[i].name));
 
-/** body_w 검증점에서 부품의 한 축 가장 큰 좌표에 있는 점들을 delta만큼 민다(그 축 치수가 delta만큼 늘어난다) */
+/**
+ * body_w 검증점에서 부품의 한 축 가장 큰 쪽 판을 통째로 delta만큼 민다(그 축 치수가 delta만큼 늘고 판 두께는 그대로다).
+ * 판은 가장 큰 좌표에서 30 mm(표준 두께 목록의 최댓값) 안의 점들이다.
+ */
 export function pushMaxSide(value: number, part: string, axis: keyof typeof AXIS, delta: number): UploadBundle {
   const names = facesOf(part);
   const c = AXIS[axis];
   return withCheck(value, (check) => {
     const faces = check.faces.filter((f) => names.has(f.name));
     const max = Math.max(...faces.flatMap((f) => f.points.map((p) => p[c])));
-    for (const f of faces) for (const p of f.points) if (Math.abs(p[c] - max) < 1e-6) p[c] += delta;
+    for (const f of faces) for (const p of f.points) if (p[c] > max - 30) p[c] += delta;
   });
 }
 
@@ -140,3 +143,24 @@ export const shelfThicknessSamples: CrossSample[] = JSON.parse(readFileSync(new 
 
 /** 두께와 슬라이더를 함께 바꾼 Fusion 형상(t=15·전체 폭 1000, t=24·전체 폭 600·1300, t=24·전체 깊이 400). 덧셈을 재는 정답이다. */
 export const shelfThicknessChecks: CrossSample[] = JSON.parse(readFileSync(new URL("shelf.thickness-checks.json", fixtures), "utf-8")).samples;
+
+/** 칸막이 선반 두께 후보 15·24마다 전체 폭(500·1300)과 전체 깊이(200·400) 범위 끝에서 녹화한 두께 교차 검증 샘플 */
+export const shelfThicknessCross: CrossSample[] = JSON.parse(readFileSync(new URL("shelf.thickness-cross.json", fixtures), "utf-8")).samples;
+
+/**
+ * 몸통 셸 두께가 전체 폭의 비율(body_w × 0.03)인 서랍장 합성 녹화본(solidcraft-test/drawer-ratio-t.sc).
+ * 기본 형상에서는 18 mm이지만 전체 폭을 움직이면 몸통 판재 두께가 따라 바뀐다(두께 고정 위반).
+ */
+export const ratioThicknessRecording: UploadBundle = JSON.parse(readFileSync(new URL("drawer-ratio-t.json", fixtures), "utf-8"));
+
+/**
+ * 몸통 두께가 사용자 파라미터 t(18 mm)이고, 서랍 폭 수식에 두께가 비율로 섞인 서랍장 합성 녹화본(solidcraft-test/drawer-mixed-t.sc).
+ * 서랍 폭 = body_w - 40 + (body_w - 600) × (t - 18) / 60이라, 기본 두께에서는 덧셈이 맞고 다른 두께 후보에서는 전체 폭과 덧셈이 맞지 않는다.
+ */
+export const mixedThicknessRecording: UploadBundle = JSON.parse(readFileSync(new URL("drawer-mixed-t.json", fixtures), "utf-8"));
+
+/**
+ * drawer-mixed-t의 추가 샘플: 두께 후보 형상(t=15·24), 두께 교차 검증(전체 폭 400·800), 격자 보강(전체 폭 400·600·800),
+ * 격자 검증점(전체 폭 500·700). 두께는 모두 15·24다.
+ */
+export const mixedThicknessSamples: CrossSample[] = JSON.parse(readFileSync(new URL("drawer-mixed-t.samples.json", fixtures), "utf-8")).samples;
