@@ -1,0 +1,18 @@
+#!/bin/sh
+# 커밋 전 검사. 스테이지된 파일에 따라 TS(구성기·파이프라인)와 Python(애드인·서버·합성 녹화본) 검사를 돌린다.
+# 켜기: git config core.hooksPath .githooks
+set -e
+
+staged=$(git diff --cached --name-only --diff-filter=ACMRD)
+
+# schema/는 서버와 파이프라인이 같이 읽으므로 양쪽을 다 돌린다
+if echo "$staged" | grep -qE '^(configurator/|schema/|fixtures/)'; then
+  echo "[pre-commit] configurator: 타입 검사와 테스트"
+  (cd configurator && npm run --silent typecheck && npm test --silent)
+fi
+
+if echo "$staged" | grep -qE '^(addin/|server/|synthetic/|schema/|fixtures/|pyproject\.toml)'; then
+  echo "[pre-commit] Python: pytest"
+  if [ -x .venv/Scripts/python ]; then py=.venv/Scripts/python; else py=.venv/bin/python; fi
+  "$py" -m pytest -q
+fi
