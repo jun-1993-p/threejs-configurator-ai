@@ -17,19 +17,33 @@ export const FRONTS = ["+X", "-X", "+Y", "-Y", "+Z", "-Z"] as const;
 /** 값이 스키마에 맞으면 빈 목록, 아니면 사람이 읽을 문장 목록 */
 export type Check = (value: unknown) => string[];
 
+/** 형식 오류 문장에서 응답 전체를 가리키는 위치 */
+const ROOT = "(최상위)";
+
+/** JSON으로 읽을 수 없는 AI 응답(문자열)의 형식 오류. 단계마다 응답은 객체나 배열이라 문자열은 늘 형식 오류다. */
+export const UNREADABLE_ANSWER = `${ROOT}: JSON으로 읽을 수 없는 답입니다. 설명 없이 JSON 하나만 내세요`;
+
 function checker(schema: object): Check {
   const validate = ajv.compile(schema);
   return (value) =>
-    validate(value) ? [] : (validate.errors ?? []).map((e) => `${e.instancePath || "(최상위)"}: ${e.message}`);
+    validate(value)
+      ? []
+      : (validate.errors ?? []).map((e) => {
+          // 값 목록 밖이면 고칠 수 있게 고를 수 있는 값을 붙인다
+          const allowed = e.keyword === "enum" ? ` (${(e.params as { allowedValues: unknown[] }).allowedValues.join(", ")})` : "";
+          return `${e.instancePath || ROOT}: ${e.message}${allowed}`;
+        });
 }
 
 export const checkUploadBundle = checker(loadSharedSchema("upload-bundle.schema.json"));
-export const checkSpec = checker(loadSharedSchema("spec.schema.json"));
+/** 명세 JSON Schema. AI에게 출력 형식으로도 알려 준다. */
+export const SPEC_SCHEMA = loadSharedSchema("spec.schema.json");
+export const checkSpec = checker(SPEC_SCHEMA);
 /** 추가 샘플 요청에 대한 애드인 응답. 형식은 업로드 묶음 스키마에 함께 있다(위에서 컴파일해 $id로 찾는다). */
 export const checkSampleResponse = checker({ $ref: "upload-bundle.schema.json#/$defs/sampleResponse" });
 
 /** 후보 제시 응답. 후보는 2~4개(사용자 스토리 19). */
-export const checkCandidates = checker({
+export const CANDIDATES_SCHEMA = {
   type: "array",
   minItems: 2,
   maxItems: 4,
@@ -46,16 +60,21 @@ export const checkCandidates = checker({
       diff: { type: "string" },
     },
   },
-});
+};
+export const checkCandidates = checker(CANDIDATES_SCHEMA);
 
 /** UI 스타일 응답. 저장소의 스타일 목록 밖의 값은 통과하지 못한다(ADR-0001). */
-export function styleChoiceChecker(styleIds: string[]): Check {
-  return checker({
+export function styleChoiceSchema(styleIds: string[]) {
+  return {
     type: "object",
     required: ["style"],
     additionalProperties: false,
     properties: { style: { enum: styleIds } },
-  });
+  };
+}
+
+export function styleChoiceChecker(styleIds: string[]): Check {
+  return checker(styleChoiceSchema(styleIds));
 }
 
 /**
@@ -108,6 +127,17 @@ export function thicknessChoiceChecker(bundle: { parameters: { name: string; val
       }
       return errors;
     });
+}
+
+/**
+ * 정면과 축 대응이 맞는지: 정면 쪽에서 보면 깊이(D)는 정면 방향의 축이고, W·D·H는 서로 다른 Fusion 축이다.
+ * 축이 어긋나도 축 반응 검증은 명세의 axes로 재므로 통과할 수 있어, 형식 검사와 함께 본다. JSON Schema 검사를 통과한 명세에 쓴다.
+ */
+export function axesChecker(spec: Pick<Spec, "front" | "axes">): string[] {
+  const { W, D, H } = spec.axes;
+  if (new Set([W, D, H]).size < 3) return [`/axes: W·D·H는 서로 다른 축이어야 합니다(W ${W}, D ${D}, H ${H})`];
+  const frontAxis = spec.front.slice(1);
+  return D === frontAxis ? [] : [`/axes/D: 정면 ${spec.front} 쪽에서 보면 깊이는 ${frontAxis}축입니다(지금 ${D})`];
 }
 
 /**

@@ -5,6 +5,7 @@ import { assembleProduct, type ProductFiles } from "./assemble.ts";
 import type { Feedback } from "./feedback.ts";
 import {
   FRONTS,
+  axesChecker,
   candidateReferenceChecker,
   checkCandidates,
   checkSampleResponse,
@@ -14,6 +15,7 @@ import {
   specReferenceChecker,
   styleChoiceChecker,
   thicknessChoiceChecker,
+  UNREADABLE_ANSWER,
   type Check,
 } from "./schemas.ts";
 import type { UploadBundle } from "./upload-bundle.ts";
@@ -126,25 +128,34 @@ export interface FusionPort {
 export const FUSION_NEEDED = "Fusion 연결 필요";
 export const FUSION_RECONNECTED = "다시 연결됨";
 
+/** AI 단계. AI 모델 포트의 메서드마다 하나다. */
+export const AI_STAGES = ["candidates", "style", "spec"] as const;
+export type AiStage = (typeof AI_STAGES)[number];
+
 /**
  * AI 모델 포트. 응답은 검사 전이라 unknown이다. 실행기가 JSON Schema로 검사하고,
- * 형식이 틀리면 schemaErrors를 붙여 다시 묻는다.
+ * 형식이 틀리면 schemaErrors와 그 응답(rejected)을 붙여 다시 묻는다. 형식 검사에 걸린 응답이 없으면 rejected는 null이다.
+ * 모델이 낸 문장을 JSON으로 읽을 수 없으면 그 문장(string)을 돌려준다. 단계마다 응답은 객체나 배열이라 문자열은 늘 형식 오류다.
  */
 export interface AiPort {
   proposeCandidates(input: {
     bundle: unknown;
     intake: Intake;
     failures: CandidateFailure[];
+    rejected: unknown;
     schemaErrors: string[];
   }): Promise<unknown>;
-  chooseStyle(input: { intake: Intake; candidate: Candidate; styles: Style[]; schemaErrors: string[] }): Promise<unknown>;
+  chooseStyle(input: { intake: Intake; candidate: Candidate; styles: Style[]; rejected: unknown; schemaErrors: string[] }): Promise<unknown>;
   writeSpec(input: {
     bundle: unknown;
     intake: Intake;
     candidate: Candidate;
     /** 정보 입력의 상품 종류로 거른 치수 규칙. 슬라이더 범위와 source는 여기서 고른다(ADR-0009). */
     rules: DimensionRule[];
+    /** 검증 피드백(feedback)을 받은 명세. 처음 쓰는 것이면 null이다. 형식 재요청 중에도 그대로다. */
+    previous: Spec | null;
     feedback: Feedback[];
+    rejected: unknown;
     schemaErrors: string[];
   }): Promise<unknown>;
 }
@@ -195,12 +206,17 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
   const log = (stage: Stage, detail?: unknown) =>
     store.appendLog({ product: intake.name, stage, at: new Date().toISOString(), ...(detail === undefined ? {} : { detail }) });
 
-  /** AI 응답이 스키마를 통과할 때까지 다시 묻는다. 끝내 통과하지 못하면 그 단계에서 멈춘다. */
-  async function askUntilValid<T>(stage: Stage, check: Check, call: (schemaErrors: string[]) => Promise<unknown>): Promise<T> {
+  /**
+   * AI 응답이 스키마를 통과할 때까지 다시 묻는다. 끝내 통과하지 못하면 그 단계에서 멈춘다.
+   * 다시 물을 때는 형식 검사에 걸린 응답(rejected)과 그 오류를 붙인다.
+   */
+  async function askUntilValid<T>(stage: Stage, check: Check, call: (schemaErrors: string[], rejected: unknown) => Promise<unknown>): Promise<T> {
     let errors: string[] = [];
+    let rejected: unknown = null;
     for (let attempt = 0; attempt <= SCHEMA_RETRIES; attempt++) {
-      const answer = await call(errors);
-      errors = check(answer);
+      const answer = await call(errors, structuredClone(rejected));
+      rejected = answer;
+      errors = typeof answer === "string" ? [UNREADABLE_ANSWER] : check(answer);
       if (errors.length === 0) return answer as T;
       await log(stage, { schemaErrors: errors });
     }
@@ -253,6 +269,7 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
       ...ranges.check(spec),
       ...thicknessChoiceChecker(uploaded)(spec),
       ...fixedThicknessChecker(spec),
+      ...axesChecker(spec),
     );
     return errors;
   };
@@ -319,15 +336,18 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
    */
   async function writeVerifiedSpec(candidate: Candidate): Promise<{ spec: Spec; files: ProductFiles } | { feedback: Feedback[] }> {
     let feedback: Feedback[] = [];
+    /** 검증 피드백을 받은 직전 명세 */
+    let previous: Spec | null = null;
     /** 이 후보로 받은 격자 보강 */
     const reinforcements: Reinforcement[] = [];
     /** 앞선 명세에서 교차 검증에 실패해 피드백으로 돌아간 쌍 */
     const pairsFailedBefore: Pair[] = [];
 
     for (let attempt = 0; attempt <= SPEC_RETRIES; attempt++) {
-      const spec = await askUntilValid<Spec>("spec", checkProductSpec, (schemaErrors) =>
-        ai.writeSpec({ bundle, intake, candidate, rules: structuredClone(rules), feedback, schemaErrors }),
+      const spec: Spec = await askUntilValid("spec", checkProductSpec, (schemaErrors, rejected) =>
+        ai.writeSpec({ bundle, intake, candidate, rules: structuredClone(rules), previous: structuredClone(previous), feedback, rejected, schemaErrors }),
       );
+      previous = spec;
       await log("spec");
 
       // 범위 교집합이 없으면 범위를 지어내지 않도록 조립하지 않고 돌려준다. 처리 기록으로 운영자에게도 보인다.
@@ -402,8 +422,8 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
     // 후보 제시로 돌아오는 고리. 회차마다 사람이 후보를 고르므로 사람 없이 끝없이 돌지는 않는다.
     const failures: CandidateFailure[] = [];
     for (;;) {
-      const candidates = await askUntilValid<Candidate[]>("candidates", checkBundleCandidates, (schemaErrors) =>
-        ai.proposeCandidates({ bundle, intake, failures: structuredClone(failures), schemaErrors }),
+      const candidates = await askUntilValid<Candidate[]>("candidates", checkBundleCandidates, (schemaErrors, rejected) =>
+        ai.proposeCandidates({ bundle, intake, failures: structuredClone(failures), rejected, schemaErrors }),
       );
       await log("candidates", candidates.map((c) => c.id));
 
@@ -416,7 +436,7 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
       const { style } = await askUntilValid<{ style: string }>(
         "style",
         styleChoiceChecker(styles.map((s) => s.id)),
-        (schemaErrors) => ai.chooseStyle({ intake, candidate, styles, schemaErrors }),
+        (schemaErrors, rejected) => ai.chooseStyle({ intake, candidate, styles, rejected, schemaErrors }),
       );
       await log("style", style);
 

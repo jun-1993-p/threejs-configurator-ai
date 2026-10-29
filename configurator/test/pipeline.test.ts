@@ -144,6 +144,28 @@ test("명세가 JSON Schema 검사를 통과하지 못하면 이유를 붙여 �
   assert.deepEqual(JSON.parse(store.submissions[0].files["spec.json"]), spec);
 });
 
+test("정해진 값 목록 밖의 값이면 형식 오류에 고를 수 있는 값을 적는다", async () => {
+  const wrongAxes = { ...spec, axes: { ...spec.axes, W: "W" } };
+  const { ai, ports } = setup({ spec: [wrongAxes, spec] });
+
+  await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  assert.deepEqual((ai.calls.spec[1] as { schemaErrors: string[] }).schemaErrors, ["/axes/W: must be equal to one of the allowed values (X, Y, Z)"]);
+});
+
+test("깊이 축이 정면 방향의 축이 아니거나 W·D·H가 같은 축을 가리키면 다시 묻는다", async () => {
+  const sideways = { ...spec, front: "+X" };
+  const shared = { ...spec, axes: { W: "X", D: "Y", H: "X" } };
+  const { ai, ports } = setup({ spec: [sideways, shared, spec] });
+
+  const result = await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  const [, second, third] = ai.calls.spec as { schemaErrors: string[] }[];
+  assert.deepEqual(second.schemaErrors, ["/axes/D: 정면 +X 쪽에서 보면 깊이는 X축입니다(지금 Y)"]);
+  assert.deepEqual(third.schemaErrors, ["/axes: W·D·H는 서로 다른 축이어야 합니다(W X, D Y, H X)"]);
+});
+
 test("명세가 끝내 JSON Schema 검사를 통과하지 못하면 조립하지 않고 멈춘다", async () => {
   const broken = { ...spec, front: "앞" };
   const { store, ports } = setup({ spec: [broken, broken, broken, broken] });
