@@ -128,3 +128,15 @@ export const crossThree: CrossSample[] = JSON.parse(readFileSync(new URL("drawer
 
 /** 칸막이 선반 명세(shelfSpec) 범위의 모서리 조합 4개(전체 폭 500·1300 × 전체 깊이 200·400). 2칸·4칸 묶음에 걸친다. */
 export const shelfCrossCorners: CrossSample[] = JSON.parse(readFileSync(new URL("shelf.cross-corners.json", fixtures), "utf-8")).samples;
+
+/** 칸막이 선반 판재 두께 t(기본 18)를 두께 선택으로 노출한 명세 */
+export const shelfThicknessSpec: Spec = {
+  ...shelfSpec,
+  thickness: [{ ids: ["t"], name: "판재 두께", default: 18, options: [15, 18, 24] }],
+};
+
+/** 두께 후보 형상: t=15·24를 기본 형상과 2칸(전체 폭 675)·4칸(1200.04) 위상 묶음의 기준 값에서 뽑았다 */
+export const shelfThicknessSamples: CrossSample[] = JSON.parse(readFileSync(new URL("shelf.thickness.json", fixtures), "utf-8")).samples;
+
+/** 두께와 슬라이더를 함께 바꾼 Fusion 형상(t=15·전체 폭 1000, t=24·전체 폭 600·1300, t=24·전체 깊이 400). 덧셈을 재는 정답이다. */
+export const shelfThicknessChecks: CrossSample[] = JSON.parse(readFileSync(new URL("shelf.thickness-checks.json", fixtures), "utf-8")).samples;

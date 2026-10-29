@@ -1,6 +1,6 @@
 // 파이프라인 실행기: 상품 하나를 10단계 고정 순서로 진행한다(ADR-0014). AI는 단계 안에서 정해진 형식으로만 답한다.
 // 바깥 의존은 Fusion 연결·AI 모델·저장소 세 포트로만 접근한다.
-import { samePair, type GridSweep, type Pair, type Spec, type SweepData } from "../src/engine.ts";
+import { samePair, thicknessSamplePlan, type GridSweep, type Pair, type Spec, type SweepData } from "../src/engine.ts";
 import { assembleProduct, type ProductFiles } from "./assemble.ts";
 import type { Feedback } from "./feedback.ts";
 import {
@@ -10,8 +10,10 @@ import {
   checkSampleResponse,
   checkSpec,
   checkUploadBundle,
+  fixedThicknessChecker,
   specReferenceChecker,
   styleChoiceChecker,
+  thicknessChoiceChecker,
   type Check,
 } from "./schemas.ts";
 import type { UploadBundle } from "./upload-bundle.ts";
@@ -29,6 +31,7 @@ import {
   type PairFailure,
 } from "./verify-cross.ts";
 import { verifyNumeric } from "./verify-numeric.ts";
+import { checkThicknessSamples } from "./verify-thickness.ts";
 import { uploadRangeFeedback, verifyRange } from "./verify-range.ts";
 
 /** 단계 이름. 순서는 runPipeline의 코드가 정한다. */
@@ -235,7 +238,7 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
     if (errors.length > 0) return errors;
     const spec = value as Spec;
     if (spec.product !== intake.name) errors.push(`/product: 정보 입력의 상품명 "${intake.name}"이어야 합니다`);
-    errors.push(...specReferenceChecker(uploaded)(spec));
+    errors.push(...specReferenceChecker(uploaded)(spec), ...thicknessChoiceChecker(uploaded)(spec), ...fixedThicknessChecker(spec));
     return errors;
   };
 
@@ -264,8 +267,14 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
    * 교차 검증까지 갔으면 실패한 쌍을 돌려준다.
    */
   async function assembleAndVerify(spec: Spec, grids: Reinforcement[]): Promise<{ files: ProductFiles; feedback: Feedback[]; failedPairs: PairFailure[] }> {
-    const files = await assembleProduct(spec, { ...uploaded, grids: grids.map((r) => r.sweep) });
+    // 두께 선택이 있으면 두께 후보 형상을 애드인에 받아 결과물에 담는다(ADR-0010). 엔진에 넣을 수 없는 형상이면 재기 전에 돌려준다.
+    // 같은 요청은 requestSamples가 다시 보내지 않으므로, 두께 선택과 슬라이더 범위가 그대로인 재작성은 애드인을 부르지 않는다.
+    const plan = thicknessSamplePlan(spec, uploaded);
+    const thickness = plan.length === 0 ? [] : await requestSamples({ kind: "thickness", values: plan.map((p) => p.values) });
+    const files = await assembleProduct(spec, { ...uploaded, grids: grids.map((r) => r.sweep), thickness });
     await log("assembly");
+    const thicknessProblems = checkThicknessSamples(plan, thickness);
+    if (thicknessProblems.length > 0) return { files, feedback: thicknessProblems, failedPairs: [] };
 
     // 수치 검증은 결과물에 담긴 스윕 데이터로 잰다. 통과하면 축 반응을 녹화된 단독 스윕으로 보고,
     // 그것도 통과하면 애드인에 교차 검증 샘플을 받아 슬라이더 덧셈을 본다. AI 판정(티켓 19)이 뒤에 붙는다.

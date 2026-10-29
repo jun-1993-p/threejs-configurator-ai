@@ -1,6 +1,7 @@
 // 변형 엔진: 단독 스윕 샘플 사이의 꼭짓점 이동량을 슬라이더 값으로 섞는다(ADR-0002, 0004).
 // 덧셈이 틀리는 슬라이더 쌍은 애드인이 뽑은 3×3 격자로 보강해 격자 보간을 더한다(ADR-0008).
 // 슬라이더가 위상 경계를 넘으면 그 위상 묶음의 기준 형상과 단독 스윕으로 바꿔 섞는다. 경계에서는 페이드 없이 바로 바뀐다(ADR-0005).
+// 두께 선택은 두께 후보 형상의 이동량을 사이 값 없이 바꿔 끼운 뒤 슬라이더 이동량에 더한다(ADR-0010).
 // 구성기(브라우저)와 검증기(Node)가 이 파일을 그대로 같이 쓴다. DOM이나 three.js에 기대지 않는다.
 
 export type Vector = [number, number, number];
@@ -8,7 +9,7 @@ export type Triangle = [number, number, number];
 /** W 폭·D 깊이·H 높이 */
 export type Axis = "W" | "D" | "H";
 
-/** 명세(JSON). 구조는 docs/spec-schema.md를 따른다. 엔진은 sliders의 id와 default만 읽는다. */
+/** 명세(JSON). 구조는 docs/spec-schema.md를 따른다. 엔진은 sliders의 id·default·범위와 thickness만 읽는다. */
 export interface Spec {
   product: string;
   front: string;
@@ -16,6 +17,18 @@ export interface Spec {
   sliders: Slider[];
   thickness: { ids: string[]; name: string; default: number; options: number[] }[];
   fixed: string[];
+}
+
+/** 두께 선택: ids의 파라미터를 함께 options 중 하나로 바꾼다(ADR-0010) */
+export type ThicknessChoice = Spec["thickness"][number];
+
+/** 표준 두께 목록(mm): 한국에서 유통되는 판재 두께. 명세 검사가 두께 후보를 이 목록으로 본다. */
+export const STANDARD_THICKNESSES = [3, 6, 9, 12, 15, 18, 24, 30] as const;
+
+/** 기본 두께의 두께 후보: 표준 두께 목록에서 앞뒤 한 칸과 기본 두께. 목록 끝이면 2개, 목록에 없으면 빈 목록이다. */
+export function thicknessOptions(base: number): number[] {
+  const i = STANDARD_THICKNESSES.findIndex((t) => t === base);
+  return i === -1 ? [] : STANDARD_THICKNESSES.slice(Math.max(0, i - 1), i + 2);
 }
 
 export interface Slider {
@@ -83,12 +96,16 @@ export interface TopologyGroup {
   sweeps: Omit<Sweep, "groups">[];
 }
 
-/** 스윕 데이터. 업로드 묶음(schema/upload-bundle.schema.json)에서 엔진이 쓰는 부분과, 검증 중에 받은 격자 보강이다. */
+/**
+ * 스윕 데이터. 업로드 묶음(schema/upload-bundle.schema.json)에서 엔진이 쓰는 부분과, 검증 중에 받은 격자 보강·두께 후보 형상이다.
+ * thickness는 thicknessSamplePlan의 값 묶음마다 받은 형상이다.
+ */
 export interface SweepData {
   parts: Part[];
   baseline: Baseline;
   sweeps: Sweep[];
   grids?: GridSweep[];
+  thickness?: CrossSample[];
 }
 
 export interface MorphFace {
@@ -117,7 +134,10 @@ export interface MorphShape extends Topology {
 
 /** faces·triangles·base는 기본 묶음(기본 형상)의 것이다. */
 export interface Morph extends Topology {
-  /** 슬라이더 값(빠진 슬라이더는 명세의 default)에 맞는 형상 */
+  /**
+   * 슬라이더 값과 두께 선택 값에 맞는 형상. 두께 선택은 묶인 파라미터 중 아무 이름으로 주고, 두께 후보 중 하나여야 한다.
+   * 빠진 값은 명세의 default다.
+   */
   shape(values: Record<string, number>): MorphShape;
   /** shape(values).positions */
   positions(values: Record<string, number>): Float64Array;
@@ -129,6 +149,12 @@ interface Track {
   values: number[];
   /** values와 같은 순서의 샘플별 꼭짓점 이동량(위상 묶음 기준 형상 기준) */
   deltas: Float64Array[];
+}
+
+/** 두께 선택 하나. 기본 두께가 아닌 후보마다 이동량(위상 묶음 기준 형상 기준)을 둔다. */
+interface ThicknessTrack {
+  choice: ThicknessChoice;
+  deltas: Map<number, Float64Array>;
 }
 
 /** 격자 보강 쌍. 덧셈 결과에 더할 나머지(격자 샘플 - 두 단독 스윕 이동량)를 격자 마디마다 둔다. */
@@ -148,6 +174,63 @@ export const faceKey = (f: { body: string; name: string }) => `${f.body}/${f.nam
 interface GroupMorph extends Topology {
   tracks: Track[];
   grids: GridTrack[];
+  thickness: ThicknessTrack[];
+}
+
+/** 두 값 묶음이 같은 파라미터에 같은 값인지 */
+const sameValues = (a: Record<string, number>, b: Record<string, number>) =>
+  Object.keys(a).length === Object.keys(b).length && Object.entries(a).every(([id, v]) => b[id] === v);
+
+/** 값 묶음을 오류·힌트에 쓰는 자리 표기로: "t=24·shelf_w=675" */
+export const placeOf = (values: Record<string, number>) => Object.entries(values).map(([id, v]) => `${id}=${v}`).join("·");
+
+/** 위상 묶음의 기준 값: 묶음을 가진 슬라이더와 그 anchor */
+export interface GroupAnchor {
+  slider: string;
+  value: number;
+}
+
+/** 두께 선택이 그 후보일 때의 값 묶음. anchor가 있으면 그 위상 묶음의 기준 값을 더한다. */
+const thicknessValues = (choice: ThicknessChoice, option: number, anchor?: GroupAnchor) => ({
+  ...Object.fromEntries(choice.ids.map((id) => [id, option])),
+  ...(anchor ? { [anchor.slider]: anchor.value } : {}),
+});
+
+/** 두께 선택의 지금 값: 묶인 파라미터 중 values에 있는 첫 이름의 값, 없으면 기본 두께 */
+export const thicknessValueOf = (choice: ThicknessChoice, values: Record<string, number>) =>
+  choice.ids.map((id) => values[id]).find((v) => v !== undefined) ?? choice.default;
+
+/** 두께 후보 형상 하나: 명세의 choice번째 두께 선택을 option으로 바꾸고, anchor 위상 묶음(없으면 기본 묶음)의 기준 형상에서 뽑는다 */
+export interface ThicknessSample {
+  choice: number;
+  option: number;
+  anchor?: GroupAnchor;
+  /** 이 형상과 면 구성이 같아야 하는 기준 형상 */
+  baseline: Baseline;
+  /** 애드인에 요청할 값 묶음. 나머지 파라미터는 업로드한 모델의 값이다. */
+  values: Record<string, number>;
+}
+
+/**
+ * 받아야 할 두께 후보 형상: 기본 묶음과 슬라이더 범위가 닿는 위상 묶음마다, 두께 선택마다, 기본 두께가 아닌 후보마다 하나.
+ * 엔진이 찾는 값 묶음과 애드인에 요청하는 값 묶음이 어긋나지 않도록 둘 다 이 목록을 쓴다.
+ */
+export function thicknessSamplePlan(spec: Spec, data: SweepData): ThicknessSample[] {
+  const groups = [
+    { baseline: data.baseline, anchor: undefined as GroupAnchor | undefined },
+    ...spec.sliders.flatMap((slider) =>
+      (data.sweeps.find((s) => s.parameter === slider.id)?.groups ?? [])
+        .filter((g) => reaches(slider, g))
+        .map((g) => ({ baseline: g.baseline, anchor: { slider: slider.id, value: g.anchor } })),
+    ),
+  ];
+  return groups.flatMap(({ baseline, anchor }) =>
+    spec.thickness.flatMap((choice, i) =>
+      choice.options
+        .filter((o) => o !== choice.default)
+        .map((option) => ({ choice: i, option, ...(anchor ? { anchor } : {}), baseline, values: thicknessValues(choice, option, anchor) })),
+    ),
+  );
 }
 
 /**
@@ -161,6 +244,7 @@ function createGroupMorph(
   samplesOf: (slider: Slider) => Sweep["samples"] | undefined,
   name: string,
   gridSweeps: GridSweep[],
+  thickness: { samples: CrossSample[]; anchor?: GroupAnchor },
 ): GroupMorph {
   const partOf = new Map<number, string>();
   for (const part of parts) for (const i of part.faces) partOf.set(i, part.name);
@@ -241,7 +325,23 @@ function createGroupMorph(
     return [{ ids: [a.id, b.id], defaults: [a.defaultValue, b.defaultValue], values, residuals }];
   });
 
-  return { faces, triangles: Uint32Array.from(triangles), base: basePositions, tracks, grids };
+  // 두께 후보 형상은 이 묶음의 기준 형상에서 두께만 바꾼 형상이다. 이동량을 그대로 두고, 고르면 슬라이더 이동량에 더한다.
+  const thicknessTracks: ThicknessTrack[] = spec.thickness.map((choice) => {
+    const deltas = new Map<number, Float64Array>();
+    for (const option of choice.options.filter((o) => o !== choice.default)) {
+      const values = thicknessValues(choice, option, thickness.anchor);
+      const place = placeOf(values);
+      const sample = thickness.samples.find((s) => sameValues(s.values, values));
+      if (!sample) throw new Error(`두께 선택 ${choice.ids[0]}: ${name}에 ${place} 형상이 없습니다`);
+      if (sample.status !== "ok") throw new Error(`두께 선택 ${choice.ids[0]}: ${place}에서 재계산에 실패한 형상입니다`);
+      const delta = deltaOf(sample.faces);
+      if (!delta) throw new Error(`두께 선택 ${choice.ids[0]}: ${place}의 형상이 ${name}의 기준 형상과 면 구성이 다릅니다`);
+      deltas.set(option, delta);
+    }
+    return { choice, deltas };
+  });
+
+  return { faces, triangles: Uint32Array.from(triangles), base: basePositions, tracks, grids, thickness: thicknessTracks };
 }
 
 /** 위상 묶음이 있는 슬라이더에서 묶음 하나가 덮는 값: 그 묶음에 든 샘플 값의 최솟값·최댓값 */
@@ -268,6 +368,7 @@ export function createMorph(spec: Spec, data: SweepData): Morph {
     (slider) => sweepOf(slider.id)?.samples.filter((s) => !groupsOf(slider.id).some((g) => inGroup(g, s.value))),
     "스윕 데이터",
     data.grids ?? [],
+    { samples: data.thickness ?? [] },
   );
 
   // 위상 묶음이 있는 슬라이더마다 묶음별 범위. 그 슬라이더가 묶음 안이면 나머지 슬라이더는 묶음 안의 단독 스윕으로 섞는다.
@@ -287,6 +388,7 @@ export function createMorph(spec: Spec, data: SweepData): Morph {
             : group.sweeps.find((s) => s.parameter === other.id)?.samples,
         `${slider.id} ${group.range.min}~${group.range.max} 위상 묶음`,
         [],
+        { samples: data.thickness ?? [], anchor: { slider: slider.id, value: group.anchor } },
       );
       spans.push({ morph, min: group.range.min, max: group.range.max });
     }
@@ -313,6 +415,7 @@ export function createMorph(spec: Spec, data: SweepData): Morph {
     const out = Float64Array.from(morph.base);
     for (const track of morph.tracks) addDelta(out, track, values[track.id] ?? track.defaultValue);
     for (const grid of morph.grids) addResidual(out, grid, grid.ids.map((id, k) => values[id] ?? grid.defaults[k]) as [number, number]);
+    for (const track of morph.thickness) addThickness(out, track, thicknessValueOf(track.choice, values));
     return { faces: morph.faces, triangles: morph.triangles, base: morph.base, positions: out };
   };
 
@@ -334,6 +437,14 @@ function addDelta(out: Float64Array, track: Track, value: number) {
   const a = track.deltas[lo];
   const b = track.deltas[hi];
   for (let i = 0; i < out.length; i++) out[i] += a[i] + (b[i] - a[i]) * t;
+}
+
+/** 고른 두께 후보의 이동량을 더한다. 기본 두께면 더할 것이 없고, 후보가 아닌 값은 보간하지 않고 오류다. */
+function addThickness(out: Float64Array, { choice, deltas }: ThicknessTrack, value: number) {
+  if (value === choice.default) return;
+  const delta = deltas.get(value);
+  if (!delta) throw new Error(`두께 선택 ${choice.ids[0]}: ${value} mm는 후보(${choice.options.join("·")})가 아닙니다`);
+  for (let i = 0; i < out.length; i++) out[i] += delta[i];
 }
 
 /** 두 값을 감싸는 격자 칸 네 마디의 나머지 이동량을 쌍선형으로 섞어 더한다. */

@@ -269,6 +269,19 @@ def test_업로드_뒤_추가_샘플_요청을_받으면_값_묶음마다_샘플
     assert model.expressions == {"W": "800 mm", "D": "W / 2", "d12": "18 mm"}
 
 
+def test_두께_후보_형상_요청도_두께를_바꾼_형상을_같은_형식으로_답하고_두께_수식을_되돌린다() -> None:
+    model = FakeModel()
+    values = [{"d12": 15.0}, {"d12": 24.0, "W": 600.0}]
+    server = FakeServer(requests=[{"id": "r1", "kind": "thickness", "values": values}])
+
+    assert serve_sample_request(model, server, "upload-1") is True
+
+    response = server.answers[0][2]
+    assert [s["values"] for s in response["samples"]] == values
+    assert sample_response_errors(values, response) == []
+    assert model.expressions == {"W": "800 mm", "D": "W / 2", "d12": "18 mm"}
+
+
 def test_기다리는_추가_샘플_요청이_없으면_모델을_건드리지_않는다() -> None:
     model = FakeModel()
     server = FakeServer()

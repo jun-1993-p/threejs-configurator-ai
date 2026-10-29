@@ -52,6 +52,15 @@ def test_파이프라인이_건_요청을_애드인이_가져가_답하면_파�
     assert client.get(f"/uploads/{upload_id}/sample-requests/next").status_code == 204
 
 
+def test_두께_후보_형상_요청도_같은_길로_애드인에_가고_응답을_받는다(client: TestClient, upload_id: str) -> None:
+    values = [{"t": 15.0}, {"t": 24.0}]
+    request_id = client.post(f"/uploads/{upload_id}/sample-requests", json={"kind": "thickness", "values": values}).json()["id"]
+
+    assert client.get(f"/uploads/{upload_id}/sample-requests/next").json() == {"id": request_id, "kind": "thickness", "values": values}
+    assert client.post(f"/uploads/{upload_id}/sample-requests/{request_id}/response", json=_response(*values)).status_code == 204
+    assert client.get(f"/uploads/{upload_id}/sample-requests/{request_id}").json()["response"] == _response(*values)
+
+
 def test_답하지_않은_요청은_애드인이_다시_붙으면_다시_가져간다(client: TestClient, upload_id: str) -> None:
     request_id = client.post(f"/uploads/{upload_id}/sample-requests", json={"kind": "cross", "values": [{"W": 600.0}]}).json()["id"]
 

@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 
 import Ajv2020 from "ajv/dist/2020.js";
 
+import { STANDARD_THICKNESSES, thicknessOptions, type Spec } from "../src/engine.ts";
+
 // strictTypes는 끈다. 업로드 묶음 스키마가 allOf 조건 안에서 type 없이 required만 쓰는 것은 의도한 형식이다.
 const ajv = new Ajv2020.default({ allErrors: true, strictTypes: false });
 
@@ -72,6 +74,61 @@ export function specReferenceChecker(bundle: { parts: { name: string }[]; sweeps
       ),
       ...affects.shape.filter((part) => affects.move.includes(part)).map((part) => `/sliders/${i}/affects: ${part}가 shape와 move에 함께 있습니다`),
     ]);
+}
+
+/** 업로드한 모델의 두께와 명세의 두께를 같은 값으로 보는 차이(mm). Fusion 값은 cm에서 바꾼 부동소수다. */
+const SAME_THICKNESS_MM = 1e-6;
+
+/** 두께 값 목록을 오류 문장에 쓰는 표기로: "15·18·24" */
+const dotted = (values: readonly number[]) => values.join("·");
+
+/**
+ * 명세의 두께 선택이 규칙에 맞는지(ADR-0010). JSON Schema 검사를 통과한 명세에 쓴다.
+ * - 두께 후보는 표준 두께 목록에서 기본 두께의 앞뒤 한 칸이다(목록 끝은 2개).
+ * - ids의 파라미터는 업로드 묶음에 있고 기본 두께가 같으며, 그 값이 default다.
+ */
+export function thicknessChoiceChecker(bundle: { parameters: { name: string; value: number }[] }) {
+  const modelValue = new Map(bundle.parameters.map((p) => [p.name, p.value]));
+  return (spec: Pick<Spec, "thickness">): string[] =>
+    spec.thickness.flatMap((choice, i) => {
+      const at = `/thickness/${i}`;
+      const errors = choice.ids.filter((id) => !modelValue.has(id)).map((id) => `${at}/ids: ${id}는 업로드 묶음의 파라미터가 아닙니다`);
+      const uploadedIds = choice.ids.filter((id) => modelValue.has(id));
+      const values = uploadedIds.map((id) => modelValue.get(id)!);
+      if (values.some((v) => Math.abs(v - values[0]) > SAME_THICKNESS_MM)) {
+        errors.push(`${at}/ids: 묶인 파라미터의 기본 두께가 다릅니다(${uploadedIds.map((id) => `${id}=${modelValue.get(id)}`).join("·")})`);
+      } else if (values.length > 0 && Math.abs(values[0] - choice.default) > SAME_THICKNESS_MM) {
+        errors.push(`${at}/default: 업로드한 모델의 두께(${values[0]} mm)와 다릅니다`);
+      }
+      const options = thicknessOptions(choice.default);
+      if (options.length === 0) {
+        errors.push(`${at}/default: ${choice.default} mm는 표준 두께 목록(${dotted(STANDARD_THICKNESSES)})에 없습니다`);
+      } else if (dotted([...choice.options].sort((a, b) => a - b)) !== dotted(options)) {
+        errors.push(`${at}/options: 기본 두께 ${choice.default}의 앞뒤 한 칸(${dotted(options)})이어야 합니다`);
+      }
+      return errors;
+    });
+}
+
+/**
+ * 두께 고정: 슬라이더를 움직이는 동안 두께가 변하지 않도록, 고정 두께와 두께 선택의 파라미터는 어떤 슬라이더의 children에도
+ * 없어야 한다. 한 파라미터는 고정 두께와 두께 선택 하나 중 한 곳에만 있다. JSON Schema 검사를 통과한 명세에 쓴다.
+ */
+export function fixedThicknessChecker(spec: Pick<Spec, "sliders" | "thickness" | "fixed">): string[] {
+  const childOf = (id: string) => spec.sliders.filter((s) => s.children.includes(id)).map((s) => s.id);
+  const choiceOf = (id: string) => spec.thickness.findIndex((t) => t.ids.includes(id));
+  return [
+    ...spec.fixed.flatMap((id, k) => [
+      ...childOf(id).map((slider) => `/fixed/${k}: ${id}는 슬라이더 ${slider}의 children에 있어 고정할 수 없습니다`),
+      ...(choiceOf(id) === -1 ? [] : [`/fixed/${k}: ${id}는 thickness[${choiceOf(id)}]의 두께 선택에도 있습니다`]),
+    ]),
+    ...spec.thickness.flatMap((choice, i) =>
+      choice.ids.flatMap((id) => [
+        ...childOf(id).map((slider) => `/thickness/${i}/ids: ${id}는 슬라이더 ${slider}의 children에 있어 두께 선택에 둘 수 없습니다`),
+        ...(choiceOf(id) < i ? [`/thickness/${i}/ids: ${id}는 thickness[${choiceOf(id)}]의 두께 선택에도 있습니다`] : []),
+      ]),
+    ),
+  ];
 }
 
 /**

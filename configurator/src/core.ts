@@ -2,14 +2,15 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
-import { createMorph, type MorphShape, type Spec, type SweepData } from "./engine.ts";
+import { createMorph, type MorphShape, type Spec, type SweepData, type ThicknessChoice } from "./engine.ts";
 
 // 검증기가 구성기와 같은 엔진을 쓰도록 번들 전역(Configurator)으로도 내보낸다
 export { createMorph };
 
 export interface Configurator {
-  /** 지금 슬라이더 값 */
+  /** 지금 슬라이더 값과 두께 선택 값(두께 선택은 묶인 파라미터마다 같은 값) */
   readonly values: Record<string, number>;
+  /** 슬라이더 값은 범위 안으로 맞추고, 두께 선택(묶인 파라미터 중 아무 이름)은 두께 후보 중 하나여야 한다 */
   set(id: string, value: number): void;
   dispose(): void;
 }
@@ -27,7 +28,10 @@ function axisVector(axis: string): THREE.Vector3 {
 
 export function mount(container: HTMLElement, spec: Spec, sweeps: SweepData): Configurator {
   const morph = createMorph(spec, sweeps);
-  const values: Record<string, number> = Object.fromEntries(spec.sliders.map((s) => [s.id, s.default]));
+  const values: Record<string, number> = Object.fromEntries([
+    ...spec.sliders.map((s) => [s.id, s.default]),
+    ...spec.thickness.flatMap((t) => t.ids.map((id) => [id, t.default])),
+  ]);
 
   container.replaceChildren();
   Object.assign(container.style, { display: "flex", flexDirection: "column", gap: "12px", fontFamily: "sans-serif" });
@@ -154,9 +158,32 @@ export function mount(container: HTMLElement, spec: Spec, sweeps: SweepData): Co
     inputs.set(slider.id, { input, output });
   }
 
+  // 두께 선택 슬롯: 사이 값이 없으므로 슬라이더가 아니라 두께 후보 중 하나를 고른다(ADR-0010)
+  const slots = new Map<ThicknessChoice, HTMLSelectElement>();
+  for (const choice of spec.thickness) {
+    const row = document.createElement("label");
+    Object.assign(row.style, { display: "grid", gridTemplateColumns: "6em 1fr", alignItems: "center", gap: "8px" });
+    const name = document.createElement("span");
+    name.textContent = choice.name;
+    const select = document.createElement("select");
+    for (const option of choice.options) select.add(new Option(`${option} mm`, String(option), false, option === choice.default));
+    select.addEventListener("change", () => configurator.set(choice.ids[0], Number(select.value)));
+    row.append(name, select);
+    panel.append(row);
+    slots.set(choice, select);
+  }
+
   const configurator: Configurator = {
     values,
     set(id, value) {
+      const choice = spec.thickness.find((t) => t.ids.includes(id));
+      if (choice) {
+        if (!choice.options.includes(value)) throw new Error(`두께 선택 ${choice.name}에 ${value} mm 후보가 없습니다`);
+        for (const board of choice.ids) values[board] = value;
+        slots.get(choice)!.value = String(value);
+        update();
+        return;
+      }
       const slider = spec.sliders.find((s) => s.id === id);
       const ui = inputs.get(id);
       if (!slider || !ui) throw new Error(`명세에 슬라이더 ${id}가 없습니다`);

@@ -11,7 +11,7 @@ import type { Feedback } from "../pipeline/feedback.ts";
 import { FUSION_NEEDED, FUSION_RECONNECTED, runPipeline, type Candidate, type FusionPort, type HumanPort, type Intake, type SampleRequest } from "../pipeline/runner.ts";
 import { scriptedAi, type Script } from "../pipeline/scripted-ai.ts";
 import { memoryStore } from "../pipeline/memory-store.ts";
-import { crossCorners, crossDepth, crossThree, depthSpec, gridDepth, gridDepthChecks, pushMaxSide, shellPointRecording, shelfCrossCorners, shelfRecording, shelfSpec, threeSpec, widthHeightSpec } from "./recording.ts";
+import { crossCorners, crossDepth, crossThree, depthSpec, gridDepth, gridDepthChecks, pushMaxSide, shellPointRecording, shelfCrossCorners, shelfRecording, shelfSpec, shelfThicknessSamples, shelfThicknessSpec, threeSpec, widthHeightSpec } from "./recording.ts";
 import type { CrossSample } from "../pipeline/verify-cross.ts";
 
 const fixtures = new URL("../../fixtures/synthetic/", import.meta.url);
@@ -557,4 +557,145 @@ test("칸막이 수가 바뀌는 선반도 위상 묶음을 넘나드는 슬라�
   assert.equal(fusion.requests.length, 1);
   const sweeps = JSON.parse(store.submissions[0].files["sweeps.json"]);
   assert.equal(sweeps.sweeps.find((s: { parameter: string }) => s.parameter === "shelf_w").groups.length, 2);
+});
+
+const shelfIntake: Intake = { name: "칸막이 선반", kind: "선반", memo: "폭 500~1300, 깊이 200~400", thickness: "show" };
+const shelfCandidates: Candidate[] = [
+  { id: "c1", front: "-Y", parents: ["shelf_w", "shelf_d"], showThickness: true, summary: "폭·깊이와 판재 두께", diff: "두께 선택 노출" },
+  { id: "c2", front: "-Y", parents: ["shelf_w", "shelf_d"], showThickness: false, summary: "폭·깊이", diff: "두께 고정" },
+];
+/** 칸막이 선반 판재 두께 t(기본 18)의 두께 선택 */
+const shelfThickness = { ids: ["t"], name: "판재 두께", default: 18, options: [15, 18, 24] };
+
+/** 칸막이 선반 명세들을 차례로 쓰는 AI로 실행한다. 첫 명세의 재작성 이유(schemaErrors)를 돌려준다. */
+async function shelfSchemaErrors(first: Spec, bundle: unknown = shelfRecording) {
+  const ai = scriptedAi({ candidates: [shelfCandidates], style: [{ style: "natural" }], spec: [first, shelfSpec] });
+  const store = memoryStore({ styles });
+  const result = await runPipeline({ bundle, intake: shelfIntake, human: approveFirst, ports: { fusion: recordedFusion(shelfCrossCorners).port, ai, store } });
+  assert.equal(result.status, "submitted", JSON.stringify(store.log.at(-1)));
+  return (ai.calls.spec[1] as { schemaErrors: string[] }).schemaErrors;
+}
+
+test("두께 후보가 표준 두께 목록에서 기본 두께의 앞뒤 한 칸이 아니면 이유를 붙여 명세를 다시 묻는다", async () => {
+  const errors = await shelfSchemaErrors({ ...shelfSpec, thickness: [{ ...shelfThickness, options: [15, 18, 21] }] });
+
+  assert.deepEqual(errors, ["/thickness/0/options: 기본 두께 18의 앞뒤 한 칸(15·18·24)이어야 합니다"]);
+});
+
+test("목록 끝의 기본 두께는 두께 후보가 2개다", async () => {
+  const thin = structuredClone(shelfRecording);
+  thin.parameters.find((p) => p.name === "t")!.value = 3;
+
+  const errors = await shelfSchemaErrors({ ...shelfSpec, thickness: [{ ...shelfThickness, default: 3, options: [3, 6, 9] }] }, thin);
+
+  assert.deepEqual(errors, ["/thickness/0/options: 기본 두께 3의 앞뒤 한 칸(3·6)이어야 합니다"]);
+});
+
+test("표준 두께 목록에 없는 기본 두께는 명세를 다시 묻는다", async () => {
+  const odd = structuredClone(shelfRecording);
+  odd.parameters.find((p) => p.name === "t")!.value = 20;
+
+  const errors = await shelfSchemaErrors({ ...shelfSpec, thickness: [{ ...shelfThickness, default: 20, options: [18, 20, 24] }] }, odd);
+
+  assert.deepEqual(errors, ["/thickness/0/default: 20 mm는 표준 두께 목록(3·6·9·12·15·18·24·30)에 없습니다"]);
+});
+
+test("하나의 두께 선택으로 묶인 파라미터의 기본 두께가 다르면 명세를 다시 묻는다", async () => {
+  const twoBoards = structuredClone(shelfRecording);
+  twoBoards.parameters.push({ name: "t_back", value: 9, unit: "mm", expression: "9 mm", is_user: true, is_count: false } as never);
+
+  const errors = await shelfSchemaErrors({ ...shelfSpec, thickness: [{ ...shelfThickness, ids: ["t", "t_back", "t_none"] }] }, twoBoards);
+
+  assert.deepEqual(errors, [
+    "/thickness/0/ids: t_none는 업로드 묶음의 파라미터가 아닙니다",
+    "/thickness/0/ids: 묶인 파라미터의 기본 두께가 다릅니다(t=18·t_back=9)",
+  ]);
+});
+
+test("두께 선택의 기본 두께가 업로드한 모델의 값과 다르면 명세를 다시 묻는다", async () => {
+  const errors = await shelfSchemaErrors({ ...shelfSpec, thickness: [{ ...shelfThickness, default: 15, options: [12, 15, 18] }] });
+
+  assert.deepEqual(errors, ["/thickness/0/default: 업로드한 모델의 두께(18 mm)와 다릅니다"]);
+});
+
+test("고정 두께 파라미터가 슬라이더의 자식에 있으면 명세를 다시 묻는다", async () => {
+  const sliders = shelfSpec.sliders.map((s, i) => (i === 1 ? { ...s, children: ["t"] } : s));
+
+  const errors = await shelfSchemaErrors({ ...shelfSpec, sliders, fixed: ["t"] });
+
+  assert.deepEqual(errors, ["/fixed/0: t는 슬라이더 shelf_d의 children에 있어 고정할 수 없습니다"]);
+});
+
+/** 칸막이 선반 두께 선택 명세를 실행한다. Fusion 연결은 교차 검증 모서리와 두께 후보 형상으로 답한다. */
+async function runShelfThickness(specs: Spec[], thicknessSamples: CrossSample[] = shelfThicknessSamples) {
+  const ai = scriptedAi({ candidates: [shelfCandidates], style: [{ style: "natural" }], spec: specs });
+  const store = memoryStore({ styles });
+  const fusion = recordedFusion([...shelfCrossCorners, ...thicknessSamples]);
+  const result = await runPipeline({ bundle: shelfRecording, intake: shelfIntake, human: approveFirst, ports: { fusion: fusion.port, ai, store } });
+  return { ai, store, fusion, result };
+}
+
+test("두께 선택이 있으면 애드인에 두께 후보 형상을 요청해 결과물의 스윕 데이터에 담는다", async () => {
+  const { store, fusion, result } = await runShelfThickness([shelfThicknessSpec]);
+
+  assert.equal(result.status, "submitted", JSON.stringify(store.log.at(-1)));
+  const thickness = fusion.requests.filter((r) => r.kind === "thickness");
+  // 기본 묶음과, 전체 폭 범위가 닿는 2칸·4칸 위상 묶음의 기준 값에서 기본 두께가 아닌 후보 15·24
+  assert.deepEqual(thickness, [
+    {
+      kind: "thickness",
+      values: [{ t: 15 }, { t: 24 }, { t: 15, shelf_w: 675 }, { t: 24, shelf_w: 675 }, { t: 15, shelf_w: 1200.03662109375 }, { t: 24, shelf_w: 1200.03662109375 }],
+    },
+  ]);
+  const { files } = store.submissions[0];
+  assert.equal(JSON.parse(files["sweeps.json"]).thickness.length, 6);
+  // 제출된 고정 코어가 고른 두께의 형상을 만든다
+  const context = vm.createContext({});
+  vm.runInContext(files["configurator.js"], context);
+  const morph = vm.runInContext("Configurator", context).createMorph(JSON.parse(files["spec.json"]), JSON.parse(files["sweeps.json"]));
+  assert.notDeepEqual(morph.positions({ t: 24 }), morph.positions({ t: 18 }));
+});
+
+test("두께 후보 형상을 재계산하지 못하면 두께 선택을 가리키는 피드백으로 명세를 다시 쓴다", async () => {
+  const failed = shelfThicknessSamples.map((s) => (s.values.t === 24 && s.values.shelf_w === 675 ? { ...s, status: "recompute_failed" as const, faces: [] } : s));
+
+  const { ai, result } = await runShelfThickness([shelfThicknessSpec, shelfSpec], failed);
+
+  assert.equal(result.status, "submitted");
+  const { feedback } = ai.calls.spec[1] as { feedback: Feedback[] };
+  assert.deepEqual(
+    feedback.map(({ path, slider, part, kind, measured }) => ({ path, slider, part, kind, measured })),
+    [{ path: "thickness[0].options", slider: "", part: "", kind: "recompute_failed", measured: { values: { t: 24, shelf_w: 675 } } }],
+  );
+  assert.match(feedback[0].hint, /t=24·shelf_w=675/);
+});
+
+test("두께 후보 형상의 면 구성이 기준 형상과 다르면 위상 변화 피드백이 나온다", async () => {
+  const changed = shelfThicknessSamples.map((s) => (s.values.t === 15 && s.values.shelf_w === undefined ? { ...s, faces: s.faces.slice(1) } : s));
+
+  const { ai } = await runShelfThickness([shelfThicknessSpec, shelfSpec], changed);
+
+  const { feedback } = ai.calls.spec[1] as { feedback: Feedback[] };
+  assert.deepEqual(
+    feedback.map(({ path, kind, measured }) => ({ path, kind, measured })),
+    [{ path: "thickness[0].options", kind: "topology_change", measured: { values: { t: 15 } } }],
+  );
+});
+
+test("두께 선택의 파라미터가 슬라이더의 자식이거나 고정 두께·다른 두께 선택에도 있으면 명세를 다시 묻는다", async () => {
+  const twoBoards = structuredClone(shelfRecording);
+  twoBoards.parameters.push({ name: "t_back", value: 18, unit: "mm", expression: "18 mm", is_user: true, is_count: false } as never);
+  const sliders = shelfSpec.sliders.map((s, i) => (i === 0 ? { ...s, children: ["t"] } : s));
+
+  const errors = await shelfSchemaErrors(
+    { ...shelfSpec, sliders, thickness: [shelfThickness, { ...shelfThickness, ids: ["t_back", "t"], name: "뒤판 두께" }], fixed: ["t_back"] },
+    twoBoards,
+  );
+
+  assert.deepEqual(errors, [
+    "/fixed/0: t_back는 thickness[1]의 두께 선택에도 있습니다",
+    "/thickness/0/ids: t는 슬라이더 shelf_w의 children에 있어 두께 선택에 둘 수 없습니다",
+    "/thickness/1/ids: t는 슬라이더 shelf_w의 children에 있어 두께 선택에 둘 수 없습니다",
+    "/thickness/1/ids: t는 thickness[0]의 두께 선택에도 있습니다",
+  ]);
 });

@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import * as esbuild from "esbuild";
 
-import { reaches, type SampleFace, type Spec, type Sweep, type SweepData } from "../src/engine.ts";
+import { reaches, type CrossSample, type SampleFace, type Spec, type Sweep, type SweepData } from "../src/engine.ts";
 
 const CORE = fileURLToPath(new URL("../src/core.ts", import.meta.url));
 
@@ -62,10 +62,14 @@ function engineSweeps(spec: Spec, sweeps: Sweep[]): Sweep[] {
   });
 }
 
-/** 업로드 묶음과 격자 보강에서 명세의 슬라이더가 쓰는 부분만 남긴다. 형식은 그대로라 엔진이 바로 읽는다. */
+/** 교차 검증 샘플 형식에서 엔진이 읽는 필드만 남긴다 */
+const engineSamples = (samples: CrossSample[]) => samples.map(({ values, status, faces }) => ({ values, status, faces: engineFaces(faces) }));
+
+/** 업로드 묶음과 격자 보강·두께 후보 형상에서 명세가 쓰는 부분만 남긴다. 형식은 그대로라 엔진이 바로 읽는다. */
 function sweepDataFor(spec: Spec, bundle: SweepData): SweepData {
   const ids = new Set(spec.sliders.map((s) => s.id));
   const grids = (bundle.grids ?? []).filter((g) => g.parameters.every((id) => ids.has(id)));
+  const thickness = spec.thickness.length === 0 ? [] : (bundle.thickness ?? []);
   return {
     parts: engineParts(bundle.parts),
     baseline: engineBaseline(bundle.baseline),
@@ -73,15 +77,9 @@ function sweepDataFor(spec: Spec, bundle: SweepData): SweepData {
     ...(grids.length === 0
       ? {}
       : {
-          grids: grids.map(({ parameters, samples }) => ({
-            parameters,
-            samples: samples.map(({ values, status, faces }) => ({
-              values,
-              status,
-              faces: engineFaces(faces),
-            })),
-          })),
+          grids: grids.map(({ parameters, samples }) => ({ parameters, samples: engineSamples(samples) })),
         }),
+    ...(thickness.length === 0 ? {} : { thickness: engineSamples(thickness) }),
   };
 }
 
@@ -103,7 +101,7 @@ const SNIPPET = `<!doctype html>
 /** 결과물 파일 이름과 내용. 쇼핑몰에는 이 파일들을 그대로 올린다. */
 export type ProductFiles = Record<"configurator.js" | "spec.json" | "sweeps.json" | "index.html", string>;
 
-/** 고정 코어 번들과 명세·스윕 데이터·붙여 넣을 div를 메모리에서 만든다. bundle.grids는 검증 중에 받은 격자 보강이다. */
+/** 고정 코어 번들과 명세·스윕 데이터·붙여 넣을 div를 메모리에서 만든다. bundle.grids·thickness는 검증 중에 받은 격자 보강·두께 후보 형상이다. */
 export async function assembleProduct(spec: Spec, bundle: SweepData): Promise<ProductFiles> {
   return {
     "configurator.js": await buildCore(),

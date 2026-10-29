@@ -1,7 +1,7 @@
 // 교차 검증: 슬라이더 쌍마다 범위 모서리 조합에서 Fusion 형상을 받아, 단독 스윕 이동량을 더한 변형 결과와 비교한다(ADR-0004).
 // 덧셈이 틀리는 쌍은 3×3 격자로 보강하고, 격자 마디 사이의 검증점에서 격자 보간을 확인한다(ADR-0008).
 // 합격선과 재는 방법은 수치 검증과 같다(ADR-0012).
-import { faceKey, type CrossSample, type Pair, type SampleFace, type Spec, type SweepData } from "../src/engine.ts";
+import { faceKey, placeOf, type CrossSample, type Pair, type SampleFace, type Spec, type SweepData } from "../src/engine.ts";
 import type { Feedback, FeedbackKind } from "./feedback.ts";
 import type { UploadBundle } from "./upload-bundle.ts";
 import { shapeComparer, type PartFailure, type ShapeComparer } from "./verify-numeric.ts";
@@ -128,9 +128,9 @@ export function verifyCross(spec: Spec, sweeps: SweepData, bundle: UploadBundle,
 /** 격자 보강으로 고칠 수 있는 실패인지. 재계산 실패와 위상 변화는 격자로 섞을 수 없다. */
 export const fixableByGrid = ({ feedback }: PairFailure) => feedback.every((f) => !UNMIXABLE.has(f.kind));
 
-/** 샘플의 면 구성이 기본 형상과 같은지: (바디, 이름)과 점 수 */
-function sameFaces(sweeps: SweepData, faces: SampleFace[]): boolean {
-  const counts = new Map(sweeps.baseline.faces.map((f) => [faceKey(f), f.points.length]));
+/** 샘플의 면 구성이 기준 형상과 같은지: (바디, 이름)과 점 수 */
+function sameFaces(baseline: SweepData["baseline"], faces: SampleFace[]): boolean {
+  const counts = new Map(baseline.faces.map((f) => [faceKey(f), f.points.length]));
   return faces.length === counts.size && faces.every((f) => counts.get(faceKey(f)) === f.points.length);
 }
 
@@ -142,13 +142,27 @@ export function checkGridSamples(spec: Spec, sweeps: SweepData, pair: Pair, grid
   const [i, j] = pairIndex(spec, pair);
   const [a, b] = [spec.sliders[i].id, spec.sliders[j].id];
   const hintTail = `${a}와 ${b}의 격자 보강 샘플을 뽑을 수 없습니다. ${FIX_PAIR}`;
-  return grid.flatMap(({ values, status, faces }): Feedback[] => {
-    const place = `${a}=${values[a]}·${b}=${values[b]}`;
-    const base = { path: `sliders[${i}]`, slider: a, part: "", measured: { values: { [a]: values[a], [b]: values[b] } } };
-    if (status !== "ok") return [{ ...base, kind: "recompute_failed", expected: "재계산 성공", hint: `Fusion이 ${place}에서 재계산하지 못합니다. ${hintTail}` }];
-    if (!sameFaces(sweeps, faces)) return [{ ...base, kind: "topology_change", expected: "기본 형상과 같은 면 구성", hint: `${place}에서 면 구성이 기본 형상과 다릅니다. ${hintTail}` }];
-    return [];
+  return grid.flatMap(({ values, status, faces }) => {
+    const pairValues = { [a]: values[a], [b]: values[b] };
+    const target = { path: `sliders[${i}]`, slider: a, part: "", measured: { values: pairValues } };
+    return unusableSample({ status, faces }, sweeps.baseline, target, placeOf(pairValues), hintTail);
   });
+}
+
+/**
+ * 엔진에 넣을 추가 샘플(격자 보강·두께 후보 형상)이 재계산에 실패했거나 기준 형상과 면 구성이 다르면 그 피드백 하나를,
+ * 넣을 수 있으면 빈 목록을 돌려준다. target은 피드백이 가리킬 명세 위치와 잰 값이다.
+ */
+export function unusableSample(
+  sample: Pick<CrossSample, "status" | "faces">,
+  baseline: SweepData["baseline"],
+  target: Pick<Feedback, "path" | "slider" | "part" | "measured">,
+  place: string,
+  hintTail: string,
+): Feedback[] {
+  if (sample.status !== "ok") return [{ ...target, kind: "recompute_failed", expected: "재계산 성공", hint: `Fusion이 ${place}에서 재계산하지 못합니다. ${hintTail}` }];
+  if (!sameFaces(baseline, sample.faces)) return [{ ...target, kind: "topology_change", expected: "기준 형상과 같은 면 구성", hint: `${place}에서 면 구성이 기준 형상과 다릅니다. ${hintTail}` }];
+  return [];
 }
 
 /**

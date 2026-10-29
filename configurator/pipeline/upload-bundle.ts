@@ -49,7 +49,7 @@ export interface BundleGroup extends Omit<TopologyGroup, "baseline" | "sweeps"> 
 
 /** 엔진의 스윕 데이터에 파라미터, 면 표면, 검증점, 스윕 범위와 그 축소 기록을 더한 것 */
 export interface UploadBundle extends SweepData {
-  parameters: { name: string; is_count: boolean }[];
+  parameters: { name: string; value: number; is_count: boolean }[];
   baseline: BundleBaseline;
   sweeps: (BundleSweep & { groups?: BundleGroup[] })[];
 }
