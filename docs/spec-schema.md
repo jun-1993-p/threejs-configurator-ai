@@ -34,7 +34,7 @@
 | `product` | 상품명 | 정보 입력에서 가져온다 |
 | `front` | 정면 방향(Fusion 좌표 기준) | AI가 추정한다. 확신이 없으면 후보끼리 다르게 둔다 |
 | `axes` | W 폭·D 깊이·H 높이와 Fusion 축의 대응 | `front`에서 정해진다 |
-| `sliders[].id` | 부모 파라미터의 Fusion 이름 | Fusion 사용자 파라미터에 있어야 한다 |
+| `sliders[].id` | 부모 파라미터의 Fusion 이름 | Fusion 사용자 파라미터에 있어야 하고, 업로드 묶음에 그 스윕이 있어야 한다 |
 | `sliders[].name` | 슬라이더 이름(한국어) | AI가 짓고, 최종 승인에서 고칠 수 있다 |
 | `sliders[].axis` | 슬라이더가 움직이는 축 | 축 반응으로 검증한다 |
 | `sliders[].min/max` | 범위 | 치수 규칙 ∩ 정보 입력 메모 ∩ 스윕 범위 안에서 AI가 고른다(ADR-0009) |
@@ -42,8 +42,8 @@
 | `sliders[].default` | 기본값 | 업로드된 Fusion 모델의 현재 값 |
 | `sliders[].step`, `unit` | 슬라이더 단위 | AI |
 | `sliders[].children` | 이 부모를 따르는 자식 파라미터 | 기록과 검증용. 변형 엔진은 읽지 않는다(ADR-0003) |
-| `sliders[].affects.shape` | 형태 변경 부품 | 단독 스윕의 축 반응과 비교한다 |
-| `sliders[].affects.move` | 위치 이동 부품 | 단독 스윕의 축 반응과 비교한다 |
+| `sliders[].affects.shape` | 형태 변경 부품 | 업로드 묶음의 부품 이름이어야 한다. 단독 스윕의 축 반응과 비교한다 |
+| `sliders[].affects.move` | 위치 이동 부품 | 위와 같고, `shape`와 겹칠 수 없다 |
 | `thickness[].ids` | 하나의 두께 선택으로 묶인 두께 파라미터 | 같은 기본 두께여야 한다 |
 | `thickness[].name` | 두께 선택의 이름 | AI |
 | `thickness[].options` | 두께 후보 | 표준 두께 목록에서 기본 두께의 앞뒤 한 칸이어야 한다(ADR-0010) |
@@ -65,7 +65,7 @@
   "slider": "drawer_w",
   "part": "칸막이_좌",
   "kind": "unexpected_shape_change",
-  "measured": { "axis": "W", "delta_mm": 14.2 },
+  "measured": { "value": 950, "axis": "W", "size_delta_mm": 14.2, "move_mm": 7.1 },
   "expected": "위치 이동만",
   "hint": "칸막이_좌를 위치 이동 부품으로 옮기거나, 자식 수식 확인"
 }
@@ -80,6 +80,8 @@
   | `shape_error` | 형상 오차 초과 |
   | `unexpected_shape_change` | 예상하지 못한 형태 변경 |
   | `off_axis_change` | 다른 축 변화 |
+  | `missing_axis_change` | 선언한 축 반응 없음(형태 변경 부품의 치수, 위치 이동 부품의 자리가 그대로) |
+  | `unexpected_move` | 예상하지 못한 위치 이동 |
   | `thickness_change` | 두께 변화(두께 고정 위반) |
   | `topology_change` | 위상 변화 |
   | `recompute_failed` | 재계산 실패 |
@@ -113,6 +115,20 @@
 ```
 
 두께는 `measured.dimension`이 `thickness`이고 `faces`에 판의 두 면 이름이 붙는다. 형상 오차의 `measured`는 `{ value, error_mm }`, `expected`는 `{ max_error_mm }`이다.
+
+### 축 반응
+
+수치 검증을 통과한 명세만 본다. 업로드 묶음의 단독 스윕에서 슬라이더 범위 안의 샘플과 검증점(재계산 성공, 기본값 제외)마다, 부품의 W·D·H별 치수(바운딩 박스 길이)와 가운데 위치가 기본 형상에서 얼마나 바뀌었는지 Fusion 형상으로 잰다. 부품은 그 바디의 모든 면으로 재므로 면 구성이 바뀐 샘플도 잴 수 있다. 0.2 mm(치수 오차 합격선과 같은 값)를 넘으면 바뀐 것으로 본다. "바뀌지 않는다"는 범위 안에서 가장 크게 바뀐 샘플도 0.2 mm 이하라는 뜻이다. 한 축에 슬라이더가 여러 개여도(전체 폭·서랍 폭) 슬라이더마다 따로 본다.
+
+| 부품 | 슬라이더 축에서 기대 | 어기면 `kind` | `path` |
+| --- | --- | --- | --- |
+| `affects.shape` | 치수가 바뀐다 | `missing_axis_change` | `sliders[i].affects.shape` |
+| `affects.move` | 치수는 그대로, 자리가 옮겨진다 | 치수가 바뀌면 `unexpected_shape_change`, 자리가 그대로면 `missing_axis_change` | `sliders[i].affects.move` |
+| 선언하지 않은 부품 | 그대로 | 치수가 바뀌면 `unexpected_shape_change`(`affects.shape`), 자리가 옮겨지면 `unexpected_move`(`affects.move`) | 괄호 안 |
+| 모든 부품 | 다른 축의 치수와 위치가 그대로 | `off_axis_change` | `sliders[i].axis` |
+
+- 표는 위에서부터 보고, 부품마다 처음 걸린 행 하나(와 다른 축 변화)만 알린다. 알리는 샘플은 그 양이 가장 크게 바뀐 샘플이다. `measured`는 `{ value, axis, size_delta_mm, move_mm }`(그 샘플 값, 잰 축, 치수 변화, 가운데 위치 변화)이다.
+- 힌트는 부품을 어느 목록에 넣거나 빼라고 하고, 자식 수식도 확인하라고 한다.
 
 ### 재시도
 

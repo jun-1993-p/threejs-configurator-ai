@@ -34,3 +34,39 @@ export function pushMaxSide(value: number, part: string, axis: keyof typeof AXIS
     for (const f of faces) for (const p of f.points) if (Math.abs(p[c] - max) < 1e-6) p[c] += delta;
   });
 }
+
+/** 깊이 축 슬라이더가 둘인 명세: 전체 깊이(몸통·서랍)와 서랍 깊이(서랍만) */
+export const depthSpec: Spec = {
+  ...drawerSpec,
+  sliders: [
+    {
+      ...drawerSpec.sliders[0],
+      id: "body_d",
+      name: "전체 깊이",
+      axis: "D",
+      min: 300, max: 600, default: 450,
+      source: "치수규칙/서랍장/깊이",
+      affects: { shape: ["Carcass", "DrawerBox"], move: [] },
+    },
+    {
+      ...drawerSpec.sliders[0],
+      id: "drawer_d",
+      name: "서랍 깊이",
+      axis: "D",
+      min: 300, max: 600, default: 430,
+      source: "치수규칙/서랍장/서랍_깊이",
+      affects: { shape: ["DrawerBox"], move: [] },
+    },
+  ],
+};
+
+/** 한 스윕의 샘플·검증점마다 부품을 축 방향으로 (값 - base) × rate만큼 옮긴 녹화본 사본(자리만 옮겨지는 부품). base는 기본 형상의 값이다. */
+export function movePart(parameter: string, base: number, part: string, axis: keyof typeof AXIS, rate: number): UploadBundle {
+  const bundle = structuredClone(recording);
+  const names = facesOf(part);
+  const sweep = bundle.sweeps.find((s) => s.parameter === parameter)!;
+  for (const shape of [...sweep.samples, ...sweep.checks]) {
+    for (const f of shape.faces) if (names.has(f.name)) for (const p of f.points) p[AXIS[axis]] += (shape.value - base) * rate;
+  }
+  return bundle;
+}

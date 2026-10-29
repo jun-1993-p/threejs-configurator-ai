@@ -3,8 +3,9 @@
 import type { Spec, SweepData } from "../src/engine.ts";
 import { assembleProduct, type ProductFiles } from "./assemble.ts";
 import type { Feedback } from "./feedback.ts";
-import { FRONTS, checkCandidates, checkSpec, checkUploadBundle, styleChoiceChecker, type Check } from "./schemas.ts";
+import { FRONTS, checkCandidates, checkSpec, checkUploadBundle, specReferenceChecker, styleChoiceChecker, type Check } from "./schemas.ts";
 import type { UploadBundle } from "./upload-bundle.ts";
+import { verifyAxisResponse } from "./verify-axis.ts";
 import { verifyNumeric } from "./verify-numeric.ts";
 
 /** 단계 이름. 순서는 runPipeline의 코드가 정한다. */
@@ -156,12 +157,13 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
     throw new PipelineStop(stage, `AI 응답이 ${SCHEMA_RETRIES}번 다시 물어도 형식 검사를 통과하지 못했습니다: ${errors.join("; ")}`);
   }
 
-  // 명세의 상품명은 정보 입력에서 가져온다(docs/spec-schema.md).
+  // 명세의 상품명은 정보 입력에서 가져오고, 슬라이더·부품 이름은 업로드 묶음을 가리킨다(docs/spec-schema.md).
   const checkProductSpec: Check = (value) => {
     const errors = checkSpec(value);
-    if (errors.length === 0 && (value as Spec).product !== intake.name) {
-      errors.push(`/product: 정보 입력의 상품명 "${intake.name}"이어야 합니다`);
-    }
+    if (errors.length > 0) return errors;
+    const spec = value as Spec;
+    if (spec.product !== intake.name) errors.push(`/product: 정보 입력의 상품명 "${intake.name}"이어야 합니다`);
+    errors.push(...specReferenceChecker(bundle as UploadBundle)(spec));
     return errors;
   };
 
@@ -181,8 +183,10 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
       const files = await assembleProduct(spec, bundle as SweepData);
       await log("assembly");
 
-      // 결과물에 담긴 스윕 데이터로 잰다. 축 반응 검증(티켓 06), AI 판정(티켓 19)이 뒤에 붙는다.
+      // 수치 검증은 결과물에 담긴 스윕 데이터로 잰다. 통과하면 축 반응을 녹화된 단독 스윕으로 본다.
+      // AI 판정(티켓 19)이 뒤에 붙는다.
       feedback = verifyNumeric(spec, JSON.parse(files["sweeps.json"]), bundle as UploadBundle);
+      if (feedback.length === 0) feedback = verifyAxisResponse(spec, bundle as UploadBundle);
       await log("verification", { attempt, feedback });
       if (feedback.length === 0) return { spec, files };
     }

@@ -10,7 +10,7 @@ import type { Feedback } from "../pipeline/feedback.ts";
 import { runPipeline, type Candidate, type FusionPort, type HumanPort, type Intake } from "../pipeline/runner.ts";
 import { scriptedAi, type Script } from "../pipeline/scripted-ai.ts";
 import { memoryStore } from "../pipeline/memory-store.ts";
-import { pushMaxSide } from "./recording.ts";
+import { depthSpec, pushMaxSide } from "./recording.ts";
 
 const fixtures = new URL("../../fixtures/synthetic/", import.meta.url);
 const bundle = JSON.parse(readFileSync(new URL("drawer.json", fixtures), "utf-8"));
@@ -169,4 +169,56 @@ test("같은 후보로 3번 넘게 수치 검증에 실패하면 실패 이유�
     store.log.map((e) => e.stage).filter((s) => s === "candidates" || s === "verification"),
     ["candidates", "verification", "verification", "verification", "verification", "candidates", "verification"],
   );
+});
+
+/** 축 반응이 틀린 명세: 전체 깊이가 서랍 깊이도 바꾸는데 형태 변경 부품에 서랍을 빠뜨렸다 */
+const drawerMissing = (base: Spec): Spec => ({
+  ...base,
+  sliders: base.sliders.map((s) => (s.id === "body_d" || s.id === "body_w" ? { ...s, affects: { shape: ["Carcass"], move: [] } } : s)),
+});
+
+test("한 축에 슬라이더가 둘인 명세에서 축 반응이 틀리면 부품과 명세 위치를 담은 피드백으로 다시 쓰고, 고친 명세로 제출한다", async () => {
+  const depthIntake = { ...intake, memo: "전체 깊이와 서랍 깊이" };
+  const { ai, store, ports } = setup({ spec: [drawerMissing(depthSpec), depthSpec] });
+
+  const result = await runPipeline({ bundle, intake: depthIntake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  const asked = ai.calls.spec as { feedback: Feedback[] }[];
+  assert.deepEqual(
+    asked[1].feedback.map(({ path, slider, part, kind }) => ({ path, slider, part, kind })),
+    [{ path: "sliders[0].affects.shape", slider: "body_d", part: "DrawerBox", kind: "unexpected_shape_change" }],
+  );
+  assert.deepEqual(JSON.parse(store.submissions[0].files["spec.json"]), depthSpec);
+});
+
+test("축 반응은 수치 검증을 통과한 명세에만 검사한다", async () => {
+  // 처음 명세는 수치 검증과 축 반응이 모두 틀렸다. 수치 피드백만 돌아간다.
+  const { ai, ports } = setup({ spec: [drawerMissing(tooWide), drawerMissing(spec), spec] });
+
+  const result = await runPipeline({ bundle: nonlinearAt825(), intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  const kinds = (ai.calls.spec as { feedback: Feedback[] }[]).map((call) => [...new Set(call.feedback.map((f) => f.kind))]);
+  assert.deepEqual(kinds, [[], ["dimension_error"], ["unexpected_shape_change"]]);
+});
+
+test("명세가 녹화본에 없는 슬라이더·부품 이름을 쓰거나 한 부품을 형태 변경과 위치 이동에 함께 두면 이유를 붙여 다시 묻는다", async () => {
+  const wrongNames: Spec = {
+    ...depthSpec,
+    sliders: [
+      { ...depthSpec.sliders[0], affects: { shape: ["Carcass", "Drawer"], move: ["Carcass"] } },
+      { ...depthSpec.sliders[1], id: "drawer_depth" },
+    ],
+  };
+  const { ai, ports } = setup({ spec: [wrongNames, depthSpec] });
+
+  const result = await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  const errors = (ai.calls.spec[1] as { schemaErrors: string[] }).schemaErrors;
+  assert.equal(errors.length, 3, errors.join("\n"));
+  assert.match(errors.join("\n"), /\/sliders\/0\/affects\/shape.*Drawer/);
+  assert.match(errors.join("\n"), /\/sliders\/0\/affects.*Carcass/);
+  assert.match(errors.join("\n"), /\/sliders\/1\/id.*drawer_depth/);
 });

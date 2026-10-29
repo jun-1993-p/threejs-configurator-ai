@@ -2,6 +2,7 @@
 // 검증기는 구성기와 같은 변형 엔진(src/engine.ts)을 그대로 불러, 실제로 내보낼 결과를 잰다.
 import { createMorph, faceKey, type Axis, type Morph, type MorphFace, type SampleFace, type Spec, type SweepData, type Vector } from "../src/engine.ts";
 import type { Feedback } from "./feedback.ts";
+import { boundsOf, coordinateOf, DIMENSIONS, round, type Bounds } from "./measure.ts";
 import type { UploadBundle } from "./upload-bundle.ts";
 
 /** 부품 치수(W·D·H와 두께) 오차의 합격선, mm */
@@ -12,12 +13,6 @@ export const shapeTolerance = (diagonal: number) => Math.max(1, diagonal * 0.001
 
 /** 판재 두께로 보는 맞선 두 평면의 최대 간격: 표준 두께 목록의 가장 두꺼운 값, mm */
 const MAX_THICKNESS = 30;
-
-const AXIS_INDEX = { X: 0, Y: 1, Z: 2 } as const;
-const DIMENSIONS: Axis[] = ["W", "D", "H"];
-
-/** 보고하는 mm 값의 자릿수. 부동소수 끝자리가 피드백에 섞이지 않게 한다. */
-const round = (mm: number) => Math.round(mm * 1e4) / 1e4;
 
 const dot = (a: ArrayLike<number>, b: ArrayLike<number>) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
@@ -123,7 +118,7 @@ function sizeFailures(reading: PartReading, spec: Spec): PartFailure[] {
   const engineBox = bounds(reading.faces, reading.engine);
   const fusionBox = bounds(reading.faces, reading.fusion);
   return DIMENSIONS.flatMap((dimension) => {
-    const c = AXIS_INDEX[spec.axes[dimension] as keyof typeof AXIS_INDEX];
+    const c = coordinateOf(spec.axes, dimension);
     return dimensionFailure(reading, dimension, dimension, engineBox.hi[c] - engineBox.lo[c], fusionBox.hi[c] - fusionBox.lo[c]);
   });
 }
@@ -155,22 +150,13 @@ function recordedPositions(morph: Morph, faces: SampleFace[]): Float64Array | un
   return out;
 }
 
-type Bounds = { lo: number[]; hi: number[] };
-
 /** 면들의 꼭짓점을 감싸는 바운딩 박스 */
-function bounds(faces: MorphFace[], positions: Float64Array): Bounds {
-  const lo = [Infinity, Infinity, Infinity];
-  const hi = [-Infinity, -Infinity, -Infinity];
-  for (const face of faces) {
-    for (let i = face.start; i < face.start + face.count; i++) {
-      for (let c = 0; c < 3; c++) {
-        lo[c] = Math.min(lo[c], positions[i * 3 + c]);
-        hi[c] = Math.max(hi[c], positions[i * 3 + c]);
-      }
+const bounds = (faces: MorphFace[], positions: Float64Array): Bounds =>
+  boundsOf((visit) => {
+    for (const face of faces) {
+      for (let i = face.start; i < face.start + face.count; i++) visit(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
     }
-  }
-  return { lo, hi };
-}
+  });
 
 const diagonal = ({ lo, hi }: Bounds) => Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]);
 

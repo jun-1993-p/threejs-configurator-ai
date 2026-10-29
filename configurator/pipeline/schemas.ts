@@ -53,3 +53,21 @@ export function styleChoiceChecker(styleIds: string[]): Check {
     properties: { style: { enum: styleIds } },
   });
 }
+
+/**
+ * 명세가 업로드 묶음의 이름을 맞게 가리키는지. 슬라이더 id는 스윕한 파라미터여야 하고,
+ * affects의 부품은 업로드 묶음의 부품이어야 하며, 한 부품이 형태 변경과 위치 이동에 함께 있을 수 없다.
+ * JSON Schema 검사를 통과한 명세에 쓴다.
+ */
+export function specReferenceChecker(bundle: { parts: { name: string }[]; sweeps: { parameter: string }[] }) {
+  const parts = new Set(bundle.parts.map((p) => p.name));
+  const swept = new Set(bundle.sweeps.map((s) => s.parameter));
+  return (spec: { sliders: { id: string; affects: { shape: string[]; move: string[] } }[] }): string[] =>
+    spec.sliders.flatMap(({ id, affects }, i) => [
+      ...(swept.has(id) ? [] : [`/sliders/${i}/id: ${id}는 스윕한 파라미터가 아닙니다`]),
+      ...(["shape", "move"] as const).flatMap((field) =>
+        affects[field].filter((part) => !parts.has(part)).map((part) => `/sliders/${i}/affects/${field}: ${part}는 업로드 묶음의 부품이 아닙니다`),
+      ),
+      ...affects.shape.filter((part) => affects.move.includes(part)).map((part) => `/sliders/${i}/affects: ${part}가 shape와 move에 함께 있습니다`),
+    ]);
+}

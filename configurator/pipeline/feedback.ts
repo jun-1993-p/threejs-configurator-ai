@@ -6,6 +6,8 @@ export const FEEDBACK_KINDS = [
   "shape_error",
   "unexpected_shape_change",
   "off_axis_change",
+  "missing_axis_change",
+  "unexpected_move",
   "thickness_change",
   "topology_change",
   "recompute_failed",
