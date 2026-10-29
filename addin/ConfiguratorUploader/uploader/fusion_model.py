@@ -6,7 +6,7 @@ Fusion API의 길이는 내부 단위(cm)이므로 묶음에는 mm로 바꿔 담
 import adsk.core
 import adsk.fusion
 
-from .core import BodyInfo, FaceSample, ParameterInfo, Point
+from .core import BodyInfo, EdgeSample, FaceSample, ParameterInfo, Point
 
 _INTERNAL = "internalUnits"
 _CM_TO_MM = 10.0
@@ -103,6 +103,11 @@ class FusionDesignModel:
                     )
                 )
         return samples
+
+
+    def sample_edges(self) -> list[EdgeSample]:
+        # 피처 기준 면 이름과 모서리 이름 쌍을 Fusion에서 만들 수 있는지 아직 확인하지 않았다(티켓 25 사람 확인).
+        raise NotImplementedError("Fusion 애드인의 면·모서리 이름은 아직 구현되지 않았습니다(티켓 25 사람 확인)")
 
 
 def _surface_name(face: adsk.fusion.BRepFace) -> str:

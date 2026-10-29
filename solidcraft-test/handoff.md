@@ -59,7 +59,7 @@
 ## 다음에 할 일
 
 1. (끝남) 티켓 24: SolidCraft 합성 녹화본. `fixtures/synthetic/drawer.json`
-2. 티켓 25: 경계 맞춤 격자 (24 다음)
+2. (끝남, Fusion 확인만 남음) 티켓 25: 경계 맞춤 격자. `synthetic/fitted.py`
 3. 티켓 02: 구성기 띄우기 (25 다음, 합성 녹화본 사용)
 
 ## 작업 시 주의

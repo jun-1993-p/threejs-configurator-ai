@@ -14,7 +14,7 @@
       "enum": ["fusion", "solidcraft"]
     },
     "grid": {
-      "description": "면마다 찍는 (u,v) 격자. 면 하나에 n×n 점.",
+      "description": "경계 맞춤 격자의 밀도 기준(ADR-0016). 점 간격은 바디 바운딩 박스 대각선 / (2(n-1)).",
       "type": "object",
       "required": ["n"],
       "additionalProperties": false,
@@ -51,10 +51,14 @@
     },
     "baseline": {
       "type": "object",
-      "required": ["faces"],
+      "required": ["faces", "edges"],
       "additionalProperties": false,
       "properties": {
-        "faces": { "$ref": "#/$defs/faces" },
+        "faces": {
+          "description": "기본 형상의 면. 연결 정보(triangles)는 여기에만 있고 모든 샘플이 같이 쓴다.",
+          "type": "array",
+          "items": { "allOf": [{ "$ref": "#/$defs/face" }, { "required": ["triangles"] }] }
+        },
         "edges": { "$ref": "#/$defs/edges" },
         "bodies": { "$ref": "#/$defs/bodies" }
       }
@@ -78,7 +82,7 @@
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["value", "status", "faces"],
+              "required": ["value", "status", "faces", "edges"],
               "additionalProperties": false,
               "properties": {
                 "value": { "type": "number" },
@@ -94,46 +98,54 @@
     }
   },
   "$defs": {
-    "faces": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["body", "surface", "points"],
-        "additionalProperties": false,
-        "properties": {
-          "body": { "type": "string", "minLength": 1 },
-          "surface": { "type": "string" },
-          "name": {
-            "description": "피처 기준 면 이름(ADR-0016). 샘플 사이에서 면을 짝짓는다.",
-            "type": "string",
-            "minLength": 1
-          },
-          "geometry": {
-            "description": "면의 표면. 평면은 법선, 원기둥은 원점·축·반지름.",
-            "oneOf": [
-              {
-                "type": "object",
-                "required": ["type", "normal"],
-                "additionalProperties": false,
-                "properties": {
-                  "type": { "const": "plane" },
-                  "normal": { "$ref": "#/$defs/vector" }
-                }
-              },
-              {
-                "type": "object",
-                "required": ["type", "origin", "axis", "radius"],
-                "additionalProperties": false,
-                "properties": {
-                  "type": { "const": "cylinder" },
-                  "origin": { "$ref": "#/$defs/vector" },
-                  "axis": { "$ref": "#/$defs/vector" },
-                  "radius": { "type": "number", "exclusiveMinimum": 0 }
-                }
+    "faces": { "type": "array", "items": { "$ref": "#/$defs/face" } },
+    "face": {
+      "type": "object",
+      "required": ["body", "surface", "name", "points"],
+      "additionalProperties": false,
+      "properties": {
+        "body": { "type": "string", "minLength": 1 },
+        "surface": { "type": "string" },
+        "name": {
+          "description": "피처 기준 면 이름(ADR-0016). 샘플 사이에서 면을 짝짓는다.",
+          "type": "string",
+          "minLength": 1
+        },
+        "geometry": {
+          "description": "면의 표면. 평면은 법선, 원기둥은 원점·축·반지름.",
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["type", "normal"],
+              "additionalProperties": false,
+              "properties": {
+                "type": { "const": "plane" },
+                "normal": { "$ref": "#/$defs/vector" }
               }
-            ]
-          },
-          "points": { "type": "array", "items": { "$ref": "#/$defs/vector" } }
+            },
+            {
+              "type": "object",
+              "required": ["type", "origin", "axis", "radius"],
+              "additionalProperties": false,
+              "properties": {
+                "type": { "const": "cylinder" },
+                "origin": { "$ref": "#/$defs/vector" },
+                "axis": { "$ref": "#/$defs/vector" },
+                "radius": { "type": "number", "exclusiveMinimum": 0 }
+              }
+            }
+          ]
+        },
+        "points": { "type": "array", "items": { "$ref": "#/$defs/vector" } },
+        "triangles": {
+          "description": "면의 연결. points 번호 세 개씩. 기본 형상에서 한 번 정한다(ADR-0016).",
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": { "type": "integer", "minimum": 0 },
+            "minItems": 3,
+            "maxItems": 3
+          }
         }
       }
     },

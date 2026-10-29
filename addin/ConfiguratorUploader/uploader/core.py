@@ -28,9 +28,12 @@ class FaceSample:
     body: str
     surface: str
     points: list[Point]
-    # 피처 기준 면 이름과 표면 정의(ADR-0016). 아직 Fusion 어댑터는 주지 않는다.
+    # 피처 기준 면 이름(ADR-0016). 업로드 묶음에 꼭 있어야 한다.
     name: str | None = None
+    # 표면 정의. 이름으로 짝지은 면을 기하로 한 번 더 확인하는 데 쓴다.
     geometry: dict[str, Any] | None = None
+    # 면의 연결(points 번호 세 개씩). 기본 형상의 것만 업로드 묶음에 담긴다.
+    triangles: list[tuple[int, int, int]] | None = None
 
 
 @dataclass(frozen=True)
@@ -57,13 +60,13 @@ class FusionModel(Protocol):
     def set_parameter(self, name: str, value: float) -> bool: ...
     def restore_parameter(self, parameter: ParameterInfo) -> None: ...
     def sample_faces(self, grid_n: int) -> list[FaceSample]: ...
+    def sample_edges(self) -> list[EdgeSample]: ...
 
 
 @runtime_checkable
-class TopologyModel(Protocol):
-    """모서리와 바디 측정값까지 주는 모델. 지금은 SolidCraft 합성 녹화본만 해당한다."""
+class MeasuringModel(Protocol):
+    """바디 측정값까지 주는 모델. 지금은 SolidCraft 합성 녹화본만 해당한다."""
 
-    def sample_edges(self) -> list[EdgeSample]: ...
     def measure_bodies(self) -> list[BodyMeasure]: ...
 
 
@@ -74,7 +77,7 @@ class ServerClient(Protocol):
 
 SCHEMA_VERSION = 1
 
-# 면마다 찍는 (u,v) 격자의 한 변 점 수. 면별 밀도 규칙은 나중에 정한다(ADR-0002).
+# 경계 맞춤 격자의 밀도 기준(ADR-0016). 점 간격은 어댑터가 이 값으로 정한다.
 GRID_N = 9
 
 
@@ -95,24 +98,28 @@ def _parts(bodies: list[BodyInfo], faces: list[dict[str, Any]]) -> list[dict[str
 SWEEP_FACTORS = (0.5, 0.75, 1.0, 1.25, 1.5)
 
 
-def _face_json(face: FaceSample) -> dict[str, Any]:
+def _face_json(face: FaceSample, with_triangles: bool) -> dict[str, Any]:
     out: dict[str, Any] = {"body": face.body, "surface": face.surface}
     if face.name is not None:
         out["name"] = face.name
     if face.geometry is not None:
         out["geometry"] = face.geometry
     out["points"] = [list(p) for p in face.points]
+    if with_triangles and face.triangles is not None:
+        out["triangles"] = [list(t) for t in face.triangles]
     return out
 
 
-def _shape_json(model: FusionModel) -> dict[str, Any]:
-    """현재 형상의 면과, 모델이 주면 모서리와 바디 측정값."""
-    shape: dict[str, Any] = {"faces": [_face_json(f) for f in model.sample_faces(GRID_N)]}
-    if isinstance(model, TopologyModel):
-        shape["edges"] = [
+def _shape_json(model: FusionModel, baseline: bool = False) -> dict[str, Any]:
+    """현재 형상의 면과 모서리, 모델이 주면 바디 측정값. 연결은 기본 형상에만 담는다."""
+    shape: dict[str, Any] = {
+        "faces": [_face_json(f, baseline) for f in model.sample_faces(GRID_N)],
+        "edges": [
             {"body": e.body, "name": e.name, "start": list(e.start), "mid": list(e.mid), "end": list(e.end)}
             for e in model.sample_edges()
-        ]
+        ],
+    }
+    if isinstance(model, MeasuringModel):
         shape["bodies"] = [
             {"name": b.body, "volume": b.volume, "bbox": {"min": list(b.bbox_min), "max": list(b.bbox_max)}}
             for b in model.measure_bodies()
@@ -125,7 +132,7 @@ def _sweep(model: FusionModel, parameter: ParameterInfo) -> dict[str, Any]:
     samples = []
     for value in values:
         recomputed = model.set_parameter(parameter.name, value)
-        shape = _shape_json(model) if recomputed else {"faces": []}
+        shape = _shape_json(model) if recomputed else {"faces": [], "edges": []}
         samples.append({"value": value, "status": "ok" if recomputed else "recompute_failed", **shape})
     # 값이 아니라 원래 수식을 되돌린다. 수식으로 묶인 자식 관계를 상수로 덮지 않기 위해서다(ADR-0003).
     model.restore_parameter(parameter)
@@ -148,7 +155,7 @@ def run_upload(
         notify("서버에 연결할 수 없습니다. 스윕을 시작하지 않았습니다.")
         return None
     parameters = model.parameters()
-    baseline = _shape_json(model)
+    baseline = _shape_json(model, baseline=True)
     bundle = {
         "schema_version": SCHEMA_VERSION,
         "units": "mm",

@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 import jsonschema
-from fakes import FakeModel, FakeServer, FakeTopologyModel
+from fakes import FakeModel, FakeServer, FakeMeasuringModel
 from uploader.core import BodyInfo, run_upload
 
 SCHEMA_PATH = Path(__file__).parents[2] / "schema" / "upload-bundle.schema.json"
@@ -159,46 +159,47 @@ def test_사용자_파라미터가_아닌_파라미터도_이름을_넘기면_�
     assert model.expressions["d12"] == "18 mm"
 
 
-def test_면_이름과_모서리와_바디_측정값을_주는_모델이면_샘플마다_담는다() -> None:
-    server = FakeServer()
-
-    run_upload(FakeTopologyModel(), server, lambda _: None)
-
-    bundle = server.uploaded[0]
-    baseline = bundle["baseline"]
-    assert baseline["faces"][0]["name"] == "Body1:top"
-    assert baseline["faces"][0]["geometry"] == {"type": "plane", "normal": [0.0, 0.0, 1.0]}
-    assert baseline["edges"][0] == {
-        "body": "Body1",
-        "name": "Body1:top|Body1:side",
-        "start": [0.0, 0.0, 0.0],
-        "mid": [400.0, 0.0, 0.0],
-        "end": [800.0, 0.0, 0.0],
-    }
-    assert baseline["bodies"][0] == {
-        "name": "Body1",
-        "volume": 800.0 * 400.0 * 18.0,
-        "bbox": {"min": [0.0, 0.0, 0.0], "max": [800.0, 400.0, 18.0]},
-    }
-    w_first = bundle["sweeps"][0]["samples"][0]
-    assert w_first["bodies"][0]["volume"] == 400.0 * 400.0 * 18.0
-    assert w_first["edges"][0]["end"] == [400.0, 0.0, 0.0]
-
-
-def test_면_이름이_없는_모델의_묶음에는_이름_모서리_측정값이_없다() -> None:
+def test_샘플마다_면_이름과_모서리를_담고_연결은_기본_형상에만_담는다() -> None:
     server = FakeServer()
 
     run_upload(FakeModel(), server, lambda _: None)
 
-    baseline = server.uploaded[0]["baseline"]
-    assert "name" not in baseline["faces"][0]
-    assert "edges" not in baseline and "bodies" not in baseline
+    bundle = server.uploaded[0]
+    baseline = bundle["baseline"]
+    assert baseline["faces"][0]["name"] == "F1:top"
+    assert baseline["faces"][0]["geometry"] == {"type": "plane", "normal": [0.0, 0.0, 1.0]}
+    assert len(baseline["faces"][0]["triangles"]) == 2 * (bundle["grid"]["n"] - 1) ** 2
+    assert baseline["edges"][0] == {
+        "body": "Body1",
+        "name": "F1:top|F1:side",
+        "start": [0.0, 0.0, 0.0],
+        "mid": [400.0, 0.0, 0.0],
+        "end": [800.0, 0.0, 0.0],
+    }
+    w_first = bundle["sweeps"][0]["samples"][0]
+    assert w_first["edges"][0]["end"] == [400.0, 0.0, 0.0]
+    assert "triangles" not in w_first["faces"][0]
+    assert "bodies" not in baseline
+
+
+def test_바디_측정값을_주는_모델이면_샘플마다_담는다() -> None:
+    server = FakeServer()
+
+    run_upload(FakeMeasuringModel(), server, lambda _: None)
+
+    bundle = server.uploaded[0]
+    assert bundle["baseline"]["bodies"][0] == {
+        "name": "Body1",
+        "volume": 800.0 * 400.0 * 18.0,
+        "bbox": {"min": [0.0, 0.0, 0.0], "max": [800.0, 400.0, 18.0]},
+    }
+    assert bundle["sweeps"][0]["samples"][0]["bodies"][0]["volume"] == 400.0 * 400.0 * 18.0
 
 
 def test_이름과_측정값이_담긴_묶음도_스키마를_통과한다() -> None:
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
     server = FakeServer()
 
-    run_upload(FakeTopologyModel(failing_values={"W": {1200.0}}), server, lambda _: None, source="solidcraft")
+    run_upload(FakeMeasuringModel(failing_values={"W": {1200.0}}), server, lambda _: None, source="solidcraft")
 
     jsonschema.validate(server.uploaded[0], schema)

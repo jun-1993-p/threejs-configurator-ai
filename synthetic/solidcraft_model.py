@@ -2,7 +2,12 @@
 
 solidcraft-cli는 호출마다 새로 설계를 연다. 그래서 바꾼 파라미터를 기억해 두고, 형상이 필요할 때마다
 처음부터 다시 적용한 명령 스크립트를 돌린다. 원본 설계 파일은 저장하지 않으므로 바뀌지 않는다.
+
+면의 점은 경계 맞춤 격자다(ADR-0016, 티켓 25). 처음 본 형상(기본 형상)에서 면마다 배치를 만들어 두고,
+이후 샘플에서는 같은 이름의 면에 그 배치를 그대로 놓는다.
 """
+
+import math
 
 import json
 import os
@@ -14,7 +19,7 @@ from typing import Any
 
 from uploader.core import BodyInfo, BodyMeasure, EdgeSample, FaceSample, ParameterInfo, Point
 
-from synthetic.grid import Edge, cylinder_grid, plane_grid
+from synthetic.fitted import Cylinder, Edge, FaceLayout, Plane, Surface, build_layout, place
 
 Runner = Callable[[list[dict[str, Any]]], list[Any]]
 
@@ -87,6 +92,8 @@ class SolidCraftModel:
             for p in listed["parameters"]
         ]
         self._bodies = [b["name"] for b in measured["bodies"]]
+        self._diagonal = {b["name"]: math.dist(b["bbox"]["min"], b["bbox"]["max"]) for b in measured["bodies"]}
+        self._layouts: dict[tuple[str, str], FaceLayout] = {}
 
     def parameters(self) -> list[ParameterInfo]:
         return list(self._parameters)
@@ -142,23 +149,43 @@ class SolidCraftModel:
         state = self._state()
         samples = []
         for body in self._bodies:
+            # 점 간격: 바디 대각선 / (2(n-1)). 기본 형상의 바디 크기로 정해 모든 샘플에 같게 쓴다.
+            spacing = self._diagonal[body] / (2 * (grid_n - 1))
             names = {f["name"] for f in state["faces"][body]}
             edge_pairs = [(edge_faces(e["name"], names), e) for e in state["edges"][body]]
             for face in state["faces"][body]:
                 name = face["name"]
-                bound = [_edge(e) for pair, e in edge_pairs if name in pair]
+                bound = {e["name"]: _edge(e) for pair, e in edge_pairs if name in pair}
+                surface: Surface
                 if face.get("cylinder"):
                     c = face["cylinder"]
-                    origin, axis, radius = _point(c["origin"]), _point(c["axis"]), float(c["radius"])
-                    surface, points = "cylinder", cylinder_grid(origin, axis, radius, bound, grid_n)
-                    geometry = {"type": "cylinder", "origin": list(origin), "axis": list(axis), "radius": radius}
+                    surface = Cylinder(origin=_point(c["origin"]), axis=_point(c["axis"]), radius=float(c["radius"]))
+                    geometry = {
+                        "type": "cylinder",
+                        "origin": list(surface.origin),
+                        "axis": list(surface.axis),
+                        "radius": surface.radius,
+                    }
                 elif face.get("plane_normal"):
-                    normal = _point(face["plane_normal"])
-                    surface, points = "plane", plane_grid(normal, bound, grid_n)
-                    geometry = {"type": "plane", "normal": list(normal)}
+                    surface = Plane(normal=_point(face["plane_normal"]))
+                    geometry = {"type": "plane", "normal": list(surface.normal)}
                 else:
                     raise UnsupportedFaceError(f"{body} 면 {name}: 평면과 원기둥만 다룹니다")
-                samples.append(FaceSample(body=body, surface=surface, points=points, name=name, geometry=geometry))
+                # 기본 형상에 없던 면(위상 변화)은 그 샘플의 형상으로 새 배치를 만든다
+                key = (body, name)
+                if key not in self._layouts:
+                    self._layouts[key] = build_layout(surface, bound, spacing)
+                layout = self._layouts[key]
+                samples.append(
+                    FaceSample(
+                        body=body,
+                        surface="cylinder" if isinstance(surface, Cylinder) else "plane",
+                        points=place(layout, surface, bound),
+                        name=name,
+                        geometry=geometry,
+                        triangles=layout.triangles,
+                    )
+                )
         return samples
 
     def sample_edges(self) -> list[EdgeSample]:

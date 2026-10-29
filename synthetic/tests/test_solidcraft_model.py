@@ -1,13 +1,43 @@
 from typing import Any
 
 import pytest
-from uploader.core import ParameterInfo, TopologyModel
+from uploader.core import ParameterInfo, MeasuringModel
 
 from synthetic.solidcraft_model import SolidCraftModel, UnsupportedFaceError, edge_faces
 
 
+# 폭 w × 100 × 20 상자의 면. 이름은 SolidCraft 상자처럼 F1:+z 꼴이다.
+_BOX_FACES = {
+    "F1:+z": (0.0, 0.0, 1.0),
+    "F1:-z": (0.0, 0.0, -1.0),
+    "F1:+x": (1.0, 0.0, 0.0),
+    "F1:-x": (-1.0, 0.0, 0.0),
+    "F1:+y": (0.0, 1.0, 0.0),
+    "F1:-y": (0.0, -1.0, 0.0),
+}
+
+
+def _box_edges(w: float) -> list[dict[str, Any]]:
+    """상자의 모서리 12개. 이름은 두 면 이름 쌍이다."""
+    size = (w, 100.0, 20.0)
+    edges = []
+    for axis in range(3):
+        others = [a for a in range(3) if a != axis]
+        for s0 in (0, 1):
+            for s1 in (0, 1):
+                start = [0.0, 0.0, 0.0]
+                start[others[0]] = size[others[0]] * s0
+                start[others[1]] = size[others[1]] * s1
+                end = list(start)
+                end[axis] = size[axis]
+                mid = [(a + b) / 2 for a, b in zip(start, end, strict=True)]
+                names = [f"F1:{'+' if sgn else '-'}{'xyz'[o]}" for o, sgn in zip(others, (s0, s1), strict=True)]
+                edges.append({"name": "|".join(names), "start": start, "mid": mid, "end": end})
+    return edges
+
+
 class FakeCli:
-    """solidcraft-cli 대신 명령 목록을 받아 결과를 돌려준다. 폭 w인 판 하나(평면 면 하나)."""
+    """solidcraft-cli 대신 명령 목록을 받아 결과를 돌려준다. 폭 w인 상자 하나."""
 
     def __init__(self, failing: set[float] | None = None, extra_face: dict[str, Any] | None = None) -> None:
         self.failing = failing or set()
@@ -39,28 +69,12 @@ class FakeCli:
         if name == "document.inspect":
             return {"timeline": [{"name": "Plate", "error": errors[0] if errors else None}]}
         if name == "model.faces":
-            # 윗면과, 윗면 모서리 너머의 옆면 네 개(모서리 이름이 가리키는 면은 모두 목록에 있다)
-            sides = [(0.0, -1.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (-1.0, 0.0, 0.0)]
-            faces = [{"name": "F1:+z", "plane_normal": [0.0, 0.0, 1.0]}] + [
-                {"name": f"F1:s{i}", "plane_normal": list(n)} for i, n in enumerate(sides)
-            ]
+            faces = [{"name": n, "plane_normal": list(normal)} for n, normal in _BOX_FACES.items()]
             if self.extra_face:
                 faces.append(self.extra_face)
             return {"body": c["params"]["body"], "faces": faces}
         if name == "model.edges":
-            corners = [(0.0, 0.0), (w, 0.0), (w, 100.0), (0.0, 100.0)]
-            edges = []
-            for i in range(4):
-                (x0, y0), (x1, y1) = corners[i], corners[(i + 1) % 4]
-                edges.append(
-                    {
-                        "name": f"F1:+z|F1:s{i}",
-                        "start": [x0, y0, 20.0],
-                        "mid": [(x0 + x1) / 2, (y0 + y1) / 2, 20.0],
-                        "end": [x1, y1, 20.0],
-                    }
-                )
-            return {"body": c["params"]["body"], "edges": edges}
+            return {"body": c["params"]["body"], "edges": _box_edges(w)}
         if name == "inspect.measure":
             return {
                 "bodies": [
@@ -78,7 +92,7 @@ def test_파라미터와_바디를_SolidCraft에서_읽는다() -> None:
         ParameterInfo(name="d3", value=20.0, unit="mm", expression="20", is_user=False),
     ]
     assert [(b.name, b.component) for b in model.bodies()] == [("Plate", None)]
-    assert isinstance(model, TopologyModel)
+    assert isinstance(model, MeasuringModel)
 
 
 def test_바꾼_파라미터를_매번_처음부터_다시_적용하고_되돌리면_빠진다() -> None:
@@ -102,16 +116,20 @@ def test_피처_오류가_있으면_재계산_실패로_본다() -> None:
     assert model.set_parameter("w", 150.0) is True
 
 
-def test_면_이름과_표면과_격자_점을_준다() -> None:
+def test_면_이름과_표면과_경계_맞춤_격자를_준다() -> None:
     model = SolidCraftModel(FakeCli())
+    base = model.sample_faces(3)[0]
     model.set_parameter("w", 400.0)
 
     face = model.sample_faces(3)[0]
 
     assert (face.body, face.surface, face.name) == ("Plate", "plane", "F1:+z")
     assert face.geometry == {"type": "plane", "normal": [0.0, 0.0, 1.0]}
-    assert len(face.points) == 9
+    # 배치는 기본 형상에서 한 번 정해지고, 늘어난 면에도 같은 점 수·연결로 놓인다
+    assert len(face.points) == len(base.points)
+    assert face.triangles == base.triangles and face.triangles
     assert max(p[0] for p in face.points) == pytest.approx(400.0)
+    assert all(-1e-9 <= p[0] <= 400.0 + 1e-9 and -1e-9 <= p[1] <= 100.0 + 1e-9 for p in face.points)
 
 
 def test_모서리와_바디_측정값을_준다() -> None:
@@ -120,8 +138,9 @@ def test_모서리와_바디_측정값을_준다() -> None:
     edges = model.sample_edges()
     [measure] = model.measure_bodies()
 
-    assert [e.name for e in edges] == [f"F1:+z|F1:s{i}" for i in range(4)]
-    assert edges[0].body == "Plate" and edges[0].end == (200.0, 0.0, 20.0)
+    assert len(edges) == 12
+    assert edges[0].name == "F1:-y|F1:-z"
+    assert edges[0].body == "Plate" and edges[0].end == (200.0, 0.0, 0.0)
     assert measure.volume == 200.0 * 100 * 20
     assert measure.bbox_max == (200.0, 100.0, 20.0)
 

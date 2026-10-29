@@ -24,7 +24,7 @@
 ### 2026-10-29 구현
 
 - 실행: `python -m synthetic.make_recording solidcraft-test/drawer.sc --extra d6 --out fixtures/synthetic/drawer.json` (저장소 루트, `.venv`). 결과: `fixtures/synthetic/drawer.json`, 사용자 파라미터 4개(`body_w`, `body_d`, `body_h`, `drawer_d`)와 `d6`의 25개 샘플.
-- 코드: `synthetic/solidcraft_model.py`(애드인 핵심의 `FusionModel`처럼 동작하는 어댑터), `synthetic/grid.py`(평면·원기둥 n×n 격자), `synthetic/make_recording.py`. 스윕 순서와 묶음 구성은 애드인 핵심 `run_upload`를 그대로 쓴다.
+- 코드: `synthetic/solidcraft_model.py`(애드인 핵심의 `FusionModel`처럼 동작하는 어댑터), `synthetic/grid.py`(평면·원기둥 n×n 격자, 티켓 25에서 `synthetic/fitted.py`로 바뀌어 지움), `synthetic/make_recording.py`. 스윕 순서와 묶음 구성은 애드인 핵심 `run_upload`를 그대로 쓴다.
 - 애드인 핵심: `run_upload`에 `source`(기본 `fusion`)와 `extra_sweeps`가 생겼다. 모델이 `TopologyModel`(모서리·바디 측정값)이면 샘플마다 `edges`와 `bodies`를 담는다. Fusion 어댑터는 바뀌지 않았다.
 - 스키마: 선택 필드 `source`, 면 `name`·`geometry`, 샘플 `edges`·`bodies`. 기존 묶음은 그대로 유효하다.
 - 모서리 이름을 나눌 때 주의: 필렛 면 이름(`F3:blend:F1:-x|F1:-y`)에도 세로선이 있다. 면 이름 목록에 맞는 자리에서 나눈다(`edge_faces`).

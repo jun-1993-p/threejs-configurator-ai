@@ -13,6 +13,8 @@ python -m venv .venv
 
 ## 애드인 설치
 
+> 지금은 Fusion 애드인으로 업로드할 수 없다. 업로드 묶음이 면 이름·모서리·연결 정보를 요구하게 바뀌었는데(ADR-0016, 티켓 25), Fusion 쪽 추출은 사람 확인 전이라 `sample_edges`가 오류를 낸다. 그동안 시험 데이터는 SolidCraft 합성 녹화본(`python -m synthetic.make_recording`, 티켓 24)으로 만든다.
+
 1. Fusion → 유틸리티 → 추가 기능 → 스크립트 및 추가 기능 → 추가 기능 탭 → `+` 로 `addin/ConfiguratorUploader` 폴더를 연결한다.
 2. 서버 주소는 `addin/ConfiguratorUploader/config.py`의 `SERVER_URL`에서 바꾼다.
 3. 추가 기능을 실행하면 스크립트·추가 기능 패널에 "구성기 업로드" 버튼이 생긴다.
