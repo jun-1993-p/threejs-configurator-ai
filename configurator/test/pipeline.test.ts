@@ -13,6 +13,8 @@ import type { Feedback } from "../pipeline/feedback.ts";
 import { FUSION_NEEDED, FUSION_RECONNECTED, runPipeline, type Candidate, type FusionPort, type PartsFound, type HumanPort, type Intake, type SampleRequest } from "../pipeline/runner.ts";
 import { scriptedAi, type Script } from "../pipeline/scripted-ai.ts";
 import { memoryStore } from "../pipeline/memory-store.ts";
+import { UI_STYLES } from "../pipeline/ui-styles.ts";
+import type { Style } from "../src/style.ts";
 import type { DimensionRule } from "../pipeline/range-intersection.ts";
 import {
   crossCorners,
@@ -79,7 +81,7 @@ const shelfParts: PartsFound = {
   up: "+Z",
 };
 
-const styles = [{ id: "natural" }, { id: "dark" }];
+const styles = UI_STYLES;
 
 const offline: FusionPort = {
   requestSamples: () => Promise.reject(new Error("이 시험에서는 추가 샘플을 요청하지 않는다")),
@@ -134,7 +136,7 @@ test("업로드부터 제출까지 정해진 순서로만 진행한다", async (
   );
 });
 
-test("최종 승인에서 승인하면 고정 코어·명세·스윕 데이터로 된 결과물이 제출된다", async () => {
+test("최종 승인에서 승인하면 고정 코어·명세·스윕 데이터·스타일 선택으로 된 결과물이 제출된다", async () => {
   const { store, ports } = setup();
 
   await runPipeline({ bundle, intake, human: approveFirst, ports });
@@ -144,7 +146,7 @@ test("최종 승인에서 승인하면 고정 코어·명세·스윕 데이터�
   assert.equal(product, "1단 서랍장");
   assert.deepEqual(JSON.parse(files["spec.json"]), spec);
   assert.deepEqual(JSON.parse(files["sweeps.json"]).sweeps.map((s: { parameter: string }) => s.parameter), ["body_w"]);
-  assert.match(files["index.html"], /<div data-configurator data-spec="spec\.json" data-sweeps="sweeps\.json"><\/div>/);
+  assert.match(files["index.html"], /<div data-configurator data-spec="spec\.json" data-sweeps="sweeps\.json" data-style="style\.json"><\/div>/);
   // 제출된 고정 코어가 제출된 명세·스윕 데이터로 서랍장을 만든다
   const context = vm.createContext({});
   vm.runInContext(files["configurator.js"], context);
@@ -1320,4 +1322,38 @@ test("후보의 슬라이더 이름이 Fusion 파라미터 이름이거나, 자�
     '/0/sliders/0/name: "D6 높이"에 Fusion 파라미터 이름(D6)이 들어 있습니다. 고객이 보는 치수의 뜻으로 지으세요(예: "서랍 폭"). 이름이 뜻을 말하지 않는 파라미터는 bundle.sweeps의 response(단독 스윕의 축 반응)를 보고 지으세요',
     "/1/sliders/1/parameter: d5를 바꿀 부모(body_w)가 모두 이 후보의 다른 슬라이더입니다",
   ]);
+});
+
+test("UI 스타일 목록에 없는 스타일을 끝내 고르면 명세 작성으로 가지 않고 멈춘다", async () => {
+  const { ai, ports } = setup({ style: [{ style: "neon" }, { style: "neon" }, { style: "neon" }, { style: "neon" }] });
+
+  const result = await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  assert.equal(result.status === "stopped" && result.stage, "style");
+  assert.match(result.status === "stopped" ? result.reason : "", /\/style/);
+  assert.equal(ai.calls.spec.length, 0);
+});
+
+test("목록에 없는 스타일은 형식 오류를 붙여 다시 묻고, 고른 스타일이 결과물에 담긴다", async () => {
+  const { ai, store, ports } = setup({ style: [{ style: "neon" }, { style: "dark" }] });
+
+  await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  const asked = ai.calls.style as { styles: Style[]; schemaErrors: string[] }[];
+  assert.deepEqual(asked[0].styles, UI_STYLES);
+  assert.equal(asked[1].schemaErrors.length, 1);
+  const { files } = store.submissions[0];
+  assert.deepEqual(JSON.parse(files["style.json"]), UI_STYLES.find((s) => s.id === "dark"));
+});
+
+test("UI 스타일 목록의 스타일이 형식에 맞지 않으면 고르기 전에 멈춘다", async () => {
+  const broken = { ...UI_STYLES[0], colors: { ...UI_STYLES[0].colors, accent: "red; } body { display: none" } };
+  const ai = scriptedAi({ parts: [partsFound], candidates: [candidatesFor([spec])], style: [{ style: "natural" }], spec: [spec] });
+  const store = memoryStore({ styles: [broken], rules });
+
+  const result = await runPipeline({ bundle, intake, human: approveFirst, ports: { fusion: offline, ai, store } });
+
+  assert.equal(result.status === "stopped" && result.stage, "style");
+  assert.match(result.status === "stopped" ? result.reason : "", /\/0\/colors\/accent/);
+  assert.equal(ai.calls.style.length, 0);
 });

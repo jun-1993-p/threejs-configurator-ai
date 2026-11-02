@@ -60,6 +60,15 @@
 - 운영자는 부모 후보가 여럿인 자식 치수마다 부모를 고른다(`HumanPort.chooseCandidate`의 `parents`: 자식 → 부모). 부모 후보가 하나면 고르지 않아도 그 부모다. 고르지 않았거나 부모 후보 밖이거나 두 슬라이더가 같은 부모를 움직이게 되면(명세의 슬라이더 id가 겹친다) 후보 선택 단계에서 멈춘다.
 - 스타일 고르기와 명세 작성 입력의 `candidate`는 카드의 `axes`가 붙고 `sliders`가 `{ parameter, name, parent }`인 고른 후보다. 명세 검사는 슬라이더 `id`가 어느 `parent`이고 `name`이 그 `name`이며, `parent`가 `parameter`와 다르면 `children`에 `parameter`가 있는지 본다. 범위 교집합이 없으면 슬라이더를 빼라고 하므로 고른 슬라이더가 모두 있어야 하지는 않다.
 
+## 스타일 선택 (ADR-0001)
+
+스타일 선택은 명세에 적지 않고 결과물의 `style.json`으로 따로 나온다. 쇼핑몰 div는 `data-style="style.json"`으로 불러온다.
+
+- UI 스타일 목록(`configurator/pipeline/ui-styles.ts`, 저장소 포트의 `styles()`)의 스타일 하나는 `{ id, summary, colors: { background, text, accent, parts }, font, slider }`다. 색은 `"#rrggbb"`, `parts`는 부품마다 돌려 쓰는 색, `font`는 CSS `font-family`, `slider`는 슬라이더 모양 `thin`·`bold`·`square`(`src/style.ts`의 `SLIDER_SHAPES`) 중 하나다.
+- 목록이 이 형식(`schemas.ts`의 `checkStyles`)에 맞지 않으면 고르기 전에 스타일 단계에서 멈춘다. 고정 코어가 값을 그대로 CSS와 재질 색에 넣기 때문이다.
+- 스타일 고르기 입력은 `intake`, `candidate`, `styles`(목록 그대로)이고, 응답은 `{ "style": "<목록의 id>" }`다. 목록 밖의 id는 고를 수 있는 id를 붙여 다시 묻고, 3번 다시 물어도 맞지 않으면 명세 작성으로 가지 않고 멈춘다.
+- 고정 코어는 고른 스타일의 바탕·글자 색과 글꼴을 구성기 div에, 강조 색을 슬라이더와 두께 선택 슬롯에, 부품 색을 부품 메쉬에 입힌다. 슬라이더 모양마다의 CSS는 고정 코어에 있다.
+
 ## 명세에 적지 않는 것
 
 - 개수형 파라미터와 위상 묶음: 애드인이 찾아 스윕 결과에 담는다(ADR-0005).

@@ -1,9 +1,10 @@
-// 조립: 고정 코어 번들, 명세, 스윕 데이터, 쇼핑몰에 붙여 넣을 div를 결과물 파일로 만든다.
+// 조립: 고정 코어 번들, 명세, 스윕 데이터, 스타일 선택, 쇼핑몰에 붙여 넣을 div를 결과물 파일로 만든다.
 import { fileURLToPath } from "node:url";
 
 import * as esbuild from "esbuild";
 
 import { findPair, reaches, type CrossSample, type SampleFace, type Spec, type Sweep, type SweepData } from "../src/engine.ts";
+import type { Style } from "../src/style.ts";
 
 const CORE = fileURLToPath(new URL("../src/core.ts", import.meta.url));
 
@@ -91,22 +92,26 @@ const SNIPPET = `<!doctype html>
 <title>구성기</title>
 </head>
 <body>
-<!-- 쇼핑몰 페이지에는 아래 두 줄만 붙인다. 명세와 스윕 데이터는 div의 주소에서 불러온다. -->
-<div data-configurator data-spec="spec.json" data-sweeps="sweeps.json"></div>
+<!-- 쇼핑몰 페이지에는 아래 두 줄만 붙인다. 명세와 스윕 데이터, 스타일 선택은 div의 주소에서 불러온다. -->
+<div data-configurator data-spec="spec.json" data-sweeps="sweeps.json" data-style="style.json"></div>
 <script src="configurator.js"></script>
 </body>
 </html>
 `;
 
 /** 결과물 파일 이름과 내용. 쇼핑몰에는 이 파일들을 그대로 올린다. */
-export type ProductFiles = Record<"configurator.js" | "spec.json" | "sweeps.json" | "index.html", string>;
+export type ProductFiles = Record<"configurator.js" | "spec.json" | "sweeps.json" | "style.json" | "index.html", string>;
 
-/** 고정 코어 번들과 명세·스윕 데이터·붙여 넣을 div를 메모리에서 만든다. bundle.grids·thickness는 검증 중에 받은 격자 보강·두께 후보 형상이다. */
-export async function assembleProduct(spec: Spec, bundle: SweepData): Promise<ProductFiles> {
+/**
+ * 고정 코어 번들과 명세·스윕 데이터·스타일 선택·붙여 넣을 div를 메모리에서 만든다. bundle.grids·thickness는 검증 중에 받은 격자 보강·두께 후보 형상이다.
+ * style은 UI 스타일 목록에서 고른 스타일 그대로다.
+ */
+export async function assembleProduct(spec: Spec, bundle: SweepData, style: Style): Promise<ProductFiles> {
   return {
     "configurator.js": await buildCore(),
     "spec.json": JSON.stringify(spec, null, 2),
     "sweeps.json": JSON.stringify(sweepDataFor(spec, bundle)),
+    "style.json": JSON.stringify(style, null, 2),
     "index.html": SNIPPET,
   };
 }

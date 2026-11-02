@@ -1,6 +1,7 @@
 // 파이프라인 실행기: 상품 하나를 10단계 고정 순서로 진행한다(ADR-0014). AI는 단계 안에서 정해진 형식으로만 답한다.
 // 바깥 의존은 Fusion 연결·AI 모델·저장소 세 포트로만 접근한다.
 import { samePair, thicknessSamplePlan, type Axis, type GridSweep, type Pair, type Spec, type SweepData } from "../src/engine.ts";
+import type { Style } from "../src/style.ts";
 import { assembleProduct, type ProductFiles } from "./assemble.ts";
 import { candidateCards, partViews, pickParent, type CandidateCard, type PartColor, type PartView } from "./candidate-cards.ts";
 import type { Feedback } from "./feedback.ts";
@@ -12,6 +13,7 @@ import {
   checkParts,
   checkSampleResponse,
   checkSpec,
+  checkStyles,
   checkUploadBundle,
   chosenCandidateChecker,
   fixedThicknessChecker,
@@ -102,10 +104,6 @@ export interface PartsFound {
   parts: { name: string; role: string }[];
   fronts: Front[];
   up: Front;
-}
-
-export interface Style {
-  id: string;
 }
 
 /** 같은 후보로 검증을 통과하지 못해 후보 제시로 돌아온 기록. feedback은 마지막 시도의 것이다. */
@@ -362,12 +360,12 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
    * 조립하고 수치 검증 → 축 반응 → 교차 검증(격자 보강 쌍은 격자 검증점까지)을 차례로 본다. 첫 실패 단계의 피드백과,
    * 교차 검증까지 갔으면 실패한 쌍을 돌려준다.
    */
-  async function assembleAndVerify(spec: Spec, grids: Reinforcement[]): Promise<{ files: ProductFiles; feedback: Feedback[]; failedPairs: PairFailure[] }> {
+  async function assembleAndVerify(spec: Spec, grids: Reinforcement[], style: Style): Promise<{ files: ProductFiles; feedback: Feedback[]; failedPairs: PairFailure[] }> {
     // 두께 선택이 있으면 두께 후보 형상을 애드인에 받아 결과물에 담는다(ADR-0010). 엔진에 넣을 수 없는 형상이면 재기 전에 돌려준다.
     // 같은 요청은 requestSamples가 다시 보내지 않으므로, 두께 선택과 슬라이더 범위가 그대로인 재작성은 애드인을 부르지 않는다.
     const plan = thicknessSamplePlan(spec, uploaded);
     const thickness = plan.length === 0 ? [] : await requestSamples({ kind: "thickness", values: plan.map((p) => p.values) });
-    const files = await assembleProduct(spec, { ...uploaded, grids: grids.map((r) => r.sweep), thickness });
+    const files = await assembleProduct(spec, { ...uploaded, grids: grids.map((r) => r.sweep), thickness }, style);
     await log("assembly");
     const thicknessProblems = checkThicknessSamples(plan, thickness);
     if (thicknessProblems.length > 0) return { files, feedback: thicknessProblems, failedPairs: [] };
@@ -398,7 +396,7 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
    * 교차 검증에 실패한 쌍은 먼저 피드백으로 명세를 고치게 하고, 다시 쓴 명세에서도 실패하면 그 쌍을 3×3 격자로
    * 보강해 같은 명세를 한 번 더 검증한다(ADR-0008). 격자 보강은 명세가 아니라 결과물의 스윕 데이터에 담긴다.
    */
-  async function writeVerifiedSpec(candidate: ChosenCandidate): Promise<{ spec: Spec; files: ProductFiles } | { feedback: Feedback[] }> {
+  async function writeVerifiedSpec(candidate: ChosenCandidate, style: Style): Promise<{ spec: Spec; files: ProductFiles } | { feedback: Feedback[] }> {
     let feedback: Feedback[] = [];
     /** 검증 피드백을 받은 직전 명세 */
     let previous: Spec | null = null;
@@ -423,7 +421,7 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
       }
 
       const grids = gridsFor(spec, reinforcements);
-      const verified = await assembleAndVerify(spec, grids);
+      const verified = await assembleAndVerify(spec, grids, style);
       let files = verified.files;
       feedback = verified.feedback;
       const failedBefore = (pair: Pair) => pairsFailedBefore.some((p) => samePair(p, pair));
@@ -441,7 +439,7 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
           // 격자를 뽑을 수 있었던 쌍은 다른 쌍이 실패해도 남겨 두고 다음 명세에서 쓴다.
           reinforcements.push(...added);
           if (problems.length > 0) feedback.push(...problems);
-          else ({ files, feedback } = await assembleAndVerify(spec, gridsFor(spec, reinforcements)));
+          else ({ files, feedback } = await assembleAndVerify(spec, gridsFor(spec, reinforcements), style));
         }
       }
       await log("verification", { attempt, feedback });
@@ -507,15 +505,18 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
       if (typeof candidate === "string") throw new PipelineStop("choice", candidate);
       await log("choice", { candidate: chosenId, parents: Object.fromEntries(candidate.sliders.map((s) => [s.parameter, s.parent])) });
 
+      // 고정 코어가 UI 스타일 목록의 값을 그대로 CSS와 재질 색에 넣으므로, 형식에 맞지 않는 목록으로는 고르지 않는다
       const styles = await store.styles();
-      const { style } = await askUntilValid<{ style: string }>(
+      const styleErrors = checkStyles(styles);
+      if (styleErrors.length > 0) throw new PipelineStop("style", `UI 스타일 목록 형식 오류: ${styleErrors.join("; ")}`);
+      const { style: styleId } = await askUntilValid<{ style: string }>(
         "style",
         styleChoiceChecker(styles.map((s) => s.id)),
-        (schemaErrors, rejected) => ai.chooseStyle({ intake, candidate, styles, rejected, schemaErrors }),
+        (schemaErrors, rejected) => ai.chooseStyle({ intake, candidate, styles: structuredClone(styles), rejected, schemaErrors }),
       );
-      await log("style", style);
+      await log("style", styleId);
 
-      const written = await writeVerifiedSpec(candidate);
+      const written = await writeVerifiedSpec(candidate, styles.find((s) => s.id === styleId)!);
       if ("feedback" in written) {
         failures.push({ candidate, feedback: written.feedback });
         continue;

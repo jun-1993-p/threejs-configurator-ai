@@ -1,8 +1,9 @@
-// 고정 코어: 명세와 스윕 데이터만으로 div 하나 안에 구성기를 만든다. 상품마다 바뀌지 않는다(ADR-0001).
+// 고정 코어: 명세와 스윕 데이터, 스타일 선택만으로 div 하나 안에 구성기를 만든다. 상품마다 바뀌지 않는다(ADR-0001).
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 import { createMorph, type MorphShape, type Spec, type SweepData, type ThicknessChoice } from "./engine.ts";
+import type { SliderShape, Style } from "./style.ts";
 
 // 검증기가 구성기와 같은 엔진을 쓰도록 번들 전역(Configurator)으로도 내보낸다
 export { createMorph };
@@ -15,8 +16,30 @@ export interface Configurator {
   dispose(): void;
 }
 
-// 부품마다 돌려 쓰는 색. 스타일 선택(티켓 18)이 들어오면 그쪽에서 정한다.
-const PART_COLORS = [0xd8c3a5, 0xa47551, 0x8e8d8a, 0xc9ada1, 0x7d8a6a];
+/** 슬라이더 모양마다 트랙 두께·손잡이 크기(px)와 둥근지. 스타일 선택은 모양 이름만 고르고 CSS는 여기서만 만든다. */
+const SLIDER_SHAPE_SIZES: Record<SliderShape, { track: number; thumb: number; round: boolean }> = {
+  thin: { track: 4, thumb: 16, round: true },
+  bold: { track: 10, thumb: 22, round: true },
+  square: { track: 6, thumb: 16, round: false },
+};
+
+const sliderClass = (shape: SliderShape) => `configurator-slider-${shape}`;
+
+/** 슬라이더 모양의 CSS. 색은 구성기 div의 --configurator-accent를 따른다. */
+function sliderCss(shape: SliderShape): string {
+  const { track, thumb, round } = SLIDER_SHAPE_SIZES[shape];
+  const selector = `.${sliderClass(shape)}`;
+  // color-mix를 모르는 브라우저는 앞의 회색 트랙을 쓴다
+  const trackRule = `height:${track}px;border-radius:${round ? `${track / 2}px` : "0"};background:#8888;background:color-mix(in srgb,var(--configurator-accent) 25%,transparent)`;
+  const thumbRule = `width:${thumb}px;height:${thumb}px;border:none;border-radius:${round ? "50%" : "0"};background:var(--configurator-accent)`;
+  return [
+    `${selector}{-webkit-appearance:none;appearance:none;width:100%;height:${thumb}px;margin:0;background:transparent}`,
+    `${selector}::-webkit-slider-runnable-track{${trackRule}}`,
+    `${selector}::-moz-range-track{${trackRule}}`,
+    `${selector}::-webkit-slider-thumb{-webkit-appearance:none;${thumbRule};margin-top:${(track - thumb) / 2}px}`,
+    `${selector}::-moz-range-thumb{${thumbRule}}`,
+  ].join("\n");
+}
 
 /** 명세의 Fusion 축 이름("X", "-Y" 등)을 단위 벡터로 바꾼다 */
 function axisVector(axis: string): THREE.Vector3 {
@@ -26,7 +49,7 @@ function axisVector(axis: string): THREE.Vector3 {
   return v;
 }
 
-export function mount(container: HTMLElement, spec: Spec, sweeps: SweepData): Configurator {
+export function mount(container: HTMLElement, spec: Spec, sweeps: SweepData, style: Style): Configurator {
   const morph = createMorph(spec, sweeps);
   const values: Record<string, number> = Object.fromEntries([
     ...spec.sliders.map((s) => [s.id, s.default]),
@@ -34,16 +57,27 @@ export function mount(container: HTMLElement, spec: Spec, sweeps: SweepData): Co
   ]);
 
   container.replaceChildren();
-  Object.assign(container.style, { display: "flex", flexDirection: "column", gap: "12px", fontFamily: "sans-serif" });
+  Object.assign(container.style, {
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px",
+    padding: "12px",
+    fontFamily: style.font,
+    color: style.colors.text,
+    background: style.colors.background,
+  });
+  container.style.setProperty("--configurator-accent", style.colors.accent);
+  const sheet = document.createElement("style");
+  sheet.textContent = sliderCss(style.slider);
   const view = document.createElement("div");
   Object.assign(view.style, { position: "relative", width: "100%", aspectRatio: "4 / 3" });
   const panel = document.createElement("div");
   Object.assign(panel.style, { display: "flex", flexDirection: "column", gap: "8px" });
-  container.append(view, panel);
+  container.append(sheet, view, panel);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio);
-  renderer.setClearColor(0xf4f4f2);
+  renderer.setClearColor(style.colors.background);
   Object.assign(renderer.domElement.style, { position: "absolute", inset: "0", width: "100%", height: "100%" });
   view.append(renderer.domElement);
 
@@ -55,7 +89,7 @@ export function mount(container: HTMLElement, spec: Spec, sweeps: SweepData): Co
   // 부품마다 메쉬 하나. 꼭짓점 위치는 모든 부품이 한 버퍼를 같이 쓴다.
   // 위상 묶음이 바뀌면(칸막이가 생기거나 사라지면) 페이드 없이 메쉬를 새 면 구성으로 바로 바꾼다(ADR-0005).
   // 부품 색은 부품 이름마다 처음 본 순서로 정해, 묶음이 바뀌어도 같은 부품은 같은 색이다.
-  const partColors = new Map<string, number>();
+  const partColors = new Map<string, string>();
   let shown: { faces: MorphShape["faces"]; position: THREE.BufferAttribute; meshes: THREE.Mesh[] };
   const show = (shape: MorphShape) => {
     const position = new THREE.BufferAttribute(new Float32Array(shape.positions), 3);
@@ -71,7 +105,7 @@ export function mount(container: HTMLElement, spec: Spec, sweeps: SweepData): Co
       geometry.setAttribute("position", position);
       geometry.setIndex(index);
       geometry.computeVertexNormals();
-      if (!partColors.has(part)) partColors.set(part, PART_COLORS[partColors.size % PART_COLORS.length]);
+      if (!partColors.has(part)) partColors.set(part, style.colors.parts[partColors.size % style.colors.parts.length]);
       const material = new THREE.MeshStandardMaterial({ color: partColors.get(part), roughness: 0.8, side: THREE.DoubleSide });
       return new THREE.Mesh(geometry, material);
     });
@@ -147,7 +181,7 @@ export function mount(container: HTMLElement, spec: Spec, sweeps: SweepData): Co
     const name = document.createElement("span");
     name.textContent = slider.name;
     const input = document.createElement("input");
-    Object.assign(input, { type: "range", min: String(slider.min), max: String(slider.max), step: String(slider.step) });
+    Object.assign(input, { type: "range", className: sliderClass(style.slider), min: String(slider.min), max: String(slider.max), step: String(slider.step) });
     input.value = String(slider.default);
     const output = document.createElement("output");
     output.style.textAlign = "right";
@@ -166,6 +200,7 @@ export function mount(container: HTMLElement, spec: Spec, sweeps: SweepData): Co
     const name = document.createElement("span");
     name.textContent = choice.name;
     const select = document.createElement("select");
+    Object.assign(select.style, { font: "inherit", accentColor: style.colors.accent });
     for (const option of choice.options) select.add(new Option(`${option} mm`, String(option), false, option === choice.default));
     select.addEventListener("change", () => configurator.set(choice.ids[0], Number(select.value)));
     row.append(name, select);
@@ -203,7 +238,7 @@ export function mount(container: HTMLElement, spec: Spec, sweeps: SweepData): Co
   return configurator;
 }
 
-/** 페이지의 `<div data-configurator data-spec=… data-sweeps=…>`마다 구성기를 붙인다 */
+/** 페이지의 `<div data-configurator data-spec=… data-sweeps=… data-style=…>`마다 구성기를 붙인다 */
 export async function mountAll(root: ParentNode = document): Promise<Configurator[]> {
   const divs = [...root.querySelectorAll<HTMLElement>("[data-configurator]")];
   return Promise.all(
@@ -215,8 +250,8 @@ export async function mountAll(root: ParentNode = document): Promise<Configurato
         if (!response.ok) throw new Error(`${url}을 불러오지 못했습니다(${response.status})`);
         return response.json();
       };
-      const [spec, sweeps] = await Promise.all([load("data-spec"), load("data-sweeps")]);
-      return mount(div, spec, sweeps);
+      const [spec, sweeps, style] = await Promise.all([load("data-spec"), load("data-sweeps"), load("data-style")]);
+      return mount(div, spec, sweeps, style);
     }),
   );
 }

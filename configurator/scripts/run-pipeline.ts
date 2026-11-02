@@ -11,6 +11,7 @@ import { memoryStore } from "../pipeline/memory-store.ts";
 import { candidateCardsHtml } from "../pipeline/operator-screens.ts";
 import { runPipeline, type FusionPort, type HumanPort, type Intake, type PipelineResult } from "../pipeline/runner.ts";
 import type { DimensionRule } from "../pipeline/range-intersection.ts";
+import { UI_STYLES } from "../pipeline/ui-styles.ts";
 
 const noAddin: FusionPort = {
   requestSamples: () => Promise.reject(new Error("이 도구는 애드인에 추가 샘플을 요청할 수 없습니다")),
@@ -41,7 +42,7 @@ export async function runWithLiteLlm(bundle: unknown, intake: Intake, rules: Dim
     models: { parts: process.env.LITELLM_VLM_MODEL ?? "vlm", candidates: model, style: model, spec: model },
   });
   const store = memoryStore({
-    styles: [{ id: "natural" }, { id: "dark" }],
+    styles: UI_STYLES,
     rules,
     onLog: (entry) => console.log(`[${entry.stage}]`, entry.detail === undefined ? "" : JSON.stringify(entry.detail)),
   });

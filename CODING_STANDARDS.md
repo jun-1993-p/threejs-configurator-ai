@@ -16,6 +16,8 @@
 
 정면, 상품 종류, 두께 선택 노출 여부처럼 정해진 값 목록은 `configurator/pipeline/schemas.ts`에 `as const` 배열 하나와 그 유니온 타입 하나로 둔다(예: `FRONTS`·`Front`, `PRODUCT_KINDS`·`ProductKind`). JSON Schema의 `enum`, TypeScript 타입, 화면의 고를 거리는 모두 그 배열을 가져다 쓰고, 타입은 한 이름으로만 부른다. 값 목록이 생긴 도메인 값은 `string` 대신 그 유니온 타입으로 받는다.
 
+고정 코어(`configurator/src/`)도 읽는 값 목록은 `src/`에 두고 `schemas.ts`가 가져다 쓴다(예: `STANDARD_THICKNESSES`, `SLIDER_SHAPES`). `schemas.ts`는 불러올 때 ajv로 스키마를 컴파일하므로 고정 코어 번들에 넣지 않는다.
+
 ## 규칙 검사기
 
 JSON Schema 검사를 통과한 값에 쓰는 규칙 검사기는 `schemas.ts`의 기존 모양을 따른다.

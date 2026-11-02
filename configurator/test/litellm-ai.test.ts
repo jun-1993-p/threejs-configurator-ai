@@ -9,6 +9,7 @@ import type { AddressInfo } from "node:net";
 import type { Spec } from "../src/engine.ts";
 import { liteLlmAi } from "../pipeline/litellm-ai.ts";
 import { memoryStore } from "../pipeline/memory-store.ts";
+import { UI_STYLES } from "../pipeline/ui-styles.ts";
 import type { DimensionRule } from "../pipeline/range-intersection.ts";
 import { runPipeline, type Candidate, type FusionPort, type HumanPort, type Intake, type PartsFound } from "../pipeline/runner.ts";
 
@@ -23,7 +24,7 @@ const candidates: Candidate[] = [
   { id: "c2", front: "+Y", sliders: [{ parameter: "body_w", name: "전체 폭" }], showThickness: false, summary: "전체 폭 하나", diff: "정면 +Y" },
 ];
 const parts: PartsFound = { parts: [{ name: "DrawerBox", role: "서랍" }], fronts: ["-Y", "+Y"], up: "+Z" };
-const styles = [{ id: "natural" }, { id: "dark" }];
+const styles = UI_STYLES;
 
 const MODELS = { parts: "vlm-parts", candidates: "llm-candidates", style: "llm-style", spec: "llm-spec" };
 

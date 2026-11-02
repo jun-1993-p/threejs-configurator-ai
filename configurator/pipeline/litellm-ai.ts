@@ -81,8 +81,8 @@ const CANDIDATES_PROMPT = `너는 가구 쇼핑몰 구성기의 슬라이더 구
 - failures에 있는 후보는 같은 구성으로 다시 내지 않는다.`;
 
 const STYLE_PROMPT = `너는 가구 쇼핑몰 구성기의 UI 스타일을 고른다.
-입력: intake(정보 입력), candidate(고른 슬라이더 구성 후보), styles(고를 수 있는 스타일 목록).
-- styles 목록의 id 하나만 고른다. 목록 밖의 값을 만들지 않는다.`;
+입력: intake(정보 입력), candidate(고른 슬라이더 구성 후보), styles(고를 수 있는 스타일 목록: id, summary(분위기 설명), colors(바탕·글자·강조·부품 색), font(글꼴), slider(슬라이더 모양)).
+- intake의 상품 종류·상품명과 어울리는 스타일을 summary와 colors로 판단해 그 id 하나만 고른다. 목록 밖의 값을 만들지 않는다.`;
 
 const SPEC_PROMPT = `너는 가구 쇼핑몰 구성기의 명세(JSON)를 쓴다. 명세는 고정 코어와 변형 엔진이 읽는 유일한 입력이다.
 입력: bundle(Fusion 업로드 묶음 요약), intake(정보 입력), candidate(운영자가 고른 슬라이더 구성 후보), rules(이 상품 종류의 치수 규칙), previous(검증 피드백을 받은 명세, 처음이면 null), feedback(previous가 받은 검증 피드백), rejected(형식 검사에 걸린 직전 답, 없으면 null), schemaErrors(rejected의 형식 검사 오류).

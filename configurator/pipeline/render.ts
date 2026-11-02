@@ -14,7 +14,7 @@ export type Rgb = [number, number, number];
 
 const BACKGROUND: Rgb = [244, 244, 242];
 
-/** 부품마다 돌려 쓰는 색. 고정 코어(src/core.ts)의 임시 부품 색보다 서로 잘 구별되게 골랐다. */
+/** 부품마다 돌려 쓰는 색. 고정 코어가 쓰는 UI 스타일의 부품 색보다 서로 잘 구별되게 골랐다. */
 const PART_COLORS: Rgb[] = [
   [214, 170, 110],
   [70, 120, 180],

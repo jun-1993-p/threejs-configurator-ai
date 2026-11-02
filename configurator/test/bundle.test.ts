@@ -8,18 +8,19 @@ import vm from "node:vm";
 
 import { createMorph, type Spec, type SweepData } from "../src/engine.ts";
 import { writeProduct } from "../scripts/build.ts";
+import { UI_STYLES } from "../pipeline/ui-styles.ts";
 
 const fixtures = new URL("../../fixtures/synthetic/", import.meta.url);
 const recording: SweepData = JSON.parse(readFileSync(new URL("drawer.json", fixtures), "utf-8"));
 const spec: Spec = JSON.parse(readFileSync(new URL("drawer.spec.json", fixtures), "utf-8"));
 
 const out = mkdtempSync(join(tmpdir(), "configurator-"));
-await writeProduct(spec, recording, out);
+await writeProduct(spec, recording, out, UI_STYLES[0]);
 
-test("결과물은 구성기 번들과 명세, 스윕 데이터, 붙여 넣을 div다", () => {
-  assert.deepEqual(readdirSync(out).sort(), ["configurator.js", "index.html", "spec.json", "sweeps.json"]);
+test("결과물은 구성기 번들과 명세, 스윕 데이터, 스타일 선택, 붙여 넣을 div다", () => {
+  assert.deepEqual(readdirSync(out).sort(), ["configurator.js", "index.html", "spec.json", "style.json", "sweeps.json"]);
   const html = readFileSync(join(out, "index.html"), "utf-8");
-  assert.match(html, /<div data-configurator data-spec="spec\.json" data-sweeps="sweeps\.json"><\/div>/);
+  assert.match(html, /<div data-configurator data-spec="spec\.json" data-sweeps="sweeps\.json" data-style="style\.json"><\/div>/);
   assert.match(html, /<script src="configurator\.js"><\/script>/);
 });
 
@@ -47,7 +48,7 @@ test("스윕 데이터에는 명세의 슬라이더가 쓰는 단독 스윕만 �
 const shelfRecording: SweepData = JSON.parse(readFileSync(new URL("shelf.json", fixtures), "utf-8"));
 const shelfSpec: Spec = JSON.parse(readFileSync(new URL("shelf.spec.json", fixtures), "utf-8"));
 const shelfOut = mkdtempSync(join(tmpdir(), "configurator-shelf-"));
-await writeProduct(shelfSpec, shelfRecording, shelfOut);
+await writeProduct(shelfSpec, shelfRecording, shelfOut, UI_STYLES[0]);
 
 test("위상 묶음은 명세에 적히지 않고 스윕 데이터에 담기며, 묶음 안 단독 스윕도 명세의 슬라이더 것만 남는다", () => {
   const specText = readFileSync(join(shelfOut, "spec.json"), "utf-8");
@@ -62,7 +63,7 @@ test("위상 묶음은 명세에 적히지 않고 스윕 데이터에 담기며,
 test("슬라이더 범위가 닿지 않는 위상 묶음은 스윕 데이터에서 뺀다", async () => {
   const narrow = { ...shelfSpec, sliders: [{ ...shelfSpec.sliders[0], max: 1100 }, shelfSpec.sliders[1]] };
   const dir = mkdtempSync(join(tmpdir(), "configurator-shelf-"));
-  await writeProduct(narrow, shelfRecording, dir);
+  await writeProduct(narrow, shelfRecording, dir, UI_STYLES[0]);
 
   const sweeps: SweepData = JSON.parse(readFileSync(join(dir, "sweeps.json"), "utf-8"));
   assert.deepEqual(sweeps.sweeps.find((s) => s.parameter === "shelf_w")!.groups!.map((g) => g.counts.bays), [2]);

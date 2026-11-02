@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import Ajv2020 from "ajv/dist/2020.js";
 
 import { STANDARD_THICKNESSES, thicknessOptions, type Spec } from "../src/engine.ts";
+import { SLIDER_SHAPES } from "../src/style.ts";
 import { parameterRelations, wordsOf, type BundleParameters } from "./parameter-relations.ts";
 
 // strictTypes는 끈다. 업로드 묶음 스키마가 allOf 조건 안에서 type 없이 required만 쓰는 것은 의도한 형식이다.
@@ -123,6 +124,34 @@ export const CANDIDATES_SCHEMA = {
   },
 };
 export const checkCandidates = checker(CANDIDATES_SCHEMA);
+
+const HEX_COLOR = { type: "string", pattern: "^#[0-9a-fA-F]{6}$" };
+
+/**
+ * 저장소의 UI 스타일 목록. 고정 코어가 그대로 CSS와 재질 색에 넣으므로, 색은 "#rrggbb"만, 글꼴은 CSS 규칙을 끊는 글자 없이 받는다.
+ */
+const STYLES_SCHEMA = {
+  type: "array",
+  minItems: 1,
+  items: {
+    type: "object",
+    required: ["id", "summary", "colors", "font", "slider"],
+    additionalProperties: false,
+    properties: {
+      id: { type: "string", minLength: 1 },
+      summary: { type: "string" },
+      colors: {
+        type: "object",
+        required: ["background", "text", "accent", "parts"],
+        additionalProperties: false,
+        properties: { background: HEX_COLOR, text: HEX_COLOR, accent: HEX_COLOR, parts: { type: "array", minItems: 1, items: HEX_COLOR } },
+      },
+      font: { type: "string", pattern: "^[^;{}<>\\\\]+$" },
+      slider: { enum: SLIDER_SHAPES },
+    },
+  },
+};
+export const checkStyles = checker(STYLES_SCHEMA);
 
 /** UI 스타일 응답. 저장소의 스타일 목록 밖의 값은 통과하지 못한다(ADR-0001). */
 export function styleChoiceSchema(styleIds: string[]) {
