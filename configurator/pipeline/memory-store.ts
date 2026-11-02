@@ -8,6 +8,8 @@ export interface MemoryStore extends StorePort {
   log: LogEntry[];
   submissions: { product: string; files: ProductFiles }[];
   cases: CaseRecord[];
+  /** 저장한 AI 판정 렌더링. 경로는 renders/<상품명>/<이름>이다. */
+  renders: { path: string; png: Buffer }[];
 }
 
 /** onLog: 처리 기록이 쌓일 때마다 불린다(수동 실행 도구가 진행을 보여 줄 때) */
@@ -16,11 +18,17 @@ export function memoryStore({ styles, rules, onLog }: { styles: Style[]; rules: 
     log: [],
     submissions: [],
     cases: [],
+    renders: [],
     dimensionRules: (kind) => Promise.resolve(structuredClone(rules.filter((r) => r.kind === kind))),
     styles: () => Promise.resolve(structuredClone(styles)),
     appendLog: async (entry) => {
       store.log.push(entry);
       onLog?.(entry);
+    },
+    saveRender: async (product, name, png) => {
+      const path = `renders/${product}/${name}`;
+      store.renders.push({ path, png });
+      return path;
     },
     submit: async (product, files) => void store.submissions.push({ product, files }),
     recordCase: async (record) => void store.cases.push(structuredClone(record)),

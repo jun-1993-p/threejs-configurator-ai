@@ -25,5 +25,6 @@ export function scriptedAi(script: Script): ScriptedAi {
     proposeCandidates: (input) => answer("candidates", input),
     chooseStyle: (input) => answer("style", input),
     writeSpec: (input) => answer("spec", input),
+    judge: (input) => answer("judgment", input),
   };
 }

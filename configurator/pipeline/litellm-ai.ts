@@ -4,7 +4,7 @@
 import { boundsOf, round } from "./measure.ts";
 import { sweepResponse } from "./parameter-relations.ts";
 import type { AiPort, AiStage } from "./runner.ts";
-import { CANDIDATES_SCHEMA, PARTS_SCHEMA, SPEC_SCHEMA, styleChoiceSchema } from "./schemas.ts";
+import { CANDIDATES_SCHEMA, judgmentSchema, PARTS_SCHEMA, SPEC_SCHEMA, styleChoiceSchema } from "./schemas.ts";
 import type { UploadBundle } from "./upload-bundle.ts";
 
 export interface LiteLlmOptions {
@@ -98,6 +98,12 @@ const SPEC_PROMPT = `너는 가구 쇼핑몰 구성기의 명세(JSON)를 쓴다
 - fixed는 슬라이더로 바꾸지 않는 판재 두께 파라미터다. 어떤 슬라이더의 children에도, thickness에도 넣지 않는다. 확실하지 않으면 빈 목록이다.
 - feedback이 비어 있지 않으면 previous를 바탕으로 각 항목의 path가 가리키는 곳을 고쳐 전체 명세를 다시 낸다. 그 밖의 곳은 바꾸지 않는다. measured·expected·hint가 고칠 값을 알려 준다.`;
 
+const JUDGMENT_PROMPT = `너는 가구 쇼핑몰 구성기가 고객에게 보일 형상을 그림으로 보고 이상을 찾는다.
+입력: intake(정보 입력), spec(구성기 명세), renders(붙인 그림의 순서대로, 각 그림의 name과 슬라이더 값 values), colors(그림에서 부품마다 칠한 색).
+- 그림은 슬라이더 끝값과 두 슬라이더의 모서리 조합에서 그린 형상이다. 모두 같은 축척이고, 정면에서 오른쪽 위로 비켜 본 직교 투영이다. name에 없는 슬라이더는 기본값이다.
+- 판 사이가 벌어져 뚫린 곳, 부품끼리 파고든 겹침, 상품 종류로 보아 비례가 깨진 모양(너무 얇거나 길쭉한 판, 몸통 밖으로 나간 서랍 등)만 찾는다. 치수 값이 맞는지는 이미 검증했으니 보지 않는다.
+- problems는 이상이 보이는 그림마다 image(그 그림의 name 그대로)와 reason(무엇이 어디서 이상한지 한국어 한 줄)이다. 이상이 없으면 빈 목록이다.`;
+
 /** 답 전체를 감싼 마크다운 코드 블록(```json … ```) */
 const CODE_BLOCK = /^\s*```[a-z]*\s*\n([\s\S]*?)\n\s*```\s*$/;
 
@@ -154,5 +160,13 @@ ${OUTPUT_RULES(PARTS_SCHEMA)}`,
       ask("candidates", `${CANDIDATES_PROMPT}\n${OUTPUT_RULES(CANDIDATES_SCHEMA)}`, { ...input, bundle: summary(input.bundle) }),
     chooseStyle: (input) => ask("style", `${STYLE_PROMPT}\n${OUTPUT_RULES(styleChoiceSchema(input.styles.map((s) => s.id)))}`, input),
     writeSpec: (input) => ask("spec", `${SPEC_PROMPT}\n${OUTPUT_RULES(SPEC_SCHEMA)}`, { ...input, bundle: summary(input.bundle) }),
+    // 부품 탐색처럼 그림은 조각으로 붙이고, 문장에는 그림 순서대로 이름과 슬라이더 값만 남긴다
+    judge: ({ renders, ...input }) =>
+      ask(
+        "judgment",
+        `${JUDGMENT_PROMPT}\n${OUTPUT_RULES(judgmentSchema(renders.map((r) => r.name)))}`,
+        { ...input, renders: renders.map(({ name, values }) => ({ name, values })) },
+        renders.map((r) => r.image),
+      ),
   };
 }

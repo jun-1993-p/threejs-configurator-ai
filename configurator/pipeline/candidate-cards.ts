@@ -3,7 +3,7 @@
 import { createMorph, type Axis, type Spec, type Vector } from "../src/engine.ts";
 import { DIMENSIONS } from "./measure.ts";
 import { parameterRelations, sweepResponse } from "./parameter-relations.ts";
-import { cross, hex, partPalette, renderPngs, type View } from "./render.ts";
+import { cross, hex, partPalette, renderPngs, type Rgb, type View } from "./render.ts";
 import type { Candidate, PartsFound } from "./runner.ts";
 import { FRONTS, FUSION_AXES, type Front, type FusionAxis } from "./schemas.ts";
 import type { UploadBundle } from "./upload-bundle.ts";
@@ -14,6 +14,17 @@ export function directionOf(front: Front): Vector {
   v["XYZ".indexOf(front[1])] = front[0] === "-" ? -1 : 1;
   return v;
 }
+
+/** 정면 쪽에서 오른쪽 위로 비켜 본 시점. 후보 카드의 미리보기와 AI 판정 렌더링이 같이 쓴다. */
+export function obliqueView(front: Front, up: Front): View {
+  const [f, top] = [directionOf(front), directionOf(up)];
+  const side = cross(top, f);
+  return { eye: [0, 1, 2].map((c) => f[c] + 0.6 * side[c] + 0.5 * top[c]) as Vector, up: top };
+}
+
+/** 그림 속 부품마다 칠한 색. VLM에 그림과 같이 보낸다. */
+export const partColorsOf = (parts: string[], colorOf: (part: string) => Rgb): PartColor[] =>
+  [...new Set(parts)].map((name) => ({ name, color: hex(colorOf(name)) }));
 
 /** 정면과 위쪽에서 정해지는 축 대응: D 깊이는 정면 방향의 축, H 높이는 위쪽의 축, W 폭은 남은 축이다 */
 export function axesFor(front: Front, up: Front): Record<Axis, FusionAxis> {
@@ -103,8 +114,7 @@ export function partViews(bundle: UploadBundle): { views: PartView[]; colors: Pa
     const view: View = { eye: directionOf(from), up: from[1] === "Z" ? [0, 1, 0] : [0, 0, 1] };
     return { from, image: renderPngs([shape], view, VIEW_SIZE, colorOf)[0].toString("base64") };
   });
-  const parts = [...new Set(shape.faces.map((f) => f.part))];
-  return { views, colors: parts.map((name) => ({ name, color: hex(colorOf(name)) })) };
+  return { views, colors: partColorsOf(shape.faces.map((f) => f.part), colorOf) };
 }
 
 /**
@@ -130,9 +140,7 @@ export function candidateCards(candidates: Candidate[], bundle: UploadBundle, pa
   const roleOf = (part: string) => roles.get(part) ?? part;
   return candidates.map((candidate) => {
     const axes = axesFor(candidate.front, parts.up);
-    const [front, top] = [directionOf(candidate.front), directionOf(parts.up)];
-    const side = cross(top, front);
-    const view: View = { eye: [0, 1, 2].map((c) => front[c] + 0.6 * side[c] + 0.5 * top[c]) as Vector, up: top };
+    const view = obliqueView(candidate.front, parts.up);
     const choices = candidate.sliders.map(({ parameter, name }) => ({
       parameter,
       name,

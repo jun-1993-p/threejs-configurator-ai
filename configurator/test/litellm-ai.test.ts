@@ -26,7 +26,7 @@ const candidates: Candidate[] = [
 const parts: PartsFound = { parts: [{ name: "DrawerBox", role: "서랍" }], fronts: ["-Y", "+Y"], up: "+Z" };
 const styles = UI_STYLES;
 
-const MODELS = { parts: "vlm-parts", candidates: "llm-candidates", style: "llm-style", spec: "llm-spec" };
+const MODELS = { parts: "vlm-parts", candidates: "llm-candidates", style: "llm-style", spec: "llm-spec", judgment: "vlm-judgment" };
 
 const offline: FusionPort = {
   requestSamples: () => Promise.reject(new Error("이 시험에서는 추가 샘플을 요청하지 않는다")),
@@ -86,6 +86,7 @@ async function run(answers: Partial<Record<keyof typeof MODELS, string[]>>) {
     [MODELS.candidates]: answers.candidates ?? [JSON.stringify(candidates)],
     [MODELS.style]: answers.style ?? [JSON.stringify({ style: "natural" })],
     [MODELS.spec]: answers.spec ?? [JSON.stringify(spec)],
+    [MODELS.judgment]: answers.judgment ?? [JSON.stringify({ problems: [] })],
   });
   const store = memoryStore({ styles, rules });
   const ai = liteLlmAi({ baseUrl: llm.baseUrl, apiKey: "sk-test", models: MODELS });
@@ -109,6 +110,7 @@ test("LiteLLM을 거친 모델의 답으로 업로드부터 제출까지 진행�
       ["/v1/chat/completions", MODELS.candidates, "Bearer sk-test"],
       ["/v1/chat/completions", MODELS.style, "Bearer sk-test"],
       ["/v1/chat/completions", MODELS.spec, "Bearer sk-test"],
+      ["/v1/chat/completions", MODELS.judgment, "Bearer sk-test"],
     ],
   );
 });
@@ -169,6 +171,25 @@ test("부품 탐색은 VLM 모델에 여섯 방향 그림을 PNG로 싣고, 그 
   assert.ok(textOf(content).length < 5_000);
   assert.match(request.body.messages.find((m) => m.role === "system")!.content as string, /"fronts"/);
   assert.deepEqual(llm.inputs(MODELS.candidates)[0].parts, parts);
+});
+
+test("AI 판정은 VLM 모델에 슬라이더 끝값 렌더링을 PNG로 싣고, 문장에는 그림 순서대로 이름과 슬라이더 값만 담는다", async () => {
+  const { llm } = await run({});
+
+  const [request] = llm.requests.filter((r) => r.body.model === MODELS.judgment);
+  const content = request.body.messages.find((m) => m.role === "user")!.content as Exclude<Content, string>;
+  const images = content.flatMap((p) => (p.type === "image_url" ? [p.image_url.url] : []));
+  assert.equal(images.length, 2);
+  assert.ok(images.every((url) => url.startsWith("data:image/png;base64,iVBORw0KGgo")));
+  const [input] = llm.inputs(MODELS.judgment);
+  assert.deepEqual(input.renders, [
+    { name: "body_w=400", values: { body_w: 400 } },
+    { name: "body_w=800", values: { body_w: 800 } },
+  ]);
+  assert.deepEqual(input.spec, spec);
+  assert.ok(textOf(content).length < 5_000);
+  // 출력 형식의 그림 이름은 보낸 렌더링 이름만 고를 수 있다
+  assert.match(request.body.messages.find((m) => m.role === "system")!.content as string, /"enum":\["body_w=400","body_w=800"\]/);
 });
 
 test("이름이 뜻을 말하지 않는 파라미터는 단독 스윕의 축 반응을 후보 제시 요청에 실어 슬라이더 이름을 짓게 한다", async () => {

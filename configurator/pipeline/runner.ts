@@ -17,6 +17,7 @@ import {
   checkUploadBundle,
   chosenCandidateChecker,
   fixedThicknessChecker,
+  judgmentChecker,
   partsReferenceChecker,
   specReferenceChecker,
   styleChoiceChecker,
@@ -44,6 +45,7 @@ import {
   type CrossSample,
   type PairFailure,
 } from "./verify-cross.ts";
+import { judgmentFeedback, judgmentShots, type JudgmentProblem, type JudgmentRender } from "./verify-judgment.ts";
 import { verifyNumeric } from "./verify-numeric.ts";
 import { rangeIntersection, type DimensionRule } from "./range-intersection.ts";
 import { checkThicknessSamples, verifyThicknessFixed } from "./verify-thickness.ts";
@@ -155,7 +157,7 @@ export const FUSION_NEEDED = "Fusion 연결 필요";
 export const FUSION_RECONNECTED = "다시 연결됨";
 
 /** AI 단계. AI 모델 포트의 메서드마다 하나다. */
-export const AI_STAGES = ["parts", "candidates", "style", "spec"] as const;
+export const AI_STAGES = ["parts", "candidates", "style", "spec", "judgment"] as const;
 export type AiStage = (typeof AI_STAGES)[number];
 
 /**
@@ -192,14 +194,21 @@ export interface AiPort {
     rejected: unknown;
     schemaErrors: string[];
   }): Promise<unknown>;
+  /**
+   * AI 판정(VLM). 슬라이더 끝값과 쌍별 모서리 조합의 렌더링(renders, 같은 축척)과 그림 속 부품 색(colors)을 보고
+   * 뚫림·겹침·비례 깨짐이 보이는 렌더링을 이유 한 줄과 함께 낸다. 수치 검증·축 반응·교차 검증을 통과한 명세에만 부른다.
+   */
+  judge(input: { intake: Intake; spec: Spec; renders: JudgmentRender[]; colors: PartColor[]; rejected: unknown; schemaErrors: string[] }): Promise<unknown>;
 }
 
-/** 저장소 포트: 치수 규칙, UI 스타일 목록, 처리 기록, 결과물, 사례 저장소 */
+/** 저장소 포트: 치수 규칙, UI 스타일 목록, 처리 기록, AI 판정 렌더링, 결과물, 사례 저장소 */
 export interface StorePort {
   /** 그 상품 종류의 치수 규칙 */
   dimensionRules(kind: string): Promise<DimensionRule[]>;
   styles(): Promise<Style[]>;
   appendLog(entry: LogEntry): Promise<void>;
+  /** AI 판정이 문제를 찾은 렌더링(PNG)을 저장하고 그 경로를 돌려준다. 경로는 ai_judgment 피드백과 최종 승인 화면에 쓴다. */
+  saveRender(product: string, name: string, png: Buffer): Promise<string>;
   submit(product: string, files: ProductFiles): Promise<void>;
   recordCase(record: CaseRecord): Promise<void>;
 }
@@ -211,7 +220,8 @@ export interface HumanPort {
    * parents는 고른 카드의 자식 치수마다 움직일 부모다(자식 파라미터 → 부모 파라미터). 부모 후보가 하나뿐이면 적지 않아도 그 부모다.
    */
   chooseCandidate(cards: CandidateCard[]): Promise<{ candidate: string; parents?: Record<string, string> }>;
-  finalApproval(review: { spec: Spec; files: ProductFiles }): Promise<{ decision: "approve" }>;
+  /** judgment는 AI 판정만 JUDGMENT_FAILURES번 실패해 넘어왔을 때 마지막 판정의 ai_judgment 피드백이고, 아니면 빈 목록이다. */
+  finalApproval(review: { spec: Spec; files: ProductFiles; judgment: Feedback[] }): Promise<{ decision: "approve" }>;
 }
 
 export interface PipelineInput {
@@ -228,6 +238,9 @@ const SCHEMA_RETRIES = 3;
 
 /** 같은 후보로 검증 피드백을 붙여 명세를 다시 쓰는 횟수. 이를 넘으면 후보 제시로 돌아간다. */
 const SPEC_RETRIES = 3;
+
+/** 같은 후보로 수치 검증·축 반응은 통과했는데 AI 판정만 실패해도 되는 횟수. 이에 닿으면 판정 이유를 붙여 최종 승인으로 넘긴다(사용자 스토리 67). */
+export const JUDGMENT_FAILURES = 3;
 
 /**
  * 카드와 운영자가 고른 부모로 고른 후보를 만든다. AI 입력과 사례 기록에는 미리보기 그림을 싣지 않는다.
@@ -371,7 +384,7 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
     if (thicknessProblems.length > 0) return { files, feedback: thicknessProblems, failedPairs: [] };
 
     // 두께 고정 실측은 녹화된 단독 스윕으로, 수치 검증은 결과물에 담긴 스윕 데이터로 잰다. 통과하면 축 반응을 녹화된 단독 스윕으로 보고,
-    // 그것도 통과하면 애드인에 교차 검증 샘플을 받아 슬라이더 덧셈을 본다. AI 판정(티켓 19)이 뒤에 붙는다.
+    // 그것도 통과하면 애드인에 교차 검증 샘플을 받아 슬라이더 덧셈을 본다. AI 판정은 이 모두를 통과한 뒤 writeVerifiedSpec이 부른다.
     // 슬라이더가 애드인이 줄인 스윕 범위를 넘으면 엔진이 그 밖을 끝 샘플에 붙이므로, 재기 전에 범위부터 좁히게 한다.
     const sweeps: SweepData = JSON.parse(files["sweeps.json"]);
     let feedback = verifyRange(spec, uploaded);
@@ -390,14 +403,42 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
   }
 
   /**
-   * 명세 작성 → 조립 → 검증. 검증 피드백을 붙여 다시 쓰고, 통과하면 명세와 결과물을,
-   * SPEC_RETRIES번 넘게 실패하면 마지막 피드백을 돌려준다.
+   * 결과물의 스윕 데이터로 그린 렌더링을 AI 판정에 보내고, 문제를 찾은 렌더링마다 그림을 저장해 ai_judgment 피드백을 돌려준다.
+   * 비싼 VLM 호출이라 수치로 잡을 수 있는 실패를 모두 통과한 명세에만 부른다(사용자 스토리 52).
+   */
+  async function judge(spec: Spec, files: ProductFiles): Promise<Feedback[]> {
+    const { shots, colors } = judgmentShots(spec, JSON.parse(files["sweeps.json"]));
+    const renders = shots.map((s) => s.render);
+    const { problems } = await askUntilValid<{ problems: JudgmentProblem[] }>("verification", judgmentChecker(renders.map((r) => r.name)), (schemaErrors, rejected) =>
+      ai.judge({ intake, spec: structuredClone(spec), renders: structuredClone(renders), colors, rejected, schemaErrors }),
+    );
+    // 같은 렌더링을 여러 번 짚으면 이유를 이어 붙여 그림 하나에 피드백 하나로 둔다
+    const reasons = new Map<string, string[]>();
+    for (const { image, reason } of problems) reasons.set(image, [...(reasons.get(image) ?? []), reason]);
+    const feedback: Feedback[] = [];
+    for (const [image, said] of reasons) {
+      const shot = shots.find((s) => s.render.name === image)!;
+      const path = await store.saveRender(intake.name, `${image}.png`, Buffer.from(shot.render.image, "base64"));
+      feedback.push(judgmentFeedback(spec, shot, said.join("; "), path));
+    }
+    return feedback;
+  }
+
+  /**
+   * 명세 작성 → 조립 → 검증 → AI 판정. 검증 피드백을 붙여 다시 쓰고, 통과하면 명세와 결과물을,
+   * SPEC_RETRIES번 넘게 실패하면 마지막 피드백을 돌려준다. AI 판정만 JUDGMENT_FAILURES번 실패하면 마지막 명세와 결과물에
+   * 그 판정 피드백(judgment)을 붙여 돌려준다.
    *
    * 교차 검증에 실패한 쌍은 먼저 피드백으로 명세를 고치게 하고, 다시 쓴 명세에서도 실패하면 그 쌍을 3×3 격자로
    * 보강해 같은 명세를 한 번 더 검증한다(ADR-0008). 격자 보강은 명세가 아니라 결과물의 스윕 데이터에 담긴다.
    */
-  async function writeVerifiedSpec(candidate: ChosenCandidate, style: Style): Promise<{ spec: Spec; files: ProductFiles } | { feedback: Feedback[] }> {
+  async function writeVerifiedSpec(
+    candidate: ChosenCandidate,
+    style: Style,
+  ): Promise<{ spec: Spec; files: ProductFiles; judgment: Feedback[] } | { feedback: Feedback[] }> {
     let feedback: Feedback[] = [];
+    /** 이 후보로 수치 검증·축 반응·교차 검증은 통과했는데 AI 판정에 실패한 횟수 */
+    let judgmentFailures = 0;
     /** 검증 피드백을 받은 직전 명세 */
     let previous: Spec | null = null;
     /** 이 후보로 받은 격자 보강 */
@@ -442,8 +483,11 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
           else ({ files, feedback } = await assembleAndVerify(spec, gridsFor(spec, reinforcements), style));
         }
       }
+      const judged = feedback.length === 0;
+      if (judged) feedback = await judge(spec, files);
       await log("verification", { attempt, feedback });
-      if (feedback.length === 0) return { spec, files };
+      if (feedback.length === 0) return { spec, files, judgment: [] };
+      if (judged && ++judgmentFailures === JUDGMENT_FAILURES) return { spec, files, judgment: feedback };
     }
     return { feedback };
   }
@@ -521,9 +565,9 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
         failures.push({ candidate, feedback: written.feedback });
         continue;
       }
-      const { spec, files } = written;
+      const { spec, files, judgment } = written;
 
-      const { decision } = await human.finalApproval({ spec, files });
+      const { decision } = await human.finalApproval({ spec, files, judgment });
       await log("approval", decision);
 
       await store.submit(intake.name, files);

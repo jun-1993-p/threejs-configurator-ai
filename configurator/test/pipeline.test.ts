@@ -83,6 +83,9 @@ const shelfParts: PartsFound = {
 
 const styles = UI_STYLES;
 
+/** AI 판정 답. 문제가 없으면 통과다. */
+const judged = (...problems: { image: string; reason: string }[]) => ({ problems });
+
 const offline: FusionPort = {
   requestSamples: () => Promise.reject(new Error("이 시험에서는 추가 샘플을 요청하지 않는다")),
   reconnected: () => Promise.reject(new Error("이 시험에서는 연결을 기다리지 않는다")),
@@ -119,7 +122,7 @@ function candidatesFor(specs: unknown[]): Candidate[] {
 }
 
 function setup(script: Partial<Script> = {}, fusion: FusionPort = offline, dimensionRules: DimensionRule[] = rules) {
-  const ai = scriptedAi({ parts: [partsFound], candidates: [candidatesFor(script.spec ?? [spec])], style: [{ style: "natural" }], spec: [spec], ...script });
+  const ai = scriptedAi({ parts: [partsFound], candidates: [candidatesFor(script.spec ?? [spec])], style: [{ style: "natural" }], spec: [spec], judgment: [judged()], ...script });
   const store = memoryStore({ styles, rules: dimensionRules });
   return { ai, store, ports: { fusion, ai, store } };
 }
@@ -950,7 +953,7 @@ test("칸막이 수가 바뀌는 선반도 위상 묶음을 넘나드는 슬라�
     { id: "c1", front: "-Y", sliders: [{ parameter: "shelf_w", name: "전체 폭" }, { parameter: "shelf_d", name: "전체 깊이" }], showThickness: false, summary: "폭과 깊이", diff: "정면 -Y" },
     { id: "c2", front: "-Y", sliders: [{ parameter: "shelf_w", name: "전체 폭" }], showThickness: false, summary: "폭 하나", diff: "깊이 고정" },
   ];
-  const ai = scriptedAi({ parts: [shelfParts], candidates: [shelfCandidates], style: [{ style: "natural" }], spec: [shelfSpec] });
+  const ai = scriptedAi({ parts: [shelfParts], candidates: [shelfCandidates], style: [{ style: "natural" }], spec: [shelfSpec], judgment: [judged()] });
   const store = memoryStore({ styles, rules });
   const fusion = recordedFusion(shelfCrossCorners);
 
@@ -972,7 +975,7 @@ const shelfThickness = { ids: ["t"], name: "판재 두께", default: 18, options
 
 /** 칸막이 선반 명세들을 차례로 쓰는 AI로 실행한다. 첫 명세의 재작성 이유(schemaErrors)를 돌려준다. */
 async function shelfSchemaErrors(first: Spec, bundle: unknown = shelfRecording) {
-  const ai = scriptedAi({ parts: [shelfParts], candidates: [shelfCandidates], style: [{ style: "natural" }], spec: [first, shelfSpec] });
+  const ai = scriptedAi({ parts: [shelfParts], candidates: [shelfCandidates], style: [{ style: "natural" }], spec: [first, shelfSpec], judgment: [judged()] });
   const store = memoryStore({ styles, rules });
   const result = await runPipeline({ bundle, intake: shelfIntake, human: approveFirst, ports: { fusion: recordedFusion(shelfCrossCorners).port, ai, store } });
   assert.equal(result.status, "submitted", JSON.stringify(store.log.at(-1)));
@@ -1038,7 +1041,7 @@ test("고정 두께 파라미터가 슬라이더의 자식에 있으면 명세�
 
 /** 칸막이 선반 두께 선택 명세를 실행한다. Fusion 연결은 교차 검증 모서리와 두께 후보 형상으로 답한다. */
 async function runShelfThickness(specs: Spec[], thicknessSamples: CrossSample[] = shelfThicknessSamples) {
-  const ai = scriptedAi({ parts: [shelfParts], candidates: [shelfCandidates], style: [{ style: "natural" }], spec: specs });
+  const ai = scriptedAi({ parts: [shelfParts], candidates: [shelfCandidates], style: [{ style: "natural" }], spec: specs, judgment: [judged()] });
   const store = memoryStore({ styles, rules });
   const fusion = recordedFusion([...shelfCrossCorners, ...shelfThicknessCross, ...thicknessSamples]);
   const result = await runPipeline({ bundle: shelfRecording, intake: shelfIntake, human: approveFirst, ports: { fusion: fusion.port, ai, store } });
@@ -1153,7 +1156,7 @@ test("두께 후보마다 각 슬라이더의 범위 끝에서 교차 검증 샘
 const mixedThicknessSpec: Spec = { ...spec, thickness: [{ ids: ["t"], name: "몸통 두께", default: 18, options: [15, 18, 24] }] };
 
 test("두께 후보에서 슬라이더와 덧셈이 맞지 않으면 그 두께 선택과 슬라이더를 가리키는 피드백이 나오고, 다시 실패하면 격자로 보강해 제출한다", async () => {
-  const ai = scriptedAi({ parts: [partsFound], candidates: [candidates], style: [{ style: "natural" }], spec: [mixedThicknessSpec, mixedThicknessSpec] });
+  const ai = scriptedAi({ parts: [partsFound], candidates: [candidates], style: [{ style: "natural" }], spec: [mixedThicknessSpec, mixedThicknessSpec], judgment: [judged()] });
   const store = memoryStore({ styles, rules });
   const fusion = recordedFusion(mixedThicknessSamples);
 
@@ -1197,7 +1200,7 @@ test("두께 후보에서 슬라이더와 덧셈이 맞지 않으면 그 두께 
 async function runMixedThickness(specs: Spec[], change: (sample: CrossSample) => void = () => {}) {
   const samples = structuredClone(mixedThicknessSamples);
   samples.forEach(change);
-  const ai = scriptedAi({ parts: [partsFound], candidates: [candidates], style: [{ style: "natural" }], spec: specs });
+  const ai = scriptedAi({ parts: [partsFound], candidates: [candidates], style: [{ style: "natural" }], spec: specs, judgment: [judged()] });
   const store = memoryStore({ styles, rules });
   const result = await runPipeline({ bundle: mixedThicknessRecording, intake, human: approveFirst, ports: { fusion: recordedFusion(samples).port, ai, store } });
   assert.equal(result.status, "submitted", JSON.stringify(store.log.at(-1)));
@@ -1348,7 +1351,7 @@ test("목록에 없는 스타일은 형식 오류를 붙여 다시 묻고, 고�
 
 test("UI 스타일 목록의 스타일이 형식에 맞지 않으면 고르기 전에 멈춘다", async () => {
   const broken = { ...UI_STYLES[0], colors: { ...UI_STYLES[0].colors, accent: "red; } body { display: none" } };
-  const ai = scriptedAi({ parts: [partsFound], candidates: [candidatesFor([spec])], style: [{ style: "natural" }], spec: [spec] });
+  const ai = scriptedAi({ parts: [partsFound], candidates: [candidatesFor([spec])], style: [{ style: "natural" }], spec: [spec], judgment: [judged()] });
   const store = memoryStore({ styles: [broken], rules });
 
   const result = await runPipeline({ bundle, intake, human: approveFirst, ports: { fusion: offline, ai, store } });
@@ -1356,4 +1359,133 @@ test("UI 스타일 목록의 스타일이 형식에 맞지 않으면 고르기 �
   assert.equal(result.status === "stopped" && result.stage, "style");
   assert.match(result.status === "stopped" ? result.reason : "", /\/0\/colors\/accent/);
   assert.equal(ai.calls.style.length, 0);
+});
+
+/** AI 판정이 받은 입력 */
+type JudgmentInput = { spec: Spec; renders: { name: string; values: Record<string, number>; image: string }[]; colors: { name: string; color: string }[] };
+
+test("수치 검증·축 반응·교차 검증을 통과한 명세를 슬라이더 끝값과 쌍별 모서리 조합에서 렌더링해 AI 판정을 받는다", async () => {
+  const { ai, ports } = setup({ spec: [widthHeightSpec] }, recordedFusion().port);
+
+  const result = await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  const [input] = ai.calls.judgment as JudgmentInput[];
+  assert.deepEqual(input.spec, widthHeightSpec);
+  assert.deepEqual(
+    input.renders.map((r) => r.name),
+    [
+      "body_w=400",
+      "body_w=800",
+      "body_h=500",
+      "body_h=1000",
+      "body_w=400·body_h=500",
+      "body_w=400·body_h=1000",
+      "body_w=800·body_h=500",
+      "body_w=800·body_h=1000",
+    ],
+  );
+  // 나머지 슬라이더는 기본값이다
+  assert.deepEqual(input.renders[0].values, { body_w: 400, body_h: 700 });
+  // 같은 축척이라 폭 끝값끼리 그림 폭이 다르다
+  assert.ok(drawnWidth(input.renders[1].image) > drawnWidth(input.renders[0].image));
+  assert.deepEqual(input.colors.map((c) => c.name).sort(), ["Carcass", "DrawerBox"]);
+});
+
+test("AI 판정은 수치 검증을 통과한 명세에만 돈다", async () => {
+  const { ai, ports } = setup({ spec: [tooWide, spec] });
+
+  await runPipeline({ bundle: nonlinearAt825(), intake, human: approveFirst, ports });
+
+  assert.deepEqual((ai.calls.judgment as JudgmentInput[]).map((i) => i.spec), [spec]);
+});
+
+const gap = { image: "body_w=800", reason: "폭 끝값에서 서랍과 몸통 옆판 사이가 벌어져 뚫려 보임" };
+
+test("AI 판정이 문제를 찾으면 그 렌더링을 저장하고 이미지 경로와 이유 한 줄을 담은 ai_judgment 피드백으로 명세를 다시 쓴다", async () => {
+  const { ai, store, ports } = setup({ spec: [spec, spec], judgment: [judged(gap), judged()] });
+
+  const result = await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  const [, rewrite] = ai.calls.spec as { previous: Spec; feedback: Feedback[] }[];
+  assert.deepEqual(rewrite.previous, spec);
+  assert.deepEqual(rewrite.feedback, [
+    {
+      path: "sliders[0]",
+      slider: "body_w",
+      part: "",
+      kind: "ai_judgment",
+      measured: { image: "renders/1단 서랍장/body_w=800.png", values: { body_w: 800 }, reason: gap.reason },
+      expected: "뚫림·겹침·비례 깨짐 없음",
+      hint: "body_w=800에서 렌더링 판정 실패: 그 끝값을 범위에서 빼거나 affects의 형태 변경·위치 이동 부품 확인",
+    },
+  ]);
+  assert.deepEqual(store.renders.map((r) => r.path), ["renders/1단 서랍장/body_w=800.png"]);
+  const [input] = ai.calls.judgment as JudgmentInput[];
+  assert.equal(store.renders[0].png.toString("base64"), input.renders[1].image);
+  assert.deepEqual(verificationLog(store).map((d) => (d as { feedback: Feedback[] }).feedback.map((f) => f.kind)), [["ai_judgment"], []]);
+});
+
+test("AI 판정이 보내지 않은 렌더링을 가리키거나 이유가 한 줄이 아니면 형식 오류를 붙여 다시 묻는다", async () => {
+  const { ai, ports } = setup({ judgment: [judged({ image: "body_w=900", reason: "뚫림" }, { image: "body_w=400", reason: "겹침\n두 줄" }), judged()] });
+
+  const result = await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  const [, again] = ai.calls.judgment as { schemaErrors: string[] }[];
+  assert.match(again.schemaErrors.join("\n"), /\/problems\/0\/image: .*body_w=400, body_w=800/);
+  assert.match(again.schemaErrors.join("\n"), /\/problems\/1\/reason/);
+});
+
+test("수치 검증·축 반응은 통과했는데 AI 판정만 3번 실패하면 마지막 판정 이유를 붙여 최종 승인으로 넘어간다", async () => {
+  const reviews: { spec: Spec; judgment: Feedback[] }[] = [];
+  const human: HumanPort = {
+    chooseCandidate: () => Promise.resolve({ candidate: "c1" }),
+    finalApproval: (review) => {
+      reviews.push(review);
+      return Promise.resolve({ decision: "approve" });
+    },
+  };
+  const last = { image: "body_w=400", reason: "폭 끝값에서 서랍이 너무 좁아 비례가 깨짐" };
+  const { ai, store, ports } = setup({ spec: [spec, spec, spec], judgment: [judged(gap), judged(gap), judged(last)] });
+
+  const result = await runPipeline({ bundle, intake, human, ports });
+
+  assert.equal(result.status, "submitted");
+  assert.equal(ai.calls.spec.length, 3);
+  assert.equal(reviews.length, 1);
+  assert.deepEqual(reviews[0].spec, spec);
+  assert.deepEqual(
+    reviews[0].judgment.map((f) => f.measured),
+    [{ image: "renders/1단 서랍장/body_w=400.png", values: { body_w: 400 }, reason: last.reason }],
+  );
+  assert.equal(store.submissions.length, 1);
+});
+
+test("판정 실패 사이에 수치 검증 실패가 끼면 판정 실패만 세어, 3번에 못 미치면 후보 제시로 돌아간다", async () => {
+  const { ai, ports } = setup({
+    candidates: [candidates, candidates],
+    style: [{ style: "natural" }, { style: "natural" }],
+    spec: [spec, tooWide, spec, tooWide, spec],
+    judgment: [judged(gap), judged(gap), judged()],
+  });
+
+  const result = await runPipeline({ bundle: nonlinearAt825(), intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  const proposals = ai.calls.candidates as { failures: { feedback: Feedback[] }[] }[];
+  assert.equal(proposals.length, 2);
+  assert.ok(proposals[1].failures[0].feedback.every((f) => f.kind === "dimension_error" || f.kind === "shape_error"), JSON.stringify(proposals[1].failures[0].feedback.map((f) => f.kind)));
+});
+
+test("AI 판정이 같은 렌더링을 여러 번 짚으면 이유를 이어 붙인 피드백 하나로 명세를 다시 쓴다", async () => {
+  const overlap = { image: "body_w=800", reason: "서랍이 옆판에 파고듦" };
+  const { ai, store, ports } = setup({ spec: [spec, spec], judgment: [judged(gap, overlap), judged()] });
+
+  await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  const [, rewrite] = ai.calls.spec as { feedback: Feedback[] }[];
+  assert.deepEqual(rewrite.feedback.map((f) => (f.measured as { reason: string }).reason), [`${gap.reason}; ${overlap.reason}`]);
+  assert.equal(store.renders.length, 1);
 });

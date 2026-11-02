@@ -1,9 +1,11 @@
-// 운영자 화면: 정보 입력 양식과 후보 카드. 화면은 HTML 문장으로 만들고, 보낸 양식 값을 사람 결정으로 읽는다.
+// 운영자 화면: 정보 입력 양식, 후보 카드, 최종 승인. 화면은 HTML 문장으로 만들고, 보낸 양식 값을 사람 결정으로 읽는다.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import type { CandidateCard } from "../pipeline/candidate-cards.ts";
-import { candidateCardsHtml, intakeFormHtml, readCandidateChoice, readIntakeForm } from "../pipeline/operator-screens.ts";
+import type { Feedback } from "../pipeline/feedback.ts";
+import { candidateCardsHtml, finalApprovalHtml, intakeFormHtml, readCandidateChoice, readIntakeForm } from "../pipeline/operator-screens.ts";
+import type { Spec } from "../src/engine.ts";
 
 /** 양식에서 이름이 name인 입력 요소들(input·select·textarea) */
 const fieldsNamed = (html: string, name: string) => html.match(new RegExp(`<(input|select|textarea)[^>]*name="${name}"[^>]*>`, "g")) ?? [];
@@ -114,4 +116,41 @@ test("보낸 후보 선택 양식을 고른 후보로 읽고, 제시하지 않�
   assert.deepEqual(readCandidateChoice(new URLSearchParams({ candidate: "c1" }), cards), { candidate: "c1", parents: {} });
   assert.deepEqual(readCandidateChoice(new URLSearchParams({ candidate: "c9" }), cards), { errors: ["제시된 후보 중 하나를 고르세요"] });
   assert.deepEqual(readCandidateChoice(new URLSearchParams(), cards), { errors: ["제시된 후보 중 하나를 고르세요"] });
+});
+
+const approvedSpec = {
+  product: "1단 서랍장",
+  sliders: [
+    { id: "body_w", name: "전체 폭", min: 400, max: 800, default: 600, unit: "mm" },
+    { id: "body_h", name: "전체 높이", min: 500, max: 1000, default: 700, unit: "mm" },
+  ],
+} as Spec;
+
+const judgment: Feedback[] = [
+  {
+    path: "sliders[0]",
+    slider: "body_w",
+    part: "",
+    kind: "ai_judgment",
+    measured: { image: "renders/1단 서랍장/body_w=800·body_h=500.png", values: { body_w: 800, body_h: 500 }, reason: "서랍이 몸통 밖으로 <튀어나옴>" },
+    expected: "뚫림·겹침·비례 깨짐 없음",
+    hint: "",
+  },
+];
+
+test("AI 판정만 3번 실패해 넘어온 구성기의 최종 승인 화면에는 판정 이유와 그 렌더링이 보인다", () => {
+  const html = finalApprovalHtml({ spec: approvedSpec, judgment });
+
+  assert.match(html, /AI 판정을 3번 통과하지 못해 넘어왔습니다/);
+  assert.match(html, /body_w=800·body_h=500: 서랍이 몸통 밖으로 &lt;튀어나옴&gt;/);
+  assert.match(html, /<img src="renders\/1단 서랍장\/body_w=800·body_h=500\.png"/);
+  assert.match(html, /전체 폭 400~800 mm \(기본 600\)/);
+  assert.match(html, /<button type="submit" name="decision" value="approve">/);
+});
+
+test("AI 판정을 통과한 구성기의 최종 승인 화면에는 판정 이유가 없다", () => {
+  const html = finalApprovalHtml({ spec: approvedSpec, judgment: [] });
+
+  assert.doesNotMatch(html, /AI 판정/);
+  assert.match(html, /전체 높이 500~1000 mm \(기본 700\)/);
 });

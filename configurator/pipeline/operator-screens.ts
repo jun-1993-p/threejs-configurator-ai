@@ -1,9 +1,12 @@
-// 운영자 화면: 정보 입력 양식과 후보 카드. 화면은 HTML 문장으로 만들고, 보낸 양식 값을 정보 입력과 사람 결정으로 읽는다.
+// 운영자 화면: 정보 입력 양식, 후보 카드, 최종 승인. 화면은 HTML 문장으로 만들고, 보낸 양식 값을 정보 입력과 사람 결정으로 읽는다.
 // 화면을 띄우는 서버(운영 호스트)는 티켓 22에서 붙인다. 이 파일은 DOM 없이 Node에서 돈다.
+import { placeOf, type Spec } from "../src/engine.ts";
 import { DIMENSION_NAMES, pickParent, type CandidateCard, type ParentChoice } from "./candidate-cards.ts";
+import type { Feedback } from "./feedback.ts";
 import { DIMENSIONS } from "./measure.ts";
-import type { Intake } from "./runner.ts";
+import { JUDGMENT_FAILURES, type Intake } from "./runner.ts";
 import { checkIntake, PRODUCT_KINDS, THICKNESS_CHOICES, type ThicknessExposure } from "./schemas.ts";
+import type { JudgmentMeasured } from "./verify-judgment.ts";
 
 /** 두께 선택 노출 여부를 화면에 쓰는 말. 고를 거리는 THICKNESS_CHOICES 순서이고, 처음 것이 기본값이다. */
 const THICKNESS_LABELS: Record<ThicknessExposure, string> = { ai: "AI 판단", show: "보이기", hide: "숨기기" };
@@ -18,7 +21,7 @@ body { font-family: sans-serif; margin: 24px; }
 label { display: block; margin: 12px 0 4px; }
 .cards { display: flex; flex-wrap: wrap; gap: 16px; }
 .candidate { border: 1px solid #ccc; border-radius: 8px; padding: 12px; }
-.candidate figure { display: inline-block; margin: 4px; text-align: center; }
+.candidate figure, .judgment figure { display: inline-block; margin: 4px; text-align: center; }
 </style></head>
 <body>
 ${body}
@@ -127,4 +130,36 @@ export function readCandidateChoice(
     else parents[choice.parameter] = picked.parent;
   }
   return errors.length > 0 ? { errors } : { candidate: card.id, parents };
+}
+
+/**
+ * 최종 승인 화면. 슬라이더마다 이름과 범위가 있고, AI 판정만 JUDGMENT_FAILURES번 실패해 넘어왔으면 마지막 판정 이유와 그 렌더링이 보인다(사용자 스토리 73).
+ * 이름 고치기·범위 좁히기·반려는 티켓 20에서 붙인다.
+ */
+export function finalApprovalHtml({ spec, judgment }: { spec: Spec; judgment: Feedback[] }): string {
+  const sliders = spec.sliders.map((s) => `<li>${escape(s.name)} ${s.min}~${s.max} ${escape(s.unit)} (기본 ${s.default})</li>`).join("\n");
+  const reasons = judgment.map((f) => {
+    const { image, values, reason } = f.measured as JudgmentMeasured;
+    const place = escape(placeOf(values));
+    return `<figure><img src="${escape(image)}" alt="${place}"><figcaption>${place}: ${escape(reason)}</figcaption></figure>`;
+  });
+  const judged =
+    reasons.length === 0
+      ? ""
+      : `<section class="judgment">
+<h2>AI 판정을 ${JUDGMENT_FAILURES}번 통과하지 못해 넘어왔습니다</h2>
+<p>수치 검증과 축 반응은 통과했습니다. 아래 렌더링을 눈여겨보고 결정하세요.</p>
+${reasons.join("\n")}
+</section>
+`;
+  return page(
+    `${spec.product} 최종 승인`,
+    `<h1>${escape(spec.product)} 최종 승인</h1>
+${judged}<ul>
+${sliders}
+</ul>
+<form method="post">
+<p><button type="submit" name="decision" value="approve">승인</button></p>
+</form>`,
+  );
 }

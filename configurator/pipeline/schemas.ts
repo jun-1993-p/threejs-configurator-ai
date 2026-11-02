@@ -167,6 +167,30 @@ export function styleChoiceChecker(styleIds: string[]): Check {
   return checker(styleChoiceSchema(styleIds));
 }
 
+/** AI 판정 응답. 문제는 보낸 렌더링 이름(images)을 가리키고 이유는 한 줄이다. 문제가 없으면 통과다. */
+export function judgmentSchema(images: string[]) {
+  return {
+    type: "object",
+    required: ["problems"],
+    additionalProperties: false,
+    properties: {
+      problems: {
+        type: "array",
+        items: {
+          type: "object",
+          required: ["image", "reason"],
+          additionalProperties: false,
+          properties: { image: { enum: images }, reason: { type: "string", pattern: "^[^\\n]+$" } },
+        },
+      },
+    },
+  };
+}
+
+export function judgmentChecker(images: string[]): Check {
+  return checker(judgmentSchema(images));
+}
+
 /**
  * 슬라이더 이름에 Fusion 파라미터 이름이 낱말로 들어 있으면(대소문자 무시, "d12 폭"도) 그 오류 문장(사용자 스토리 28).
  * 후보 검사와 명세 검사가 같이 쓴다.
