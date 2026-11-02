@@ -103,6 +103,14 @@ const SNIPPET = `<!doctype html>
 export type ProductFiles = Record<"configurator.js" | "spec.json" | "sweeps.json" | "style.json" | "index.html", string>;
 
 /**
+ * 최종 승인에서 고친 명세로 결과물의 명세와 스윕 데이터를 다시 만든다. 결과물의 스윕 데이터는 이미 업로드 묶음 형식이라 같은 방법으로 다시 거르고,
+ * 좁힌 범위가 닿지 않는 위상 묶음은 빠진다. 고정 코어 번들과 스타일 선택은 그대로다.
+ */
+export function withApprovedSpec(files: ProductFiles, spec: Spec): ProductFiles {
+  return { ...files, "spec.json": JSON.stringify(spec, null, 2), "sweeps.json": JSON.stringify(sweepDataFor(spec, JSON.parse(files["sweeps.json"]))) };
+}
+
+/**
  * 고정 코어 번들과 명세·스윕 데이터·스타일 선택·붙여 넣을 div를 메모리에서 만든다. bundle.grids·thickness는 검증 중에 받은 격자 보강·두께 후보 형상이다.
  * style은 UI 스타일 목록에서 고른 스타일 그대로다.
  */

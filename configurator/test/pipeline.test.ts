@@ -1489,3 +1489,151 @@ test("AI 판정이 같은 렌더링을 여러 번 짚으면 이유를 이어 붙
   assert.deepEqual(rewrite.feedback.map((f) => (f.measured as { reason: string }).reason), [`${gap.reason}; ${overlap.reason}`]);
   assert.equal(store.renders.length, 1);
 });
+
+/** 후보 선택마다 정해 둔 후보를 차례로 고르고, 최종 승인마다 정해 둔 결정을 차례로 내는 사람. 받은 카드와 최종 승인 화면 값을 남긴다. */
+function deciding(choices: string[], decisions: Awaited<ReturnType<HumanPort["finalApproval"]>>[]) {
+  const shown: CandidateCard[][] = [];
+  const reviews: Parameters<HumanPort["finalApproval"]>[0][] = [];
+  const human: HumanPort = {
+    chooseCandidate: (cards) => {
+      shown.push(cards);
+      return Promise.resolve({ candidate: choices[shown.length - 1] });
+    },
+    finalApproval: (review) => {
+      reviews.push(review);
+      return Promise.resolve(decisions[reviews.length - 1]);
+    },
+  };
+  return { human, shown, reviews };
+}
+
+test("최종 승인에서 슬라이더 이름을 고치면 제출된 명세와 사례에 그 이름이 들어가고 처리 기록에 고친 내용이 남는다", async () => {
+  const edits = { body_w: { name: "가로 길이" } };
+  const { human } = deciding(["c1"], [{ decision: "approve", edits }]);
+  const { store, ports } = setup();
+
+  const result = await runPipeline({ bundle, intake, human, ports });
+
+  assert.equal(result.status, "submitted");
+  const submitted: Spec = JSON.parse(store.submissions[0].files["spec.json"]);
+  assert.deepEqual(submitted, { ...spec, sliders: [{ ...spec.sliders[0], name: "가로 길이" }] });
+  assert.deepEqual(store.cases[0].spec, submitted);
+  assert.deepEqual(store.log.find((e) => e.stage === "approval")?.detail, { decision: "approve", edits });
+});
+
+test("최종 승인에서 범위를 넓히려 하면 막혀 그 까닭과 함께 다시 묻고, 좁힌 범위는 제출된 명세에 들어간다", async () => {
+  const { human, reviews } = deciding(["c1"], [
+    { decision: "approve", edits: { body_w: { min: 300, max: 700 } } },
+    { decision: "approve", edits: { body_w: { min: 500, max: 700 } } },
+  ]);
+  const { store, ports } = setup();
+
+  const result = await runPipeline({ bundle, intake, human, ports });
+
+  assert.equal(result.status, "submitted");
+  assert.deepEqual(reviews.map((r) => r.errors), [[], ["/body_w/min: 범위는 좁히기만 할 수 있습니다. 400 이상으로 적으세요"]]);
+  // 다시 물을 때도 승인 전 명세를 보이고, 막힌 결정이 고친 내용을 화면이 다시 채우도록 넘긴다
+  assert.deepEqual(reviews[1].spec, spec);
+  assert.deepEqual(reviews.map((r) => r.edits), [{}, { body_w: { min: 300, max: 700 } }]);
+  const submitted: Spec = JSON.parse(store.submissions[0].files["spec.json"]);
+  assert.deepEqual([submitted.sliders[0].min, submitted.sliders[0].max, submitted.sliders[0].default], [500, 700, 600]);
+});
+
+test("최종 승인에서 반려하고 다른 후보를 고르면 후보 제시를 다시 하지 않고 이미 받은 후보 카드로 후보 선택에 돌아간다", async () => {
+  const { human, shown } = deciding(["c1", "c2"], [{ decision: "reject", back: "choice" }, { decision: "approve" }]);
+  const plusY = { ...spec, front: "+Y", axes: { W: "X", D: "Y", H: "Z" } };
+  const { ai, store, ports } = setup({ style: [{ style: "natural" }, { style: "natural" }], spec: [spec, plusY], judgment: [judged(), judged()] });
+
+  const result = await runPipeline({ bundle, intake, human, ports });
+
+  assert.equal(result.status, "submitted");
+  assert.equal(ai.calls.candidates.length, 1);
+  assert.equal(shown.length, 2);
+  assert.deepEqual(shown[1], shown[0]);
+  assert.deepEqual(store.cases[0].chosen, "c2");
+  assert.deepEqual(
+    store.log.filter((e) => e.stage === "approval").map((e) => e.detail),
+    [{ decision: "reject", back: "choice" }, { decision: "approve" }],
+  );
+});
+
+test("최종 승인에서 거절 이유를 적어 반려하면 그 문장이 후보 제시 입력에 들어가 새 후보를 만들고 처리 기록에 남는다", async () => {
+  const reason = "폭 말고 높이를 바꾸고 싶다";
+  const { human, shown } = deciding(["c1", "c1"], [{ decision: "reject", back: "candidates", reason }, { decision: "approve" }]);
+  const { ai, store, ports } = setup({
+    candidates: [candidates, candidates],
+    style: [{ style: "natural" }, { style: "natural" }],
+    spec: [spec, spec],
+    judgment: [judged(), judged()],
+  });
+
+  const result = await runPipeline({ bundle, intake, human, ports });
+
+  assert.equal(result.status, "submitted");
+  const proposals = ai.calls.candidates as { rejections: { candidate: Candidate; reason: string }[] }[];
+  assert.deepEqual(proposals[0].rejections, []);
+  assert.deepEqual(proposals[1].rejections.map((r) => [r.candidate.id, r.reason]), [["c1", reason]]);
+  assert.equal(shown.length, 2);
+  assert.deepEqual(store.log.filter((e) => e.stage === "approval").map((e) => e.detail), [{ decision: "reject", back: "candidates", reason }, { decision: "approve" }]);
+});
+
+test("거절 이유가 비었거나 한 줄이 아니면 다시 묻는다", async () => {
+  const { human, reviews } = deciding(["c1"], [
+    { decision: "reject", back: "candidates", reason: "  " },
+    { decision: "reject", back: "candidates", reason: "높이를\n바꾸고 싶다" },
+    { decision: "approve" },
+  ]);
+  const { ai, ports } = setup();
+
+  const result = await runPipeline({ bundle, intake, human, ports });
+
+  assert.equal(result.status, "submitted");
+  assert.equal(ai.calls.candidates.length, 1);
+  assert.deepEqual(reviews.map((r) => r.errors), [[], ["/reason: 거절 이유를 한 줄로 적으세요"], ["/reason: 거절 이유를 한 줄로 적으세요"]]);
+});
+
+test("최종 승인에서 고친 슬라이더 이름에 Fusion 파라미터 이름이 들어 있으면 다시 묻는다", async () => {
+  const { human, reviews } = deciding(["c1"], [{ decision: "approve", edits: { body_w: { name: "body_w 폭" } } }, { decision: "approve" }]);
+  const { ports } = setup();
+
+  await runPipeline({ bundle, intake, human, ports });
+
+  assert.match(reviews[1].errors.join("\n"), /^\/sliders\/0\/name: "body_w 폭"에 Fusion 파라미터 이름\(body_w\)/);
+});
+
+test("최종 승인에서 좁힌 범위 끝이 기본값에서 step의 배수만큼 떨어지지 않았거나 한 값뿐이면 다시 묻는다", async () => {
+  const { human, reviews } = deciding(["c1"], [
+    { decision: "approve", edits: { body_w: { min: 455 } } },
+    { decision: "approve", edits: { body_w: { min: 600, max: 600 } } },
+    { decision: "approve" },
+  ]);
+  const { ports } = setup();
+
+  await runPipeline({ bundle, intake, human, ports });
+
+  assert.deepEqual(reviews.map((r) => r.errors), [
+    [],
+    ["/body_w/min: 기본값 600에서 step 10의 배수만큼 떨어진 값으로 적으세요(예: 450, 460)"],
+    ["/body_w/max: 610 이상으로 적으세요. 범위가 한 값뿐이면 슬라이더를 움직일 수 없습니다"],
+  ]);
+});
+
+test("최종 승인에서 좁힌 범위가 닿지 않는 위상 묶음은 제출된 스윕 데이터에서 빠진다", async () => {
+  const shelfIntake: Intake = { name: "칸막이 선반", kind: "선반", memo: "폭 500~1300, 깊이 200~400", thickness: "ai" };
+  const shelfCandidates: Candidate[] = [
+    { id: "c1", front: "-Y", sliders: [{ parameter: "shelf_w", name: "전체 폭" }, { parameter: "shelf_d", name: "전체 깊이" }], showThickness: false, summary: "폭과 깊이", diff: "정면 -Y" },
+    { id: "c2", front: "-Y", sliders: [{ parameter: "shelf_w", name: "전체 폭" }], showThickness: false, summary: "폭 하나", diff: "깊이 고정" },
+  ];
+  const ai = scriptedAi({ parts: [shelfParts], candidates: [shelfCandidates], style: [{ style: "natural" }], spec: [shelfSpec], judgment: [judged()] });
+  const store = memoryStore({ styles, rules });
+  const { human } = deciding(["c1"], [{ decision: "approve", edits: { shelf_w: { max: 1100 } } }]);
+
+  const result = await runPipeline({ bundle: shelfRecording, intake: shelfIntake, human, ports: { fusion: recordedFusion(shelfCrossCorners).port, ai, store } });
+
+  assert.equal(result.status, "submitted", JSON.stringify(store.log.at(-1)));
+  const { files } = store.submissions[0];
+  assert.equal(JSON.parse(files["spec.json"]).sliders[0].max, 1100);
+  // 1200 위의 4칸 묶음은 빠지고 800 아래의 2칸 묶음만 남는다
+  const ranges = JSON.parse(files["sweeps.json"]).sweeps.find((s: { parameter: string }) => s.parameter === "shelf_w").groups.map((g: { range: { min: number } }) => g.range.min);
+  assert.deepEqual(ranges, [450]);
+});

@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 
 import type { CandidateCard } from "../pipeline/candidate-cards.ts";
 import type { Feedback } from "../pipeline/feedback.ts";
-import { candidateCardsHtml, finalApprovalHtml, intakeFormHtml, readCandidateChoice, readIntakeForm } from "../pipeline/operator-screens.ts";
+import type { ProductFiles } from "../pipeline/assemble.ts";
+import { candidateCardsHtml, finalApprovalHtml, intakeFormHtml, readCandidateChoice, readFinalApproval, readIntakeForm } from "../pipeline/operator-screens.ts";
 import type { Spec } from "../src/engine.ts";
 
 /** 양식에서 이름이 name인 입력 요소들(input·select·textarea) */
@@ -121,10 +122,19 @@ test("보낸 후보 선택 양식을 고른 후보로 읽고, 제시하지 않�
 const approvedSpec = {
   product: "1단 서랍장",
   sliders: [
-    { id: "body_w", name: "전체 폭", min: 400, max: 800, default: 600, unit: "mm" },
-    { id: "body_h", name: "전체 높이", min: 500, max: 1000, default: 700, unit: "mm" },
+    { id: "body_w", name: "전체 폭", min: 400, max: 800, default: 600, step: 10, unit: "mm" },
+    { id: "body_h", name: "전체 높이", min: 500, max: 1000, default: 700, step: 10, unit: "mm" },
   ],
 } as Spec;
+
+/** 결과물. 고정 코어 번들 안의 "</script>"가 화면의 script 요소를 닫지 않는지도 본다. */
+const files: ProductFiles = {
+  "configurator.js": 'var Configurator={mount(){}};var tag="</script>";',
+  "spec.json": JSON.stringify(approvedSpec),
+  "sweeps.json": JSON.stringify({ parts: [], note: "<b>" }),
+  "style.json": "{}",
+  "index.html": "",
+};
 
 const judgment: Feedback[] = [
   {
@@ -139,18 +149,71 @@ const judgment: Feedback[] = [
 ];
 
 test("AI 판정만 3번 실패해 넘어온 구성기의 최종 승인 화면에는 판정 이유와 그 렌더링이 보인다", () => {
-  const html = finalApprovalHtml({ spec: approvedSpec, judgment });
+  const html = finalApprovalHtml({ spec: approvedSpec, files, judgment, errors: [], edits: {} });
 
   assert.match(html, /AI 판정을 3번 통과하지 못해 넘어왔습니다/);
   assert.match(html, /body_w=800·body_h=500: 서랍이 몸통 밖으로 &lt;튀어나옴&gt;/);
   assert.match(html, /<img src="renders\/1단 서랍장\/body_w=800·body_h=500\.png"/);
-  assert.match(html, /전체 폭 400~800 mm \(기본 600\)/);
   assert.match(html, /<button type="submit" name="decision" value="approve">/);
 });
 
 test("AI 판정을 통과한 구성기의 최종 승인 화면에는 판정 이유가 없다", () => {
-  const html = finalApprovalHtml({ spec: approvedSpec, judgment: [] });
+  const html = finalApprovalHtml({ spec: approvedSpec, files, judgment: [], errors: [], edits: {} });
 
   assert.doesNotMatch(html, /AI 판정/);
-  assert.match(html, /전체 높이 500~1000 mm \(기본 700\)/);
+});
+
+test("최종 승인 화면에서 구성기를 조작해 볼 수 있고, 슬라이더마다 이름과 승인 전 범위 안으로만 좁힐 수 있는 칸이 있다", () => {
+  const html = finalApprovalHtml({ spec: approvedSpec, files, judgment: [], errors: [], edits: {} });
+
+  assert.match(html, /<input name="name:body_w" value="전체 폭" required>/);
+  assert.match(html, /<input type="number" name="min:body_w" value="400" min="400" max="600" step="any" required>/);
+  assert.match(html, /<input type="number" name="max:body_w" value="800" min="600" max="800" step="any" required>/);
+  assert.match(html, /기본 700/);
+  // 결과물의 고정 코어와 명세·스윕 데이터·스타일 선택을 화면에 싣는다. script 요소를 닫는 문장은 끊어 둔다.
+  assert.ok(html.includes(String.raw`var tag="<\/script>";`));
+  assert.equal(html.match(/<\/script>/g)?.length, html.match(/<script/g)?.length);
+  assert.ok(html.includes(String.raw`"note":"\u003cb>"`));
+  assert.match(html, /Configurator\.mount\(/);
+});
+
+test("최종 승인 화면에서 다른 후보를 고르러 가거나 거절 이유를 적어 반려할 수 있고, 앞서 막힌 까닭이 보인다", () => {
+  const html = finalApprovalHtml({ spec: approvedSpec, files, judgment: [], errors: ["/body_w/min: 범위는 좁히기만 할 수 있습니다. 400 이상으로 적으세요"],
+    edits: { body_w: { name: "가로 길이", min: 300 } },
+  });
+
+  assert.match(html, /<button type="submit" name="decision" value="choice"[^>]*>/);
+  assert.match(html, /<input name="reason"[^>]*>/);
+  assert.match(html, /<button type="submit" name="decision" value="candidates"[^>]*>/);
+  assert.match(html, /\/body_w\/min: 범위는 좁히기만 할 수 있습니다/);
+  // 막힌 결정이 고친 값은 칸에 다시 채워지고, 좁힐 수 있는 한계는 승인 전 명세 그대로다
+  assert.match(html, /<input name="name:body_w" value="가로 길이" required>/);
+  assert.match(html, /<input type="number" name="min:body_w" value="300" min="400" max="600" step="any" required>/);
+});
+
+const approvalForm = (fields: Record<string, string>) =>
+  new URLSearchParams({ "name:body_w": "전체 폭", "min:body_w": "400", "max:body_w": "800", "name:body_h": "전체 높이", "min:body_h": "500", "max:body_h": "1000", ...fields });
+
+test("보낸 최종 승인 양식에서 승인 전 명세와 달라진 이름과 범위만 고친 내용으로 읽는다", () => {
+  assert.deepEqual(readFinalApproval(approvalForm({ decision: "approve" }), approvedSpec), { decision: "approve", edits: {} });
+  assert.deepEqual(readFinalApproval(approvalForm({ decision: "approve", "name:body_w": " 가로 길이 ", "max:body_h": "900" }), approvedSpec), {
+    decision: "approve",
+    edits: { body_w: { name: "가로 길이" }, body_h: { max: 900 } },
+  });
+});
+
+test("범위를 넓히거나 숫자가 아닌 값을 적은 최종 승인 양식은 고친 내용 대신 오류를 돌려준다", () => {
+  assert.deepEqual(readFinalApproval(approvalForm({ decision: "approve", "max:body_w": "900", "min:body_h": "넓게" }), approvedSpec), {
+    errors: ["/body_w/max: 범위는 좁히기만 할 수 있습니다. 800 이하로 적으세요", "/body_h/min: 숫자로 적으세요"],
+  });
+});
+
+test("보낸 최종 승인 양식의 반려를 다른 후보 고르기나 거절 이유를 붙인 후보 제시 다시 하기로 읽는다", () => {
+  assert.deepEqual(readFinalApproval(approvalForm({ decision: "choice" }), approvedSpec), { decision: "reject", back: "choice" });
+  assert.deepEqual(readFinalApproval(approvalForm({ decision: "candidates", reason: " 높이도 바꾸고 싶다 " }), approvedSpec), {
+    decision: "reject",
+    back: "candidates",
+    reason: "높이도 바꾸고 싶다",
+  });
+  assert.deepEqual(readFinalApproval(approvalForm({ decision: "candidates", reason: "" }), approvedSpec), { errors: ["/reason: 거절 이유를 한 줄로 적으세요"] });
 });

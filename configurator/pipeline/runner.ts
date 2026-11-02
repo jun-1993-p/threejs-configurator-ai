@@ -2,10 +2,11 @@
 // 바깥 의존은 Fusion 연결·AI 모델·저장소 세 포트로만 접근한다.
 import { samePair, thicknessSamplePlan, type Axis, type GridSweep, type Pair, type Spec, type SweepData } from "../src/engine.ts";
 import type { Style } from "../src/style.ts";
-import { assembleProduct, type ProductFiles } from "./assemble.ts";
+import { assembleProduct, withApprovedSpec, type ProductFiles } from "./assemble.ts";
 import { candidateCards, partViews, pickParent, type CandidateCard, type PartColor, type PartView } from "./candidate-cards.ts";
 import type { Feedback } from "./feedback.ts";
 import {
+  approvalEditChecker,
   candidateDiversityChecker,
   candidateReferenceChecker,
   checkCandidates,
@@ -19,6 +20,7 @@ import {
   fixedThicknessChecker,
   judgmentChecker,
   partsReferenceChecker,
+  rejectionReasonErrors,
   specReferenceChecker,
   styleChoiceChecker,
   thicknessChoiceChecker,
@@ -28,6 +30,7 @@ import {
   type Front,
   type FusionAxis,
   type ProductKind,
+  type SliderEdits,
   type ThicknessExposure,
 } from "./schemas.ts";
 import type { UploadBundle } from "./upload-bundle.ts";
@@ -75,7 +78,7 @@ export interface Intake {
   thickness: ThicknessExposure;
 }
 
-export type { Front };
+export type { Front, SliderEdits };
 
 /** 후보의 슬라이더 하나: 고객이 보는 치수의 파라미터(부모 또는 자식)와 그 뜻의 슬라이더 이름 */
 export interface CandidateSlider {
@@ -113,6 +116,21 @@ export interface CandidateFailure {
   candidate: Candidate;
   feedback: Feedback[];
 }
+
+/** 최종 승인에서 반려하며 거절 이유를 적은 기록. 다음 후보 제시가 방향을 고치는 데 쓴다(사용자 스토리 72). */
+export interface Rejection {
+  candidate: Candidate;
+  reason: string;
+}
+
+/**
+ * 최종 승인의 사람 결정. 반려하면 이미 받은 후보 카드로 후보 선택에 돌아가거나(back: choice, 사용자 스토리 71),
+ * 거절 이유를 붙여 후보 제시를 다시 한다(back: candidates, 사용자 스토리 72).
+ */
+export type ApprovalDecision =
+  | { decision: "approve"; edits?: SliderEdits }
+  | { decision: "reject"; back: "choice" }
+  | { decision: "reject"; back: "candidates"; reason: string };
 
 export interface LogEntry {
   /** 정보 입력의 상품명 */
@@ -177,6 +195,8 @@ export interface AiPort {
     /** 부품 탐색 결과. 정면 후보가 여럿이면 후보끼리 그 정면을 모두 써야 한다. */
     parts: PartsFound;
     failures: CandidateFailure[];
+    /** 최종 승인에서 반려하며 적은 거절 이유. 새 후보는 이 방향으로 고친다. */
+    rejections: Rejection[];
     rejected: unknown;
     schemaErrors: string[];
   }): Promise<unknown>;
@@ -220,8 +240,12 @@ export interface HumanPort {
    * parents는 고른 카드의 자식 치수마다 움직일 부모다(자식 파라미터 → 부모 파라미터). 부모 후보가 하나뿐이면 적지 않아도 그 부모다.
    */
   chooseCandidate(cards: CandidateCard[]): Promise<{ candidate: string; parents?: Record<string, string> }>;
-  /** judgment는 AI 판정만 JUDGMENT_FAILURES번 실패해 넘어왔을 때 마지막 판정의 ai_judgment 피드백이고, 아니면 빈 목록이다. */
-  finalApproval(review: { spec: Spec; files: ProductFiles; judgment: Feedback[] }): Promise<{ decision: "approve" }>;
+  /**
+   * judgment는 AI 판정만 JUDGMENT_FAILURES번 실패해 넘어왔을 때 마지막 판정의 ai_judgment 피드백이고, 아니면 빈 목록이다.
+   * errors는 앞서 낸 결정이 검사를 통과하지 못한 까닭(범위 넓히기, 빈 거절 이유 등)이고, edits는 그 결정이 고친 내용이라 화면이 다시 채워 보인다.
+   * 처음 물을 때는 둘 다 비어 있다. spec은 늘 승인 전 명세다.
+   */
+  finalApproval(review: { spec: Spec; files: ProductFiles; judgment: Feedback[]; errors: string[]; edits: SliderEdits }): Promise<ApprovalDecision>;
 }
 
 export interface PipelineInput {
@@ -256,6 +280,11 @@ function chosenOf({ previews: _previews, choices, ...candidate }: CandidateCard,
     sliders.push({ parameter: choice.parameter, name: choice.name, parent: picked.parent });
   }
   return { ...candidate, sliders };
+}
+
+/** 고친 이름·범위를 명세에 넣는다 */
+function applyEdits(spec: Spec, edits: SliderEdits): Spec {
+  return { ...spec, sliders: spec.sliders.map((s) => ({ ...s, ...edits[s.id] })) };
 }
 
 class PipelineStop extends Error {
@@ -354,6 +383,42 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
     if (errors.length > 0) return errors;
     return [...candidateReferenceChecker(uploaded)(value as Candidate[]), ...candidateDiversityChecker(parts, intake.thickness)(value as Candidate[])];
   };
+
+  /**
+   * 최종 승인의 결정이 받아들일 수 있는지. 고친 내용은 승인 전 명세 안에서 이름과 범위만 바꾸고(범위는 좁히기만),
+   * 고친 이름도 명세 작성 때처럼 Fusion 파라미터 이름이 아니어야 한다. 거절 이유는 한 줄이다.
+   */
+  function approvalErrors(spec: Spec, answer: ApprovalDecision): string[] {
+    if (answer.decision === "reject") return answer.back === "choice" ? [] : rejectionReasonErrors(answer.reason);
+    if (!answer.edits) return [];
+    const errors = approvalEditChecker(spec)(answer.edits);
+    if (errors.length > 0) return errors;
+    const edited = applyEdits(spec, answer.edits);
+    return [...checkSpec(edited), ...specReferenceChecker(uploaded)(edited)];
+  }
+
+  /** 받아들일 수 있는 결정이 올 때까지 최종 승인을 다시 묻는다. 다시 물을 때는 앞 결정의 오류와 고친 내용을 보인다. */
+  async function finalApproval(spec: Spec, files: ProductFiles, judgment: Feedback[]): Promise<ApprovalDecision> {
+    let errors: string[] = [];
+    let edits: SliderEdits = {};
+    for (;;) {
+      const answer = await human.finalApproval({ spec, files, judgment, errors, edits });
+      errors = approvalErrors(spec, answer);
+      edits = answer.decision === "approve" ? (answer.edits ?? {}) : {};
+      if (errors.length === 0) return answer;
+      await log("approval", { errors });
+    }
+  }
+
+  /**
+   * 승인한 명세로 결과물을 제출하고 사례로 기록한다. 좁힌 범위는 검증한 범위 안이라 다시 검증하지 않고,
+   * 결과물의 명세와 스윕 데이터만 그 범위로 다시 만든다.
+   */
+  async function submit(spec: Spec, files: ProductFiles, candidates: Candidate[], chosen: ChosenCandidate): Promise<void> {
+    await store.submit(intake.name, withApprovedSpec(files, spec));
+    await store.recordCase({ kind: intake.kind, intake, candidates, chosen: chosen.id, spec });
+    await log("submission");
+  }
 
   /** 받은 격자 보강. key는 요청한 값 묶음이라, 명세의 범위나 기본값이 바뀌면 그 격자는 쓰지 않는다. */
   interface Reinforcement {
@@ -535,45 +600,60 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
 
     // 후보 제시로 돌아오는 고리. 회차마다 사람이 후보를 고르므로 사람 없이 끝없이 돌지는 않는다.
     const failures: CandidateFailure[] = [];
+    const rejections: Rejection[] = [];
     for (;;) {
       const candidates = await askUntilValid<Candidate[]>("candidates", checkBundleCandidates(parts), (schemaErrors, rejected) =>
-        ai.proposeCandidates({ bundle, intake, parts: structuredClone(parts), failures: structuredClone(failures), rejected, schemaErrors }),
+        ai.proposeCandidates({
+          bundle,
+          intake,
+          parts: structuredClone(parts),
+          failures: structuredClone(failures),
+          rejections: structuredClone(rejections),
+          rejected,
+          schemaErrors,
+        }),
       );
       await log("candidates", candidates.map((c) => c.id));
 
+      // 후보 선택으로 돌아오는 고리. 최종 승인에서 "다른 후보"로 반려하면 이미 받은 카드로 다시 고른다.
       const cards = candidateCards(candidates, uploaded, parts);
-      const { candidate: chosenId, parents: chosenParents } = await human.chooseCandidate(cards);
-      const card = cards.find((c) => c.id === chosenId);
-      if (!card) throw new PipelineStop("choice", `제시되지 않은 후보 ${chosenId}를 골랐습니다`);
-      const candidate = chosenOf(card, chosenParents);
-      if (typeof candidate === "string") throw new PipelineStop("choice", candidate);
-      await log("choice", { candidate: chosenId, parents: Object.fromEntries(candidate.sliders.map((s) => [s.parameter, s.parent])) });
+      for (;;) {
+        const { candidate: chosenId, parents: chosenParents } = await human.chooseCandidate(cards);
+        const card = cards.find((c) => c.id === chosenId);
+        if (!card) throw new PipelineStop("choice", `제시되지 않은 후보 ${chosenId}를 골랐습니다`);
+        const candidate = chosenOf(card, chosenParents);
+        if (typeof candidate === "string") throw new PipelineStop("choice", candidate);
+        await log("choice", { candidate: chosenId, parents: Object.fromEntries(candidate.sliders.map((s) => [s.parameter, s.parent])) });
 
-      // 고정 코어가 UI 스타일 목록의 값을 그대로 CSS와 재질 색에 넣으므로, 형식에 맞지 않는 목록으로는 고르지 않는다
-      const styles = await store.styles();
-      const styleErrors = checkStyles(styles);
-      if (styleErrors.length > 0) throw new PipelineStop("style", `UI 스타일 목록 형식 오류: ${styleErrors.join("; ")}`);
-      const { style: styleId } = await askUntilValid<{ style: string }>(
-        "style",
-        styleChoiceChecker(styles.map((s) => s.id)),
-        (schemaErrors, rejected) => ai.chooseStyle({ intake, candidate, styles: structuredClone(styles), rejected, schemaErrors }),
-      );
-      await log("style", styleId);
+        // 고정 코어가 UI 스타일 목록의 값을 그대로 CSS와 재질 색에 넣으므로, 형식에 맞지 않는 목록으로는 고르지 않는다
+        const styles = await store.styles();
+        const styleErrors = checkStyles(styles);
+        if (styleErrors.length > 0) throw new PipelineStop("style", `UI 스타일 목록 형식 오류: ${styleErrors.join("; ")}`);
+        const { style: styleId } = await askUntilValid<{ style: string }>(
+          "style",
+          styleChoiceChecker(styles.map((s) => s.id)),
+          (schemaErrors, rejected) => ai.chooseStyle({ intake, candidate, styles: structuredClone(styles), rejected, schemaErrors }),
+        );
+        await log("style", styleId);
 
-      const written = await writeVerifiedSpec(candidate, styles.find((s) => s.id === styleId)!);
-      if ("feedback" in written) {
-        failures.push({ candidate, feedback: written.feedback });
-        continue;
+        const written = await writeVerifiedSpec(candidate, styles.find((s) => s.id === styleId)!);
+        if ("feedback" in written) {
+          failures.push({ candidate, feedback: written.feedback });
+          break;
+        }
+        const { files, judgment } = written;
+
+        const answer = await finalApproval(written.spec, files, judgment);
+        await log("approval", answer);
+        if (answer.decision === "reject") {
+          if (answer.back === "choice") continue;
+          rejections.push({ candidate, reason: answer.reason.trim() });
+          break;
+        }
+
+        await submit(applyEdits(written.spec, answer.edits ?? {}), files, candidates, candidate);
+        return { status: "submitted" };
       }
-      const { spec, files, judgment } = written;
-
-      const { decision } = await human.finalApproval({ spec, files, judgment });
-      await log("approval", decision);
-
-      await store.submit(intake.name, files);
-      await store.recordCase({ kind: intake.kind, intake, candidates, chosen: candidate.id, spec });
-      await log("submission");
-      return { status: "submitted" };
     }
   } catch (error) {
     if (!(error instanceof PipelineStop)) throw error;

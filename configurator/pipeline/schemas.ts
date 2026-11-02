@@ -407,3 +407,49 @@ export function candidateReferenceChecker(bundle: BundleParameters) {
       ]),
     );
 }
+
+/** 최종 승인에서 반려하며 적은 거절 이유가 한 줄인지. 실행기와 최종 승인 화면이 같이 쓴다. */
+export function rejectionReasonErrors(reason: string): string[] {
+  const line = reason.trim();
+  return line === "" || line.includes("\n") ? ["/reason: 거절 이유를 한 줄로 적으세요"] : [];
+}
+
+/** 최종 승인에서 고친 슬라이더: 슬라이더 id → 새 이름·좁힌 범위. 적지 않은 값은 그대로다(사용자 스토리 69·70). */
+export type SliderEdits = Record<string, { name?: string; min?: number; max?: number }>;
+
+/** 값이 기본값에서 step의 배수만큼 떨어졌는지. 고정 코어의 슬라이더는 min에서 step씩 움직이므로, 아니면 기본값을 고를 수 없다. */
+const onStep = (value: number, { default: base, step }: { default: number; step: number }) => {
+  const k = (base - value) / step;
+  return Math.abs(k - Math.round(k)) < 1e-9;
+};
+
+/**
+ * 최종 승인에서 고친 슬라이더가 승인 전 명세 안에서만 바뀌는지. 범위는 좁히기만 한다(사용자 스토리 70):
+ * 검증은 승인 전 범위에서 했고, 기본값은 업로드한 모델의 값이라 범위 안에 남고 슬라이더로 고를 수 있어야 한다.
+ */
+export function approvalEditChecker(approved: Pick<Spec, "sliders">) {
+  return (edits: SliderEdits): string[] =>
+    Object.entries(edits).flatMap(([id, { name, min, max }]) => {
+      const slider = approved.sliders.find((s) => s.id === id);
+      if (!slider) return [`/${id}: 명세에 없는 슬라이더입니다(${approved.sliders.map((s) => s.id).join(", ")})`];
+      const errors: string[] = [];
+      if (name !== undefined && (name.trim() === "" || name.includes("\n"))) errors.push(`/${id}/name: 슬라이더 이름을 한 줄로 적으세요`);
+      const range = { min, max };
+      const unreadable = (["min", "max"] as const).filter((k) => range[k] !== undefined && !Number.isFinite(range[k]));
+      if (unreadable.length > 0) return [...errors, ...unreadable.map((k) => `/${id}/${k}: 숫자로 적으세요`)];
+      const { default: base, step } = slider;
+      const [newMin, newMax] = [min ?? slider.min, max ?? slider.max];
+      const near = (value: number) => {
+        const k = Math.floor((base - value) / step);
+        return `${base - (k + 1) * step}, ${base - k * step}`;
+      };
+      if (newMin < slider.min) errors.push(`/${id}/min: 범위는 좁히기만 할 수 있습니다. ${slider.min} 이상으로 적으세요`);
+      else if (newMin > base) errors.push(`/${id}/min: 기본값 ${base}(업로드한 모델의 값)이 범위 안에 남도록 ${base} 이하로 적으세요`);
+      else if (min !== undefined && !onStep(newMin, slider)) errors.push(`/${id}/min: 기본값 ${base}에서 step ${step}의 배수만큼 떨어진 값으로 적으세요(예: ${near(newMin)})`);
+      if (newMax > slider.max) errors.push(`/${id}/max: 범위는 좁히기만 할 수 있습니다. ${slider.max} 이하로 적으세요`);
+      else if (newMax < base) errors.push(`/${id}/max: 기본값 ${base}(업로드한 모델의 값)이 범위 안에 남도록 ${base} 이상으로 적으세요`);
+      else if (max !== undefined && !onStep(newMax, slider)) errors.push(`/${id}/max: 기본값 ${base}에서 step ${step}의 배수만큼 떨어진 값으로 적으세요(예: ${near(newMax)})`);
+      if (errors.length === 0 && newMin === newMax) errors.push(`/${id}/max: ${newMin + step} 이상으로 적으세요. 범위가 한 값뿐이면 슬라이더를 움직일 수 없습니다`);
+      return errors;
+    });
+}
