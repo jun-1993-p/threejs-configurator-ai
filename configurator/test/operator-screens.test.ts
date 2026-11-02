@@ -40,24 +40,36 @@ const cards: CandidateCard[] = [
   {
     id: "c1",
     front: "-Y",
-    parents: ["body_w"],
+    sliders: [{ parameter: "body_w", name: "전체 폭" }],
     showThickness: false,
     summary: "전체 폭 하나",
     diff: "정면 -Y <서랍 쪽>",
     axes: { W: "X", D: "Y", H: "Z" },
     previews: [{ parameter: "body_w", values: [300, 600, 900], images: [png, png, png] }],
+    choices: [{ parameter: "body_w", name: "전체 폭", options: [{ parent: "body_w", alsoChanges: ["몸통 폭", "서랍 폭"] }] }],
   },
   {
     id: "c2",
     front: "+X",
-    parents: ["body_w", "body_h"],
+    sliders: [{ parameter: "d5", name: "서랍 폭" }, { parameter: "body_h", name: "전체 높이" }],
     showThickness: true,
-    summary: "폭과 높이",
+    summary: "서랍 폭과 높이",
     diff: "정면 +X, 높이도 노출",
     axes: { W: "Y", D: "X", H: "Z" },
     previews: [
       { parameter: "body_w", values: [300, 600, 900], images: [png, png, png] },
       { parameter: "body_h", values: [350, 700, 1050], images: [png, png, png] },
+    ],
+    choices: [
+      {
+        parameter: "d5",
+        name: "서랍 폭",
+        options: [
+          { parent: "body_w", alsoChanges: ["전체 폭", "몸통 폭"] },
+          { parent: "gap", alsoChanges: [] },
+        ],
+      },
+      { parameter: "body_h", name: "전체 높이", options: [{ parent: "body_h", alsoChanges: [] }] },
     ],
   },
 ];
@@ -77,8 +89,29 @@ test("후보 카드마다 차이 한 줄, W·D·H 축 대응, 변형 미리보�
   assert.match(first, /두께 선택 숨김/);
 });
 
+test("자식 치수의 부모 후보마다 고르는 단추와 같이 변하는 치수가 카드에 적힌다", () => {
+  const [first, second] = candidateCardsHtml("1단 서랍장", cards).split('<article class="candidate"').slice(1);
+
+  assert.match(second, /서랍 폭\(d5\)을 바꾸려고 움직일 부모/);
+  assert.match(second, /<input type="radio" name="parent:c2:d5" value="body_w" checked> body_w · 전체 폭, 몸통 폭도 같이 변함/);
+  assert.match(second, /<input type="radio" name="parent:c2:d5" value="gap"> gap<\/label>/);
+  assert.match(second, /<p>전체 높이\(body_h\)<\/p>/);
+  // 부모 파라미터인 슬라이더는 고를 것 없이 같이 변하는 다른 치수만 적힌다
+  assert.match(first, /<p>전체 폭\(body_w\) · 몸통 폭, 서랍 폭도 같이 변함<\/p>/);
+  assert.doesNotMatch(first, /움직일 부모/);
+});
+
+test("고른 카드의 자식 치수마다 고른 부모를 읽고, 부모를 고르지 않았거나 후보 밖이면 오류를 돌려준다", () => {
+  assert.deepEqual(readCandidateChoice(new URLSearchParams({ candidate: "c2", "parent:c2:d5": "gap" }), cards), { candidate: "c2", parents: { d5: "gap" } });
+  const missing = "서랍 폭(d5)을 바꾸려고 움직일 부모를 고르세요(body_w, gap)";
+  assert.deepEqual(readCandidateChoice(new URLSearchParams({ candidate: "c2" }), cards), { errors: [missing] });
+  assert.deepEqual(readCandidateChoice(new URLSearchParams({ candidate: "c2", "parent:c2:d5": "body_h" }), cards), {
+    errors: [`${missing}. body_h는 부모 후보가 아닙니다`],
+  });
+});
+
 test("보낸 후보 선택 양식을 고른 후보로 읽고, 제시하지 않은 후보면 오류를 돌려준다", () => {
-  assert.deepEqual(readCandidateChoice(new URLSearchParams({ candidate: "c2" }), cards), { candidate: "c2" });
+  assert.deepEqual(readCandidateChoice(new URLSearchParams({ candidate: "c1" }), cards), { candidate: "c1", parents: {} });
   assert.deepEqual(readCandidateChoice(new URLSearchParams({ candidate: "c9" }), cards), { errors: ["제시된 후보 중 하나를 고르세요"] });
   assert.deepEqual(readCandidateChoice(new URLSearchParams(), cards), { errors: ["제시된 후보 중 하나를 고르세요"] });
 });

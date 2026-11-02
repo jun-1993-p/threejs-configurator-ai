@@ -19,8 +19,8 @@ const spec: Spec = JSON.parse(readFileSync(new URL("drawer.spec.json", fixtures)
 const intake: Intake = { name: "1단 서랍장", kind: "서랍장", memo: "폭 400~900, 높이는 고정", thickness: "ai" };
 const rules: DimensionRule[] = [{ id: "치수규칙/서랍장/폭", kind: "서랍장", part: "폭", axis: "W", min: 300, max: 1200, origin: "시험용" }];
 const candidates: Candidate[] = [
-  { id: "c1", front: "-Y", parents: ["body_w"], showThickness: false, summary: "전체 폭 하나", diff: "정면 -Y" },
-  { id: "c2", front: "+Y", parents: ["body_w"], showThickness: false, summary: "전체 폭 하나", diff: "정면 +Y" },
+  { id: "c1", front: "-Y", sliders: [{ parameter: "body_w", name: "전체 폭" }], showThickness: false, summary: "전체 폭 하나", diff: "정면 -Y" },
+  { id: "c2", front: "+Y", sliders: [{ parameter: "body_w", name: "전체 폭" }], showThickness: false, summary: "전체 폭 하나", diff: "정면 +Y" },
 ];
 const parts: PartsFound = { parts: [{ name: "DrawerBox", role: "서랍" }], fronts: ["-Y", "+Y"], up: "+Z" };
 const styles = [{ id: "natural" }, { id: "dark" }];
@@ -120,7 +120,8 @@ test("명세 작성 요청에는 정보 입력·고른 후보·치수 규칙과,
   assert.ok(JSON.stringify(request.body).length < 20_000);
   const [input] = llm.inputs(MODELS.spec);
   assert.deepEqual(input.intake, intake);
-  assert.deepEqual(input.candidate, candidates[0]);
+  // 고른 후보에는 슬라이더마다 움직일 부모가 붙는다
+  assert.deepEqual(input.candidate, { ...candidates[0], axes: { W: "X", D: "Y", H: "Z" }, sliders: [{ parameter: "body_w", name: "전체 폭", parent: "body_w" }] });
   assert.deepEqual(input.rules, rules);
   assert.deepEqual(input.feedback, []);
   assert.deepEqual(input.schemaErrors, []);
@@ -128,7 +129,19 @@ test("명세 작성 요청에는 정보 입력·고른 후보·치수 규칙과,
     input.bundle.parameters.find((p: { name: string }) => p.name === "drawer_d"),
     { name: "drawer_d", value: 430, unit: "mm", expression: "body_d - 20 mm", is_user: true, is_count: false },
   );
-  assert.deepEqual(input.bundle.sweeps.find((s: { parameter: string }) => s.parameter === "body_w"), { parameter: "body_w", range: { min: 300, max: 900 } });
+  // 전체 폭 600을 300~900으로 스윕하면 몸통과 서랍의 X 치수가 가장 크게 300 mm 바뀐다(단독 스윕의 축 반응)
+  const unchanged = { X: 0, Y: 0, Z: 0 };
+  assert.deepEqual(input.bundle.sweeps.find((s: { parameter: string }) => s.parameter === "body_w"), {
+    parameter: "body_w",
+    range: { min: 300, max: 900 },
+    response: {
+      overall: { X: 300, Y: 0, Z: 0 },
+      parts: [
+        { part: "Carcass", size: { X: 300, Y: 0, Z: 0 }, move: unchanged },
+        { part: "DrawerBox", size: { X: 300, Y: 0, Z: 0 }, move: unchanged },
+      ],
+    },
+  });
   // 부품마다 기본 형상의 바운딩 박스(Fusion 좌표, mm). 서랍장 몸통은 폭 600·깊이 450·높이 700이다.
   const carcass = input.bundle.parts.find((p: { name: string }) => p.name === "Carcass");
   assert.deepEqual(carcass.size, [600, 450, 700]);
@@ -155,6 +168,22 @@ test("부품 탐색은 VLM 모델에 여섯 방향 그림을 PNG로 싣고, 그 
   assert.ok(textOf(content).length < 5_000);
   assert.match(request.body.messages.find((m) => m.role === "system")!.content as string, /"fronts"/);
   assert.deepEqual(llm.inputs(MODELS.candidates)[0].parts, parts);
+});
+
+test("이름이 뜻을 말하지 않는 파라미터는 단독 스윕의 축 반응을 후보 제시 요청에 실어 슬라이더 이름을 짓게 한다", async () => {
+  const { llm } = await run({});
+
+  const [input] = llm.inputs(MODELS.candidates);
+  // d6(수식 "200")을 100~300으로 스윕하면 서랍의 Z 치수만 바뀐다: 서랍 높이다
+  assert.deepEqual(input.bundle.sweeps.find((s: { parameter: string }) => s.parameter === "d6").response, {
+    overall: { X: 0, Y: 0, Z: 0 },
+    parts: [
+      { part: "Carcass", size: { X: 0, Y: 0, Z: 0 }, move: { X: 0, Y: 0, Z: 0 } },
+      { part: "DrawerBox", size: { X: 0, Y: 0, Z: 100 }, move: { X: 0, Y: 0, Z: 50 } },
+    ],
+  });
+  const [request] = llm.requests.filter((r) => r.body.model === MODELS.candidates);
+  assert.match(request.body.messages.find((m) => m.role === "system")!.content as string, /Fusion 파라미터 이름이 아니라 고객이 보는 치수의 뜻/);
 });
 
 test("JSON으로 읽을 수 없는 답은 조립으로 가지 않고, 형식 오류와 그 답을 붙여 다시 묻는다", async () => {
@@ -204,7 +233,8 @@ test("LiteLLM 주소에 경로가 붙어 있어도 그 아래의 채팅 API를 �
   const llm = await fakeLiteLlm({ [MODELS.style]: [JSON.stringify({ style: "natural" })] });
   try {
     const ai = liteLlmAi({ baseUrl: `${llm.baseUrl}/litellm`, models: MODELS });
-    await ai.chooseStyle({ intake, candidate: candidates[0], styles, rejected: null, schemaErrors: [] });
+    const candidate = { ...candidates[0], axes: { W: "X", D: "Y", H: "Z" } as const, sliders: [{ parameter: "body_w", name: "전체 폭", parent: "body_w" }] };
+    await ai.chooseStyle({ intake, candidate, styles, rejected: null, schemaErrors: [] });
     assert.deepEqual(llm.requests.map((r) => [r.path, r.authorization]), [["/litellm/v1/chat/completions", undefined]]);
   } finally {
     await llm.close();

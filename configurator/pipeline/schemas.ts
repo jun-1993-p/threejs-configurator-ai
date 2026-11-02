@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import Ajv2020 from "ajv/dist/2020.js";
 
 import { STANDARD_THICKNESSES, thicknessOptions, type Spec } from "../src/engine.ts";
+import { parameterRelations, wordsOf, type BundleParameters } from "./parameter-relations.ts";
 
 // strictTypes는 끈다. 업로드 묶음 스키마가 allOf 조건 안에서 type 없이 required만 쓰는 것은 의도한 형식이다.
 const ajv = new Ajv2020.default({ allErrors: true, strictTypes: false });
@@ -14,6 +15,10 @@ const loadSharedSchema = (name: string) =>
 /** 정면 방향(Fusion 좌표 기준). 명세의 front와 같은 값이다. */
 export const FRONTS = ["+X", "-X", "+Y", "-Y", "+Z", "-Z"] as const;
 export type Front = (typeof FRONTS)[number];
+
+/** Fusion 좌표축. 명세 axes의 값이고, 정면 방향의 둘째 글자다. */
+export const FUSION_AXES = ["X", "Y", "Z"] as const;
+export type FusionAxis = (typeof FUSION_AXES)[number];
 
 /** 값이 스키마에 맞으면 빈 목록, 아니면 사람이 읽을 문장 목록 */
 export type Check = (value: unknown) => string[];
@@ -86,19 +91,31 @@ export const PARTS_SCHEMA = {
 };
 export const checkParts = checker(PARTS_SCHEMA);
 
-/** 후보 제시 응답. 후보는 2~4개(사용자 스토리 19). */
+/**
+ * 후보 제시 응답. 후보는 2~4개(사용자 스토리 19). 슬라이더마다 고객이 보는 치수의 파라미터(parameter)와 그 뜻의 이름(name)이다.
+ * parameter가 자식 파라미터면 움직일 부모는 후보 선택에서 운영자가 고른다(ADR-0003).
+ */
 export const CANDIDATES_SCHEMA = {
   type: "array",
   minItems: 2,
   maxItems: 4,
   items: {
     type: "object",
-    required: ["id", "front", "parents", "showThickness", "summary", "diff"],
+    required: ["id", "front", "sliders", "showThickness", "summary", "diff"],
     additionalProperties: false,
     properties: {
       id: { type: "string", minLength: 1 },
       front: { enum: FRONTS },
-      parents: { type: "array", minItems: 1, items: { type: "string", minLength: 1 } },
+      sliders: {
+        type: "array",
+        minItems: 1,
+        items: {
+          type: "object",
+          required: ["parameter", "name"],
+          additionalProperties: false,
+          properties: { parameter: { type: "string", minLength: 1 }, name: { type: "string", minLength: 1 } },
+        },
+      },
       showThickness: { type: "boolean" },
       summary: { type: "string" },
       diff: { type: "string" },
@@ -122,21 +139,43 @@ export function styleChoiceChecker(styleIds: string[]): Check {
 }
 
 /**
- * 명세가 업로드 묶음의 이름을 맞게 가리키는지. 슬라이더 id는 스윕한 파라미터여야 하고,
+ * 슬라이더 이름에 Fusion 파라미터 이름이 낱말로 들어 있으면(대소문자 무시, "d12 폭"도) 그 오류 문장(사용자 스토리 28).
+ * 후보 검사와 명세 검사가 같이 쓴다.
+ */
+function fusionNameError(at: string, name: string, parameterNames: Set<string>): string[] {
+  const lower = new Set([...parameterNames].map((n) => n.toLowerCase()));
+  const found = wordsOf(name).filter((w) => lower.has(w.toLowerCase()));
+  return found.length > 0
+    ? [`${at}: "${name}"에 Fusion 파라미터 이름(${found.join(", ")})이 들어 있습니다. 고객이 보는 치수의 뜻으로 지으세요(예: "서랍 폭"). 이름이 뜻을 말하지 않는 파라미터는 bundle.sweeps의 response(단독 스윕의 축 반응)를 보고 지으세요`]
+    : [];
+}
+
+/**
+ * 명세가 업로드 묶음의 이름을 맞게 가리키는지. 슬라이더 id는 스윕한 파라미터여야 하고, 슬라이더 이름은 Fusion 파라미터 이름이 아니다.
+ * children은 수식이 그 슬라이더를 따르는 파라미터여야 한다(기록용이라 변형 엔진은 읽지 않는다, ADR-0003).
  * affects의 부품은 업로드 묶음의 부품이어야 하며, 한 부품이 형태 변경과 위치 이동에 함께 있을 수 없다.
  * JSON Schema 검사를 통과한 명세에 쓴다.
  */
-export function specReferenceChecker(bundle: { parts: { name: string }[]; sweeps: { parameter: string }[] }) {
+export function specReferenceChecker(bundle: BundleParameters & { parts: { name: string }[] }) {
   const parts = new Set(bundle.parts.map((p) => p.name));
   const swept = new Set(bundle.sweeps.map((s) => s.parameter));
-  return (spec: { sliders: { id: string; affects: { shape: string[]; move: string[] } }[] }): string[] =>
-    spec.sliders.flatMap(({ id, affects }, i) => [
-      ...(swept.has(id) ? [] : [`/sliders/${i}/id: ${id}는 스윕한 파라미터가 아닙니다`]),
-      ...(["shape", "move"] as const).flatMap((field) =>
-        affects[field].filter((part) => !parts.has(part)).map((part) => `/sliders/${i}/affects/${field}: ${part}는 업로드 묶음의 부품이 아닙니다`),
-      ),
-      ...affects.shape.filter((part) => affects.move.includes(part)).map((part) => `/sliders/${i}/affects: ${part}가 shape와 move에 함께 있습니다`),
-    ]);
+  const parameterNames = new Set(bundle.parameters.map((p) => p.name));
+  const relations = parameterRelations(bundle);
+  return (spec: { sliders: { id: string; name: string; children: string[]; affects: { shape: string[]; move: string[] } }[] }): string[] =>
+    spec.sliders.flatMap(({ id, name, children, affects }, i) => {
+      const descendants = relations.descendants(id);
+      return [
+        ...(swept.has(id) ? [] : [`/sliders/${i}/id: ${id}는 스윕한 파라미터가 아닙니다`]),
+        ...fusionNameError(`/sliders/${i}/name`, name, parameterNames),
+        ...children
+          .filter((child) => !descendants.includes(child))
+          .map((child) => `/sliders/${i}/children: ${child}는 수식이 ${id}를 따르지 않습니다(따르는 파라미터: ${descendants.join(", ") || "없음"})`),
+        ...(["shape", "move"] as const).flatMap((field) =>
+          affects[field].filter((part) => !parts.has(part)).map((part) => `/sliders/${i}/affects/${field}: ${part}는 업로드 묶음의 부품이 아닙니다`),
+        ),
+        ...affects.shape.filter((part) => affects.move.includes(part)).map((part) => `/sliders/${i}/affects: ${part}가 shape와 move에 함께 있습니다`),
+      ];
+    });
 }
 
 /** 업로드한 모델의 두께와 명세의 두께를 같은 값으로 보는 차이(mm). Fusion 값은 cm에서 바꾼 부동소수다. */
@@ -229,8 +268,8 @@ export function partsReferenceChecker(bundle: { parts: { name: string }[] }) {
  * JSON Schema 검사를 통과한 후보에 쓴다.
  */
 export function candidateDiversityChecker({ fronts, up }: { fronts: Front[]; up: Front }, thickness: ThicknessExposure) {
-  return (candidates: { id: string; front: Front; parents: string[]; showThickness: boolean }[]): string[] => {
-    const shape = (c: (typeof candidates)[number]) => JSON.stringify([c.front, [...c.parents].sort(), c.showThickness]);
+  return (candidates: { id: string; front: Front; sliders: { parameter: string }[]; showThickness: boolean }[]): string[] => {
+    const shape = (c: (typeof candidates)[number]) => JSON.stringify([c.front, c.sliders.map((s) => s.parameter).sort(), c.showThickness]);
     const errors = candidates.flatMap((c, i) => [
       ...frontOnUpAxis(`/${i}/front`, c.front, up),
       ...(fronts.length === 1 && c.front !== fronts[0] ? [`/${i}/front: 부품 탐색이 확신한 정면 ${fronts[0]}이어야 합니다`] : []),
@@ -250,13 +289,33 @@ export function candidateDiversityChecker({ fronts, up }: { fronts: Front[]; up:
   };
 }
 
+/** 운영자가 고른 후보의 슬라이더: 고객이 보는 치수의 파라미터와 이름, 그리고 움직일 부모(parameter가 부모면 같은 값) */
+export interface ChosenSlider {
+  parameter: string;
+  name: string;
+  parent: string;
+}
+
 /**
  * 명세가 운영자가 고른 후보를 따르는지: 정면이 후보의 정면이고, W·D·H 축 대응이 후보 카드에 보인 것과 같다.
+ * 슬라이더는 고른 부모이고 이름은 카드의 이름이며, 자식 치수를 바꾸는 슬라이더는 children에 그 자식을 적는다(ADR-0003).
+ * 범위 교집합이 없으면 슬라이더를 빼라고 하므로, 고른 슬라이더가 모두 있어야 하지는 않다.
  * 축 대응 자체가 틀렸으면(axesChecker) 그 오류만으로 충분해 축 비교는 하지 않는다. JSON Schema 검사를 통과한 명세에 쓴다.
  */
-export function chosenCandidateChecker({ front, axes }: { front: Front; axes: Spec["axes"] }) {
-  return (spec: Pick<Spec, "front" | "axes">): string[] => {
+export function chosenCandidateChecker({ front, axes, sliders }: { front: Front; axes: Record<"W" | "D" | "H", FusionAxis>; sliders: ChosenSlider[] }) {
+  return (spec: Pick<Spec, "front" | "axes" | "sliders">): string[] => {
     const errors = spec.front === front ? [] : [`/front: 고른 후보의 정면 ${front}이어야 합니다(지금 ${spec.front})`];
+    spec.sliders.forEach(({ id, name, children }, i) => {
+      const chosen = sliders.find((s) => s.parent === id);
+      if (!chosen) {
+        errors.push(`/sliders/${i}/id: 고른 후보의 부모 파라미터(${sliders.map((s) => s.parent).join(", ")})가 아닙니다`);
+        return;
+      }
+      if (name !== chosen.name) errors.push(`/sliders/${i}/name: 고른 후보 카드의 이름 "${chosen.name}"이어야 합니다`);
+      if (chosen.parameter !== id && !children.includes(chosen.parameter)) {
+        errors.push(`/sliders/${i}/children: 이 슬라이더로 바꾸는 치수 ${chosen.parameter}("${chosen.name}")를 적어야 합니다`);
+      }
+    });
     const axesErrors = axesChecker(spec);
     if (axesErrors.length > 0) return [...errors, ...axesErrors];
     if (spec.front === front && (["W", "D", "H"] as const).some((a) => spec.axes[a] !== axes[a])) {
@@ -267,18 +326,31 @@ export function chosenCandidateChecker({ front, axes }: { front: Front; axes: Sp
 }
 
 /**
- * 후보가 노출할 부모 파라미터가 슬라이더로 쓸 수 있는 것인지. 스윕한 파라미터여야 하고, 개수형 파라미터는
- * 섞을 수 없으므로 후보가 될 수 없다(ADR-0005). 애드인은 개수형을 스윕하지 않지만 이유를 따로 알린다.
+ * 후보의 슬라이더가 슬라이더로 쓸 수 있는 치수인지. 파라미터는 스윕한 것이거나, 수식으로 스윕한 부모를 따르는 자식이어야 한다
+ * (자식이면 운영자가 부모를 고른다, ADR-0003). 개수형 파라미터는 섞을 수 없으므로 후보가 될 수 없다(ADR-0005).
+ * 한 후보 안에서 같은 파라미터를 두 번 쓰지 않고, 자식의 부모 후보가 모두 그 후보의 다른 슬라이더면 움직일 부모가 없다.
+ * 슬라이더 이름은 Fusion 파라미터 이름이 아니다(사용자 스토리 28).
  */
-export function candidateReferenceChecker(bundle: { parameters: { name: string; is_count: boolean }[]; sweeps: { parameter: string }[] }) {
+export function candidateReferenceChecker(bundle: BundleParameters) {
   const counts = new Set(bundle.parameters.filter((p) => p.is_count).map((p) => p.name));
-  const swept = new Set(bundle.sweeps.map((s) => s.parameter));
-  return (candidates: { parents: string[] }[]): string[] =>
-    candidates.flatMap(({ parents }, i) =>
-      parents.flatMap((parent, k) => {
-        const at = `/${i}/parents/${k}`;
-        if (counts.has(parent)) return [`${at}: ${parent}는 개수형 파라미터라 슬라이더 후보가 될 수 없습니다`];
-        return swept.has(parent) ? [] : [`${at}: ${parent}는 스윕한 파라미터가 아닙니다`];
-      }),
+  const parameterNames = new Set(bundle.parameters.map((p) => p.name));
+  const relations = parameterRelations(bundle);
+  /** 후보의 k번째 슬라이더 파라미터가 슬라이더로 쓸 수 없는 까닭. 쓸 수 있으면 빈 목록이다. */
+  function parameterErrors(sliders: { parameter: string }[], k: number): string[] {
+    const { parameter } = sliders[k];
+    if (sliders.findIndex((s) => s.parameter === parameter) < k) return [`${parameter}를 이 후보에서 이미 썼습니다`];
+    if (counts.has(parameter)) return [`${parameter}는 개수형 파라미터라 슬라이더 후보가 될 수 없습니다`];
+    if (!parameterNames.has(parameter)) return [`${parameter}는 업로드 묶음의 파라미터가 아닙니다`];
+    const options = relations.parentOptions(parameter);
+    if (options.length === 0) return [`${parameter}는 스윕한 파라미터가 아니고, 수식으로 따르는 스윕한 부모도 없습니다`];
+    const others = sliders.map((s) => s.parameter).filter((p) => p !== parameter && relations.sliderable(p));
+    return options.every((o) => others.includes(o)) ? [`${parameter}를 바꿀 부모(${options.join(", ")})가 모두 이 후보의 다른 슬라이더입니다`] : [];
+  }
+  return (candidates: { sliders: { parameter: string; name: string }[] }[]): string[] =>
+    candidates.flatMap(({ sliders }, i) =>
+      sliders.flatMap(({ name }, k) => [
+        ...parameterErrors(sliders, k).map((e) => `/${i}/sliders/${k}/parameter: ${e}`),
+        ...fusionNameError(`/${i}/sliders/${k}/name`, name, parameterNames),
+      ]),
     );
 }

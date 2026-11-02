@@ -1,8 +1,8 @@
 // 파이프라인 실행기: 상품 하나를 10단계 고정 순서로 진행한다(ADR-0014). AI는 단계 안에서 정해진 형식으로만 답한다.
 // 바깥 의존은 Fusion 연결·AI 모델·저장소 세 포트로만 접근한다.
-import { samePair, thicknessSamplePlan, type GridSweep, type Pair, type Spec, type SweepData } from "../src/engine.ts";
+import { samePair, thicknessSamplePlan, type Axis, type GridSweep, type Pair, type Spec, type SweepData } from "../src/engine.ts";
 import { assembleProduct, type ProductFiles } from "./assemble.ts";
-import { candidateCards, partViews, type CandidateCard, type PartColor, type PartView } from "./candidate-cards.ts";
+import { candidateCards, partViews, pickParent, type CandidateCard, type PartColor, type PartView } from "./candidate-cards.ts";
 import type { Feedback } from "./feedback.ts";
 import {
   candidateDiversityChecker,
@@ -21,7 +21,9 @@ import {
   thicknessChoiceChecker,
   UNREADABLE_ANSWER,
   type Check,
+  type ChosenSlider,
   type Front,
+  type FusionAxis,
   type ProductKind,
   type ThicknessExposure,
 } from "./schemas.ts";
@@ -71,16 +73,28 @@ export interface Intake {
 
 export type { Front };
 
+/** 후보의 슬라이더 하나: 고객이 보는 치수의 파라미터(부모 또는 자식)와 그 뜻의 슬라이더 이름 */
+export interface CandidateSlider {
+  parameter: string;
+  name: string;
+}
+
 /** 슬라이더 구성 후보 */
 export interface Candidate {
   id: string;
   front: Front;
-  /** 노출할 부모 파라미터 */
-  parents: string[];
+  /** 노출할 치수. 자식 파라미터면 움직일 부모를 후보 선택에서 운영자가 고른다(ADR-0003). */
+  sliders: CandidateSlider[];
   showThickness: boolean;
   summary: string;
   /** 다른 후보와의 차이 한 줄 */
   diff: string;
+}
+
+/** 운영자가 고른 후보: 카드에 보인 축 대응이 붙고 슬라이더마다 움직일 부모가 정해진 것. 스타일 고르기와 명세 작성의 입력이다. */
+export interface ChosenCandidate extends Omit<Candidate, "sliders"> {
+  axes: Record<Axis, FusionAxis>;
+  sliders: ChosenSlider[];
 }
 
 /** 부품 탐색(VLM) 결과: 그림에서 찾은 부품의 역할, 정면 후보(확신 순서, 하나면 확신), 위쪽 방향 */
@@ -166,11 +180,12 @@ export interface AiPort {
     rejected: unknown;
     schemaErrors: string[];
   }): Promise<unknown>;
-  chooseStyle(input: { intake: Intake; candidate: Candidate; styles: Style[]; rejected: unknown; schemaErrors: string[] }): Promise<unknown>;
+  chooseStyle(input: { intake: Intake; candidate: ChosenCandidate; styles: Style[]; rejected: unknown; schemaErrors: string[] }): Promise<unknown>;
   writeSpec(input: {
     bundle: unknown;
     intake: Intake;
-    candidate: Candidate;
+    /** 운영자가 고른 후보. 슬라이더 id는 parent, 이름은 name이고, parent가 parameter와 다르면 children에 parameter를 적는다. */
+    candidate: ChosenCandidate;
     /** 정보 입력의 상품 종류로 거른 치수 규칙. 슬라이더 범위와 source는 여기서 고른다(ADR-0009). */
     rules: DimensionRule[];
     /** 검증 피드백(feedback)을 받은 명세. 처음 쓰는 것이면 null이다. 형식 재요청 중에도 그대로다. */
@@ -193,8 +208,11 @@ export interface StorePort {
 
 /** 사람 결정. 시험에서는 각본, 운영에서는 화면이 답한다. */
 export interface HumanPort {
-  /** 후보 카드(후보와 정면에 따른 축 대응, 업로드한 스윕으로 만든 변형 미리보기) 중 하나를 고른다 */
-  chooseCandidate(cards: CandidateCard[]): Promise<{ candidate: string }>;
+  /**
+   * 후보 카드(후보와 정면에 따른 축 대응, 업로드한 스윕으로 만든 변형 미리보기, 자식 치수의 부모 후보) 중 하나를 고른다.
+   * parents는 고른 카드의 자식 치수마다 움직일 부모다(자식 파라미터 → 부모 파라미터). 부모 후보가 하나뿐이면 적지 않아도 그 부모다.
+   */
+  chooseCandidate(cards: CandidateCard[]): Promise<{ candidate: string; parents?: Record<string, string> }>;
   finalApproval(review: { spec: Spec; files: ProductFiles }): Promise<{ decision: "approve" }>;
 }
 
@@ -213,8 +231,21 @@ const SCHEMA_RETRIES = 3;
 /** 같은 후보로 검증 피드백을 붙여 명세를 다시 쓰는 횟수. 이를 넘으면 후보 제시로 돌아간다. */
 const SPEC_RETRIES = 3;
 
-/** 카드에서 AI가 낸 후보만 꺼낸다. AI 입력과 사례 기록에는 미리보기 그림을 싣지 않는다. */
-const candidateOf = ({ axes: _axes, previews: _previews, ...candidate }: CandidateCard): Candidate => candidate;
+/**
+ * 카드와 운영자가 고른 부모로 고른 후보를 만든다. AI 입력과 사례 기록에는 미리보기 그림을 싣지 않는다.
+ * 고른 부모가 그 치수의 부모 후보가 아니거나, 두 슬라이더가 같은 부모를 움직이게 되면 오류 문장을 돌려준다.
+ */
+function chosenOf({ previews: _previews, choices, ...candidate }: CandidateCard, parents: Record<string, string> = {}): ChosenCandidate | string {
+  const sliders: ChosenSlider[] = [];
+  for (const choice of choices) {
+    const picked = pickParent(choice, parents[choice.parameter]);
+    if ("error" in picked) return picked.error;
+    // 명세의 슬라이더 id는 겹칠 수 없다
+    if (sliders.some((s) => s.parent === picked.parent)) return `${picked.parent}를 두 슬라이더가 같이 움직이게 됩니다`;
+    sliders.push({ parameter: choice.parameter, name: choice.name, parent: picked.parent });
+  }
+  return { ...candidate, sliders };
+}
 
 class PipelineStop extends Error {
   readonly stage: Stage;
@@ -285,7 +316,7 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
   const ranges = rangeIntersection({ rules, intake, bundle: uploaded });
 
   /** 고른 후보 카드를 따르는 명세인지까지 본다 */
-  const checkProductSpec = (card: CandidateCard): Check => (value) => {
+  const checkProductSpec = (chosen: ChosenCandidate): Check => (value) => {
     const errors = checkSpec(value);
     if (errors.length > 0) return errors;
     const spec = value as Spec;
@@ -295,7 +326,7 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
       ...ranges.check(spec),
       ...thicknessChoiceChecker(uploaded)(spec),
       ...fixedThicknessChecker(spec),
-      ...chosenCandidateChecker(card)(spec),
+      ...chosenCandidateChecker(chosen)(spec),
     );
     return errors;
   };
@@ -367,7 +398,7 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
    * 교차 검증에 실패한 쌍은 먼저 피드백으로 명세를 고치게 하고, 다시 쓴 명세에서도 실패하면 그 쌍을 3×3 격자로
    * 보강해 같은 명세를 한 번 더 검증한다(ADR-0008). 격자 보강은 명세가 아니라 결과물의 스윕 데이터에 담긴다.
    */
-  async function writeVerifiedSpec(card: CandidateCard): Promise<{ spec: Spec; files: ProductFiles } | { feedback: Feedback[] }> {
+  async function writeVerifiedSpec(candidate: ChosenCandidate): Promise<{ spec: Spec; files: ProductFiles } | { feedback: Feedback[] }> {
     let feedback: Feedback[] = [];
     /** 검증 피드백을 받은 직전 명세 */
     let previous: Spec | null = null;
@@ -377,8 +408,8 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
     const pairsFailedBefore: Pair[] = [];
 
     for (let attempt = 0; attempt <= SPEC_RETRIES; attempt++) {
-      const spec: Spec = await askUntilValid("spec", checkProductSpec(card), (schemaErrors, rejected) =>
-        ai.writeSpec({ bundle, intake, candidate: candidateOf(card), rules: structuredClone(rules), previous: structuredClone(previous), feedback, rejected, schemaErrors }),
+      const spec: Spec = await askUntilValid("spec", checkProductSpec(candidate), (schemaErrors, rejected) =>
+        ai.writeSpec({ bundle, intake, candidate: structuredClone(candidate), rules: structuredClone(rules), previous: structuredClone(previous), feedback, rejected, schemaErrors }),
       );
       previous = spec;
       await log("spec");
@@ -468,12 +499,13 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
       );
       await log("candidates", candidates.map((c) => c.id));
 
-      const cards = candidateCards(candidates, uploaded, parts.up);
-      const { candidate: chosenId } = await human.chooseCandidate(cards);
+      const cards = candidateCards(candidates, uploaded, parts);
+      const { candidate: chosenId, parents: chosenParents } = await human.chooseCandidate(cards);
       const card = cards.find((c) => c.id === chosenId);
       if (!card) throw new PipelineStop("choice", `제시되지 않은 후보 ${chosenId}를 골랐습니다`);
-      const candidate = candidateOf(card);
-      await log("choice", chosenId);
+      const candidate = chosenOf(card, chosenParents);
+      if (typeof candidate === "string") throw new PipelineStop("choice", candidate);
+      await log("choice", { candidate: chosenId, parents: Object.fromEntries(candidate.sliders.map((s) => [s.parameter, s.parent])) });
 
       const styles = await store.styles();
       const { style } = await askUntilValid<{ style: string }>(
@@ -483,7 +515,7 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
       );
       await log("style", style);
 
-      const written = await writeVerifiedSpec(card);
+      const written = await writeVerifiedSpec(candidate);
       if ("feedback" in written) {
         failures.push({ candidate, feedback: written.feedback });
         continue;

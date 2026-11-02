@@ -133,3 +133,10 @@ test("격자 보강 쌍이 아닌 슬라이더는 격자와 무관하게 덧셈�
   const values = { body_w: 500, body_h: 900 };
   assert.deepEqual(createMorph(widthHeightSpec, withDepthGrid).positions(values), createMorph(widthHeightSpec, recording).positions(values));
 });
+
+test("명세의 children은 기록용이라 변형 결과를 바꾸지 않는다", () => {
+  // children을 적은 명세와 비운 명세가 같은 형상을 낸다(ADR-0003: 엔진에 수식 계산을 넣지 않는다)
+  const withChildren: Spec = { ...spec, sliders: [{ ...spec.sliders[0], children: ["d1", "d5", "d7"] }] };
+  const values = { body_w: 725 };
+  assert.deepEqual(createMorph(withChildren, recording).positions(values), createMorph(spec, recording).positions(values));
+});

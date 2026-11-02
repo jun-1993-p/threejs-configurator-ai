@@ -2,6 +2,7 @@
 // 응답 형식 검사와 다시 묻기는 실행기가 한다. 여기서는 묻고, 모델이 낸 문장을 JSON으로 읽어 돌려줄 뿐이다.
 // 특정 API에만 있는 기능(JSON 모드 등)에 기대지 않도록, 출력 형식은 JSON Schema를 지시문에 적어 알린다.
 import { boundsOf, round } from "./measure.ts";
+import { sweepResponse } from "./parameter-relations.ts";
 import type { AiPort, AiStage } from "./runner.ts";
 import { CANDIDATES_SCHEMA, PARTS_SCHEMA, SPEC_SCHEMA, styleChoiceSchema } from "./schemas.ts";
 import type { UploadBundle } from "./upload-bundle.ts";
@@ -16,7 +17,8 @@ export interface LiteLlmOptions {
 
 /**
  * 모델에 보내는 업로드 묶음 요약. 격자 점은 수 MB라 빼고, 부품은 기본 형상의 바운딩 박스(Fusion 좌표, mm)로,
- * 스윕은 범위와 애드인이 범위를 줄인 기록·위상 묶음 수로 줄인다.
+ * 스윕은 범위와 애드인이 범위를 줄인 기록·위상 묶음 수, 단독 스윕의 축 반응(response)으로 줄인다.
+ * 축 반응은 d12처럼 이름이 뜻을 말하지 않는 파라미터의 슬라이더 이름을 짓는 근거다(사용자 스토리 28).
  */
 export function bundleForPrompt(bundle: UploadBundle) {
   return {
@@ -33,6 +35,7 @@ export function bundleForPrompt(bundle: UploadBundle) {
       ...(reductions?.length ? { reductions: reductions.map(({ side, at, reason }) => ({ side, at, reason })) } : {}),
       // groups는 기본 묶음 밖의 위상 묶음이라, 기본 묶음을 더한 것이 그 파라미터의 위상 묶음 수다
       ...(groups?.length ? { topologyGroups: groups.length + 1 } : {}),
+      response: sweepResponse(bundle, parameter),
     })),
   };
 }
@@ -69,9 +72,10 @@ const PARTS_PROMPT = `너는 가구 쇼핑몰 구성기를 만들기 전에 가�
 - fronts는 고객이 가구를 마주하는 정면 방향(서랍 손잡이·문이 보이는 쪽)이다. 확신하면 하나만, 확신하지 못하면 가능성 높은 순서로 2~4개 낸다. up과 같은 축은 정면이 될 수 없다.`;
 
 const CANDIDATES_PROMPT = `너는 가구 쇼핑몰 구성기의 슬라이더 구성 후보를 제시한다.
-입력: bundle(Fusion 업로드 묶음 요약: 파라미터 이름·값·수식, 부품과 바운딩 박스, 스윕한 파라미터와 범위), intake(정보 입력), parts(그림으로 찾은 부품 역할·정면 후보·위쪽), failures(앞서 검증을 통과하지 못한 후보와 마지막 검증 피드백).
-- 답은 후보 객체 2~4개를 담은 JSON 배열 하나([ … ])다. 후보끼리 정면(front)·노출할 부모 파라미터(parents)·두께 선택 노출(showThickness) 중 하나 이상이 다르다.
-- parents는 bundle.sweeps에 있는 파라미터만 쓴다. 개수형(is_count) 파라미터는 쓰지 않는다. 다른 파라미터의 수식이 따르는 부모 파라미터를 고른다.
+입력: bundle(Fusion 업로드 묶음 요약: 파라미터 이름·값·수식, 부품과 바운딩 박스, 스윕한 파라미터와 범위·단독 스윕의 축 반응), intake(정보 입력), parts(그림으로 찾은 부품 역할·정면 후보·위쪽), failures(앞서 검증을 통과하지 못한 후보와 마지막 검증 피드백).
+- 답은 후보 객체 2~4개를 담은 JSON 배열 하나([ … ])다. 후보끼리 정면(front)·노출할 치수의 파라미터(sliders의 parameter)·두께 선택 노출(showThickness) 중 하나 이상이 다르다.
+- sliders는 고객이 바꿀 치수마다 하나다. parameter는 그 치수의 파라미터로, bundle.sweeps에 있는 부모 파라미터이거나, 고객이 원하는 치수가 수식으로 부모를 따르는 자식 파라미터면 그 자식이다(움직일 부모는 운영자가 고른다). 개수형(is_count) 파라미터는 쓰지 않는다.
+- sliders의 name은 Fusion 파라미터 이름이 아니라 고객이 보는 치수의 뜻을 따른 한국어 슬라이더 이름이다(예: d12 → "서랍 폭"). 파라미터 이름이 뜻을 말하지 않으면 bundle.sweeps의 response(단독 스윕에서 상품 전체 overall과 부품 parts가 Fusion 축 X·Y·Z로 바뀐 치수 size·위치 move, mm)와 parts의 역할을 보고 짓는다.
 - front는 고객이 가구를 바라보는 정면 방향(Fusion 좌표)이다. parts.fronts가 하나면 그 정면을 쓰고, 여럿이면 그 정면을 후보끼리 모두 나눠 쓴다. parts.up과 같은 축은 정면이 될 수 없다.
 - summary는 후보 설명 한 줄, diff는 다른 후보와의 차이 한 줄(한국어).
 - failures에 있는 후보는 같은 구성으로 다시 내지 않는다.`;
@@ -84,11 +88,11 @@ const SPEC_PROMPT = `너는 가구 쇼핑몰 구성기의 명세(JSON)를 쓴다
 입력: bundle(Fusion 업로드 묶음 요약), intake(정보 입력), candidate(운영자가 고른 슬라이더 구성 후보), rules(이 상품 종류의 치수 규칙), previous(검증 피드백을 받은 명세, 처음이면 null), feedback(previous가 받은 검증 피드백), rejected(형식 검사에 걸린 직전 답, 없으면 null), schemaErrors(rejected의 형식 검사 오류).
 - product는 intake.name 그대로다.
 - front는 candidate.front다. axes는 W(폭)·D(깊이)·H(높이)가 대응하는 Fusion 축이다. 정면이 ±Y면 W는 X, D는 Y이고, 정면이 ±X면 W는 Y, D는 X다. bundle.parts의 바운딩 박스(size는 X·Y·Z 순)로 높이 축을 확인한다.
-- sliders는 candidate.parents마다 하나다. id는 그 파라미터 이름, name은 고객이 보는 치수 뜻의 한국어 이름(예: "전체 폭"), unit은 "mm"다.
+- sliders는 candidate.sliders마다 하나다. id는 그 parent(움직일 부모 파라미터), name은 그 name 그대로, unit은 "mm"다. parent가 parameter와 다르면 children에 parameter를 넣는다.
 - default는 bundle.parameters에 있는 그 파라미터의 value 그대로다.
 - axis는 그 파라미터가 바꾸는 치수의 축(W·D·H)이다. source는 rules 중 같은 축의 규칙 id다.
 - min·max는 세 범위의 교집합 안에서 고르고 default를 담는다: source 규칙의 min~max, intake.memo에 그 부위 이름 뒤에 적힌 "값~값"(단위 없으면 mm, cm는 mm로 바꿈), bundle.sweeps에 있는 그 파라미터의 range. step은 범위를 고르게 나누는 값(보통 10)이다.
-- children은 수식(expression)이 이 부모를 직접 또는 간접으로 따르는 파라미터 이름이다. 기록용이다.
+- children은 수식(expression)이 이 부모를 직접 또는 간접으로 따르는 파라미터 이름이다. 기록용이고, 수식이 따르지 않는 파라미터는 넣지 않는다.
 - affects.shape는 이 슬라이더를 움직이면 크기가 바뀌는 부품, affects.move는 크기는 그대로이고 자리만 옮겨지는 부품이다. bundle.parts의 name만 쓰고, 한 부품을 둘 다에 넣지 않는다.
 - thickness는 판재 두께 선택이다. candidate.showThickness가 false면 빈 목록이다. 두께 후보(options)는 표준 두께 목록 3·6·9·12·15·18·24·30 mm에서 기본 두께와 그 앞뒤 한 칸이다. ids로 묶는 두께 파라미터는 기본 두께가 같아야 하고 default는 그 값이다.
 - fixed는 슬라이더로 바꾸지 않는 판재 두께 파라미터다. 어떤 슬라이더의 children에도, thickness에도 넣지 않는다. 확실하지 않으면 빈 목록이다.

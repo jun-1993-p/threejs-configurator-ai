@@ -1,13 +1,12 @@
 // 운영자 화면: 정보 입력 양식과 후보 카드. 화면은 HTML 문장으로 만들고, 보낸 양식 값을 정보 입력과 사람 결정으로 읽는다.
 // 화면을 띄우는 서버(운영 호스트)는 티켓 22에서 붙인다. 이 파일은 DOM 없이 Node에서 돈다.
-import type { CandidateCard } from "./candidate-cards.ts";
+import { DIMENSION_NAMES, pickParent, type CandidateCard, type ParentChoice } from "./candidate-cards.ts";
+import { DIMENSIONS } from "./measure.ts";
 import type { Intake } from "./runner.ts";
 import { checkIntake, PRODUCT_KINDS, THICKNESS_CHOICES, type ThicknessExposure } from "./schemas.ts";
 
 /** 두께 선택 노출 여부를 화면에 쓰는 말. 고를 거리는 THICKNESS_CHOICES 순서이고, 처음 것이 기본값이다. */
 const THICKNESS_LABELS: Record<ThicknessExposure, string> = { ai: "AI 판단", show: "보이기", hide: "숨기기" };
-
-const AXIS_NAMES = { W: "폭", D: "깊이", H: "높이" } as const;
 
 const escape = (text: string) => text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
@@ -56,8 +55,31 @@ export function readIntakeForm(form: URLSearchParams): { intake: Intake } | { er
   return errors.length > 0 ? { errors } : { intake: intake as Intake };
 }
 
+/** 부모 고르기 단추의 양식 이름. 카드마다 따로라 고른 카드의 값만 읽는다. */
+const parentField = (cardId: string, parameter: string) => `parent:${cardId}:${parameter}`;
+
+const alsoChangesText = (alsoChanges: string[]) => (alsoChanges.length > 0 ? ` · ${escape(alsoChanges.join(", "))}도 같이 변함` : "");
+
+/**
+ * 슬라이더 하나: 이름과 같이 변하는 다른 치수. 자식 치수의 부모 후보가 여럿이면 부모마다 고르는 단추가 있고 처음 것이 골라져 있다.
+ * 부모 후보가 하나면 고를 것 없이 움직이는 부모만 적는다.
+ */
+function sliderHtml(cardId: string, { parameter, name, options }: ParentChoice): string {
+  if (options.length === 1) {
+    const [{ parent, alsoChanges }] = options;
+    return `<p>${escape(name)}(${escape(parameter)}${parent === parameter ? "" : ` ← ${escape(parent)}`})${alsoChangesText(alsoChanges)}</p>`;
+  }
+  const radios = options.map(
+    ({ parent, alsoChanges }, i) =>
+      `<label><input type="radio" name="${escape(parentField(cardId, parameter))}" value="${escape(parent)}"${i === 0 ? " checked" : ""}> ${escape(parent)}${alsoChangesText(alsoChanges)}</label>`,
+  );
+  return `<fieldset><legend>${escape(name)}(${escape(parameter)})을 바꾸려고 움직일 부모</legend>
+${radios.join("\n")}
+</fieldset>`;
+}
+
 function cardHtml(card: CandidateCard): string {
-  const axes = (["W", "D", "H"] as const).map((a) => `${a} ${AXIS_NAMES[a]} = ${card.axes[a]}축`).join(" · ");
+  const axes = DIMENSIONS.map((a) => `${a} ${DIMENSION_NAMES[a]} = ${card.axes[a]}축`).join(" · ");
   const previews = card.previews
     .map(
       ({ parameter, values, images }) =>
@@ -70,7 +92,8 @@ function cardHtml(card: CandidateCard): string {
 <label><input type="radio" name="candidate" value="${escape(card.id)}" required> ${escape(card.summary)}</label>
 <p>${escape(card.diff)}</p>
 <p>정면 ${card.front} · ${axes}</p>
-<p>움직일 파라미터: ${card.parents.map(escape).join(", ")} · ${card.showThickness ? "두께 선택 보이기" : "두께 선택 숨김"}</p>
+${card.choices.map((choice) => sliderHtml(card.id, choice)).join("\n")}
+<p>${card.showThickness ? "두께 선택 보이기" : "두께 선택 숨김"}</p>
 ${previews}
 </article>`;
 }
@@ -89,8 +112,19 @@ ${cards.map(cardHtml).join("\n")}
   );
 }
 
-/** 보낸 후보 선택 양식을 사람 결정으로 읽는다 */
-export function readCandidateChoice(form: URLSearchParams, cards: CandidateCard[]): { candidate: string } | { errors: string[] } {
-  const id = form.get("candidate");
-  return id !== null && cards.some((c) => c.id === id) ? { candidate: id } : { errors: ["제시된 후보 중 하나를 고르세요"] };
+/** 보낸 후보 선택 양식을 사람 결정으로 읽는다. 고른 카드에서 부모 후보가 여럿인 자식 치수마다 고른 부모도 읽는다. */
+export function readCandidateChoice(
+  form: URLSearchParams,
+  cards: CandidateCard[],
+): { candidate: string; parents: Record<string, string> } | { errors: string[] } {
+  const card = cards.find((c) => c.id === form.get("candidate"));
+  if (!card) return { errors: ["제시된 후보 중 하나를 고르세요"] };
+  const parents: Record<string, string> = {};
+  const errors: string[] = [];
+  for (const choice of card.choices.filter((c) => c.options.length > 1)) {
+    const picked = pickParent(choice, form.get(parentField(card.id, choice.parameter)) ?? undefined);
+    if ("error" in picked) errors.push(picked.error);
+    else parents[choice.parameter] = picked.parent;
+  }
+  return errors.length > 0 ? { errors } : { candidate: card.id, parents };
 }

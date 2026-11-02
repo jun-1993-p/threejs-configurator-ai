@@ -55,8 +55,8 @@ const rules: DimensionRule[] = [
 ];
 
 const candidates: Candidate[] = [
-  { id: "c1", front: "-Y", parents: ["body_w"], showThickness: false, summary: "전체 폭 하나", diff: "정면 -Y" },
-  { id: "c2", front: "+Y", parents: ["body_w"], showThickness: false, summary: "전체 폭 하나", diff: "정면 +Y" },
+  { id: "c1", front: "-Y", sliders: [{ parameter: "body_w", name: "전체 폭" }], showThickness: false, summary: "전체 폭 하나", diff: "정면 -Y" },
+  { id: "c2", front: "+Y", sliders: [{ parameter: "body_w", name: "전체 폭" }], showThickness: false, summary: "전체 폭 하나", diff: "정면 +Y" },
 ];
 
 /** 부품 탐색(VLM) 답: 정면이 -Y인지 +Y인지 확신하지 못해, 위 두 후보가 그 정면을 나눠 갖는다 */
@@ -106,8 +106,18 @@ const approveFirst: HumanPort = {
   finalApproval: () => Promise.resolve({ decision: "approve" }),
 };
 
+/** 스윕한 파라미터. 일부러 틀린 슬라이더 이름을 쓴 명세는 후보에 넣지 않으려고 쓴다. */
+const swept = new Set([...bundle.sweeps, ...shelfRecording.sweeps].map((s: { parameter: string }) => s.parameter));
+
+/** 위 두 후보가 각본의 명세들이 쓰는 슬라이더를 모두 노출하게 한 것. 명세의 슬라이더는 고른 후보의 것이어야 한다. */
+function candidatesFor(specs: unknown[]): Candidate[] {
+  const sliders = new Map<string, string>();
+  for (const { id, name } of (specs as Spec[]).flatMap((s) => s.sliders)) if (swept.has(id) && !sliders.has(id)) sliders.set(id, name);
+  return candidates.map((c) => ({ ...c, sliders: [...sliders].map(([parameter, name]) => ({ parameter, name })) }));
+}
+
 function setup(script: Partial<Script> = {}, fusion: FusionPort = offline, dimensionRules: DimensionRule[] = rules) {
-  const ai = scriptedAi({ parts: [partsFound], candidates: [candidates], style: [{ style: "natural" }], spec: [spec], ...script });
+  const ai = scriptedAi({ parts: [partsFound], candidates: [candidatesFor(script.spec ?? [spec])], style: [{ style: "natural" }], spec: [spec], ...script });
   const store = memoryStore({ styles, rules: dimensionRules });
   return { ai, store, ports: { fusion, ai, store } };
 }
@@ -173,12 +183,12 @@ function drawnWidth(base64: string): number {
 }
 
 /** 받은 후보 카드를 남기고 정해 둔 후보를 고르는 사람 */
-function choosing(id: string) {
+function choosing(id: string, parents?: Record<string, string>) {
   const shown: CandidateCard[][] = [];
   const human: HumanPort = {
     chooseCandidate: (cards) => {
       shown.push(cards);
-      return Promise.resolve({ candidate: id });
+      return Promise.resolve({ candidate: id, ...(parents ? { parents } : {}) });
     },
     finalApproval: () => Promise.resolve({ decision: "approve" }),
   };
@@ -231,8 +241,8 @@ test("부품 탐색이 업로드 묶음에 없는 부품을 가리키거나 위�
 test("후보끼리 정면·부모 파라미터·두께 선택 노출이 모두 같으면 다시 만든다", async () => {
   // 부모 파라미터 순서만 다른 후보도 같은 후보다
   const same = [
-    { ...candidates[0], parents: ["body_w", "body_h"] },
-    { ...candidates[0], id: "c2", parents: ["body_h", "body_w"], diff: "순서만 다름" },
+    { ...candidates[0], sliders: [{ parameter: "body_w", name: "전체 폭" }, { parameter: "body_h", name: "전체 높이" }] },
+    { ...candidates[0], id: "c2", sliders: [{ parameter: "body_h", name: "전체 높이" }, { parameter: "body_w", name: "전체 폭" }], diff: "순서만 다름" },
   ];
   const { ai, ports } = setup({ parts: [{ ...partsFound, fronts: ["-Y"] }], candidates: [same, [candidates[0], { ...candidates[0], id: "c2", showThickness: true }]] });
 
@@ -307,15 +317,17 @@ test("후보 카드마다 다른 후보와의 차이, 정면에 따른 W·D·H �
 test("운영자가 고른 후보가 명세 작성의 입력이 되고, 명세의 정면은 그 후보를 따라야 한다", async () => {
   const back = { ...spec, front: "+Y" };
   const { ai, store, ports } = setup({ spec: [spec, back] });
-  const { human } = choosing("c2");
+  const { human, shown } = choosing("c2");
 
   const result = await runPipeline({ bundle, intake, human, ports });
 
   assert.equal(result.status, "submitted");
   const [first, second] = ai.calls.spec as { candidate: Candidate; schemaErrors: string[] }[];
-  assert.deepEqual(first.candidate, candidates[1]);
+  assert.deepEqual(first.candidate, { ...candidates[1], axes: { W: "X", D: "Y", H: "Z" }, sliders: [{ parameter: "body_w", name: "전체 폭", parent: "body_w" }] });
   assert.deepEqual(second.schemaErrors, ["/front: 고른 후보의 정면 +Y이어야 합니다(지금 -Y)"]);
   assert.equal(store.cases[0].chosen, "c2");
+  // 부모 파라미터인 슬라이더에도 같이 변하는 다른 치수가 적힌다(자기 치수 "전체 폭"은 빼고)
+  assert.deepEqual(shown[0][1].choices, [{ parameter: "body_w", name: "전체 폭", options: [{ parent: "body_w", alsoChanges: ["몸통 폭", "서랍 폭"] }] }]);
 });
 
 test("정보 입력의 상품 종류가 정해진 목록 밖이거나 상품명이 비었으면 후보 제시 전에 멈춘다", async () => {
@@ -568,7 +580,7 @@ test("같은 후보로 3번 넘게 수치 검증에 실패하면 실패 이유�
   const proposals = ai.calls.candidates as { failures: { candidate: Candidate; feedback: Feedback[] }[] }[];
   assert.deepEqual(proposals[0].failures, []);
   assert.equal(proposals[1].failures.length, 1);
-  assert.deepEqual(proposals[1].failures[0].candidate, candidates[0]);
+  assert.deepEqual(proposals[1].failures[0].candidate, { ...candidates[0], axes: { W: "X", D: "Y", H: "Z" }, sliders: [{ parameter: "body_w", name: "전체 폭", parent: "body_w" }] });
   assert.ok(proposals[1].failures[0].feedback.some((f) => f.kind === "dimension_error" && f.part === "DrawerBox"));
   assert.deepEqual(
     store.log.map((e) => e.stage).filter((s) => s === "candidates" || s === "verification"),
@@ -624,10 +636,12 @@ test("명세가 녹화본에 없는 슬라이더·부품 이름을 쓰거나 한
 
   assert.equal(result.status, "submitted");
   const errors = (ai.calls.spec[1] as { schemaErrors: string[] }).schemaErrors;
-  assert.equal(errors.length, 3, errors.join("\n"));
+  assert.equal(errors.length, 4, errors.join("\n"));
   assert.match(errors.join("\n"), /\/sliders\/0\/affects\/shape.*Drawer/);
   assert.match(errors.join("\n"), /\/sliders\/0\/affects.*Carcass/);
-  assert.match(errors.join("\n"), /\/sliders\/1\/id.*drawer_depth/);
+  assert.match(errors.join("\n"), /\/sliders\/1\/id: drawer_depth는 스윕한/);
+  // 고른 후보의 슬라이더도 아니다
+  assert.match(errors.join("\n"), /\/sliders\/1\/id: 고른 후보의 부모 파라미터/);
 });
 
 const corners = [
@@ -874,7 +888,7 @@ test("격자 샘플 하나라도 재계산에 실패하면 그 쌍은 보강하�
 
 /** 전체 깊이 하나로 된 명세. 범위 300~600은 속 비우기 면 지정점 녹화본에서 줄어든 스윕 범위(337.5~675)를 min 쪽에서 넘는다. */
 const bodyDepthSpec: Spec = { ...spec, sliders: [depthSpec.sliders[0]] };
-const depthCandidates: Candidate[] = candidates.map((c) => ({ ...c, parents: ["body_d"] }));
+const depthCandidates: Candidate[] = candidates.map((c) => ({ ...c, sliders: [{ parameter: "body_d", name: "전체 깊이" }] }));
 
 test("업로드 묶음에 모델링 오류 의심으로 줄어든 범위가 있으면 업로드 단계 처리 기록으로 운영자에게 알린다", async () => {
   const { store, ports } = setup({ candidates: [depthCandidates], spec: [{ ...bodyDepthSpec, sliders: [{ ...bodyDepthSpec.sliders[0], min: 337.5 }] }] });
@@ -912,10 +926,10 @@ test("명세 범위가 줄어든 스윕 범위를 넘으면 그 까닭을 담은
   assert.deepEqual(JSON.parse(store.submissions[0].files["spec.json"]), narrowed);
 });
 
-test("후보가 개수형 파라미터나 스윕하지 않은 파라미터를 노출하면 이유를 붙여 후보를 다시 묻는다", async () => {
+test("후보가 개수형 파라미터나 스윕한 부모를 따르지 않는 파라미터를 노출하면 이유를 붙여 후보를 다시 묻는다", async () => {
   const withCount = structuredClone(bundle);
   withCount.parameters.push({ name: "shelves", value: 2, unit: "", expression: "2", is_user: true, is_count: true });
-  const counted = candidates.map((c, i) => ({ ...c, parents: [i === 0 ? "shelves" : "d5"] }));
+  const counted = candidates.map((c, i) => ({ ...c, sliders: [i === 0 ? { parameter: "shelves", name: "선반 수" } : { parameter: "d8", name: "손잡이 높이" }] }));
   const { ai, ports } = setup({ candidates: [counted, candidates] });
 
   const result = await runPipeline({ bundle: withCount, intake, human: approveFirst, ports });
@@ -923,16 +937,16 @@ test("후보가 개수형 파라미터나 스윕하지 않은 파라미터를 �
   assert.equal(result.status, "submitted");
   const errors = (ai.calls.candidates[1] as { schemaErrors: string[] }).schemaErrors;
   assert.deepEqual(errors, [
-    "/0/parents/0: shelves는 개수형 파라미터라 슬라이더 후보가 될 수 없습니다",
-    "/1/parents/0: d5는 스윕한 파라미터가 아닙니다",
+    "/0/sliders/0/parameter: shelves는 개수형 파라미터라 슬라이더 후보가 될 수 없습니다",
+    "/1/sliders/0/parameter: d8는 스윕한 파라미터가 아니고, 수식으로 따르는 스윕한 부모도 없습니다",
   ]);
 });
 
 test("칸막이 수가 바뀌는 선반도 위상 묶음을 넘나드는 슬라이더로 검증을 통과해 제출된다", async () => {
   const shelfIntake: Intake = { name: "칸막이 선반", kind: "선반", memo: "폭 500~1300, 깊이 200~400", thickness: "ai" };
   const shelfCandidates: Candidate[] = [
-    { id: "c1", front: "-Y", parents: ["shelf_w", "shelf_d"], showThickness: false, summary: "폭과 깊이", diff: "정면 -Y" },
-    { id: "c2", front: "-Y", parents: ["shelf_w"], showThickness: false, summary: "폭 하나", diff: "깊이 고정" },
+    { id: "c1", front: "-Y", sliders: [{ parameter: "shelf_w", name: "전체 폭" }, { parameter: "shelf_d", name: "전체 깊이" }], showThickness: false, summary: "폭과 깊이", diff: "정면 -Y" },
+    { id: "c2", front: "-Y", sliders: [{ parameter: "shelf_w", name: "전체 폭" }], showThickness: false, summary: "폭 하나", diff: "깊이 고정" },
   ];
   const ai = scriptedAi({ parts: [shelfParts], candidates: [shelfCandidates], style: [{ style: "natural" }], spec: [shelfSpec] });
   const store = memoryStore({ styles, rules });
@@ -948,8 +962,8 @@ test("칸막이 수가 바뀌는 선반도 위상 묶음을 넘나드는 슬라�
 
 const shelfIntake: Intake = { name: "칸막이 선반", kind: "선반", memo: "폭 500~1300, 깊이 200~400", thickness: "ai" };
 const shelfCandidates: Candidate[] = [
-  { id: "c1", front: "-Y", parents: ["shelf_w", "shelf_d"], showThickness: true, summary: "폭·깊이와 판재 두께", diff: "두께 선택 노출" },
-  { id: "c2", front: "-Y", parents: ["shelf_w", "shelf_d"], showThickness: false, summary: "폭·깊이", diff: "두께 고정" },
+  { id: "c1", front: "-Y", sliders: [{ parameter: "shelf_w", name: "전체 폭" }, { parameter: "shelf_d", name: "전체 깊이" }], showThickness: true, summary: "폭·깊이와 판재 두께", diff: "두께 선택 노출" },
+  { id: "c2", front: "-Y", sliders: [{ parameter: "shelf_w", name: "전체 폭" }, { parameter: "shelf_d", name: "전체 깊이" }], showThickness: false, summary: "폭·깊이", diff: "두께 고정" },
 ];
 /** 칸막이 선반 판재 두께 t(기본 18)의 두께 선택 */
 const shelfThickness = { ids: ["t"], name: "판재 두께", default: 18, options: [15, 18, 24] };
@@ -1005,10 +1019,17 @@ test("두께 선택의 기본 두께가 업로드한 모델의 값과 다르면 
   assert.deepEqual(errors, ["/thickness/0/default: 업로드한 모델의 두께(18 mm)와 다릅니다"]);
 });
 
+/** 판재 두께 t가 수식으로 슬라이더를 따르는 칸막이 선반(children에는 수식이 따르는 파라미터만 적을 수 있다) */
+function thicknessFollowing(slider: string) {
+  const recording = structuredClone(shelfRecording);
+  recording.parameters.find((p) => p.name === "t")!.expression = `${slider} * 0.06`;
+  return recording;
+}
+
 test("고정 두께 파라미터가 슬라이더의 자식에 있으면 명세를 다시 묻는다", async () => {
   const sliders = shelfSpec.sliders.map((s, i) => (i === 1 ? { ...s, children: ["t"] } : s));
 
-  const errors = await shelfSchemaErrors({ ...shelfSpec, sliders, fixed: ["t"] });
+  const errors = await shelfSchemaErrors({ ...shelfSpec, sliders, fixed: ["t"] }, thicknessFollowing("shelf_d"));
 
   assert.deepEqual(errors, ["/fixed/0: t는 슬라이더 shelf_d의 children에 있어 고정할 수 없습니다"]);
 });
@@ -1070,7 +1091,7 @@ test("두께 후보 형상의 면 구성이 기준 형상과 다르면 위상 �
 });
 
 test("두께 선택의 파라미터가 슬라이더의 자식이거나 고정 두께·다른 두께 선택에도 있으면 명세를 다시 묻는다", async () => {
-  const twoBoards = structuredClone(shelfRecording);
+  const twoBoards = thicknessFollowing("shelf_w");
   twoBoards.parameters.push({ name: "t_back", value: 18, unit: "mm", expression: "18 mm", is_user: true, is_count: false } as never);
   const sliders = shelfSpec.sliders.map((s, i) => (i === 0 ? { ...s, children: ["t"] } : s));
 
@@ -1229,4 +1250,74 @@ test("두께 쌍의 격자 검증점에서 격자 보간이 Fusion과 맞지 않
     assert.deepEqual((f.measured as { values: unknown }).values, { t: 24, body_w: 700 });
     assert.match(f.hint, /두께 t와 body_w는 격자 보간으로도 맞지 않습니다/);
   }
+});
+
+/** 서랍 폭(d5 = body_w - 40 mm)을 원하는 후보. d5는 자식 파라미터라 부모를 운영자가 고른다. */
+const drawerWidthCandidates: Candidate[] = candidates.map((c) => ({ ...c, sliders: [{ parameter: "d5", name: "서랍 폭" }] }));
+/** 전체 폭을 움직여 서랍 폭을 바꾸는 명세 */
+const drawerWidthSpec: Spec = { ...spec, sliders: [{ ...spec.sliders[0], name: "서랍 폭", children: ["d5"] }] };
+
+test("원하는 치수가 자식 파라미터면 카드에 부모 후보와 같이 변하는 치수가 적히고, 고른 부모가 그 이름의 슬라이더가 된다", async () => {
+  const { ai, store, ports } = setup({ candidates: [drawerWidthCandidates], spec: [drawerWidthSpec] });
+  const { human, shown } = choosing("c1", { d5: "body_w" });
+
+  const result = await runPipeline({ bundle, intake, human, ports });
+
+  assert.equal(result.status, "submitted", JSON.stringify(store.log.at(-1)));
+  // 전체 폭을 300~900으로 움직이면 상품 전체와 몸통·서랍의 폭이 바뀐다. 바꾸려는 치수 "서랍 폭" 자신은 빼고 적는다.
+  assert.deepEqual(shown[0][0].choices, [{ parameter: "d5", name: "서랍 폭", options: [{ parent: "body_w", alsoChanges: ["전체 폭", "몸통 폭"] }] }]);
+  assert.deepEqual(shown[0][0].previews.map((p) => p.parameter), ["body_w"]);
+  const [input] = ai.calls.spec as { candidate: { sliders: unknown[] } }[];
+  assert.deepEqual(input.candidate.sliders, [{ parameter: "d5", name: "서랍 폭", parent: "body_w" }]);
+  assert.deepEqual(store.log.find((e) => e.stage === "choice")!.detail, { candidate: "c1", parents: { d5: "body_w" } });
+  assert.deepEqual(JSON.parse(store.submissions[0].files["spec.json"]).sliders[0].children, ["d5"]);
+});
+
+/** 서랍 안 깊이(d9 = drawer_d, drawer_d = body_d - 20 mm)를 원하는 후보. 수식을 거슬러 서랍 깊이·전체 깊이가 부모 후보다. */
+const innerDepthCandidates: Candidate[] = candidates.map((c) => ({ ...c, sliders: [{ parameter: "d9", name: "서랍 안 깊이" }] }));
+
+test("자식 치수의 부모 후보가 여럿이면 가까운 부모부터 카드에 보이고, 운영자가 고르지 않았거나 후보 밖의 부모를 고르면 멈춘다", async () => {
+  const unchosen = setup({ candidates: [innerDepthCandidates] });
+  const { human, shown } = choosing("c1");
+
+  const result = await runPipeline({ bundle, intake, human, ports: unchosen.ports });
+
+  assert.deepEqual(result, { status: "stopped", stage: "choice", reason: "서랍 안 깊이(d9)을 바꾸려고 움직일 부모를 고르세요(drawer_d, body_d)" });
+  const [choice] = shown[0][0].choices;
+  assert.deepEqual(choice.options.map((o) => o.parent), ["drawer_d", "body_d"]);
+  assert.deepEqual(choice.options[1].alsoChanges, ["전체 깊이", "몸통 깊이", "서랍 깊이"]);
+
+  const outside = setup({ candidates: [innerDepthCandidates] });
+  const stopped = await runPipeline({ bundle, intake, human: choosing("c1", { d9: "body_w" }).human, ports: outside.ports });
+  assert.deepEqual(stopped, { status: "stopped", stage: "choice", reason: "서랍 안 깊이(d9)을 바꾸려고 움직일 부모를 고르세요(drawer_d, body_d). body_w는 부모 후보가 아닙니다" });
+});
+
+test("명세가 고른 후보 카드의 슬라이더 이름을 쓰지 않거나 자식 치수를 children에 적지 않거나 수식이 따르지 않는 파라미터를 적으면 다시 묻는다", async () => {
+  const wrong: Spec = { ...spec, sliders: [{ ...spec.sliders[0], name: "body_w", children: ["d6"] }] };
+  const { ai, ports } = setup({ candidates: [drawerWidthCandidates], spec: [wrong, drawerWidthSpec] });
+
+  const result = await runPipeline({ bundle, intake, human: choosing("c1").human, ports });
+
+  assert.equal(result.status, "submitted");
+  assert.deepEqual((ai.calls.spec[1] as { schemaErrors: string[] }).schemaErrors, [
+    '/sliders/0/name: "body_w"에 Fusion 파라미터 이름(body_w)이 들어 있습니다. 고객이 보는 치수의 뜻으로 지으세요(예: "서랍 폭"). 이름이 뜻을 말하지 않는 파라미터는 bundle.sweeps의 response(단독 스윕의 축 반응)를 보고 지으세요',
+    "/sliders/0/children: d6는 수식이 body_w를 따르지 않습니다(따르는 파라미터: d1, d5, d7)",
+    '/sliders/0/name: 고른 후보 카드의 이름 "서랍 폭"이어야 합니다',
+    '/sliders/0/children: 이 슬라이더로 바꾸는 치수 d5("서랍 폭")를 적어야 합니다',
+  ]);
+});
+
+test("후보의 슬라이더 이름이 Fusion 파라미터 이름이거나, 자식 치수를 바꿀 부모가 모두 그 후보의 다른 슬라이더면 후보를 다시 묻는다", async () => {
+  // 대소문자가 달라도, 다른 말과 섞여도 Fusion 파라미터 이름이다
+  const fusionName = { ...candidates[0], sliders: [{ parameter: "d6", name: "D6 높이" }] };
+  const noParentLeft = { ...candidates[1], sliders: [{ parameter: "body_w", name: "전체 폭" }, { parameter: "d5", name: "서랍 폭" }] };
+  const { ai, ports } = setup({ candidates: [[fusionName, noParentLeft], candidates] });
+
+  const result = await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  assert.deepEqual((ai.calls.candidates[1] as { schemaErrors: string[] }).schemaErrors, [
+    '/0/sliders/0/name: "D6 높이"에 Fusion 파라미터 이름(D6)이 들어 있습니다. 고객이 보는 치수의 뜻으로 지으세요(예: "서랍 폭"). 이름이 뜻을 말하지 않는 파라미터는 bundle.sweeps의 response(단독 스윕의 축 반응)를 보고 지으세요',
+    "/1/sliders/1/parameter: d5를 바꿀 부모(body_w)가 모두 이 후보의 다른 슬라이더입니다",
+  ]);
 });
