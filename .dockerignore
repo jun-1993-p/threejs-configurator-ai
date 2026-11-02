@@ -1,0 +1,15 @@
+# 이미지에는 server/·schema/·configurator/ 소스만 들어간다. 실제 상품 데이터와 비밀값은 넣지 않는다.
+.git
+.env
+.env.*
+.venv
+.scratch
+data
+fixtures
+solidcraft-test
+**/node_modules
+**/dist
+**/__pycache__
+**/*.egg-info
+.mypy_cache
+.pytest_cache

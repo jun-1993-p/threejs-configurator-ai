@@ -1,0 +1,61 @@
+# 구성기 서버 전체를 LAN의 로컬 Docker 하나로 띄운다(ADR-0015). 실행 방법은 docs/docker.md.
+# 비밀값은 저장소 밖 .env(.env.example 참고)에서 읽는다. 실제 상품 데이터(data/, fixtures/private/)는 컨테이너 밖에 둔다.
+name: configurator
+
+services:
+  # 업로드 묶음을 받고 애드인과 추가 샘플 요청을 주고받는 서버. 애드인이 LAN에서 이 주소로 붙는다.
+  server:
+    build:
+      context: .
+      dockerfile: docker/server.Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./fixtures/private:/app/fixtures/private
+    restart: unless-stopped
+
+  # 모델 중계. 파이프라인은 model_name(llm·vlm·embedding)만 부르고, 실제 모델과 예비 전환은 docker/litellm/config.yaml이 정한다.
+  litellm:
+    # 확인한 LiteLLM 1.106.6. 판 번호 태그가 없어 main-stable의 digest로 고정한다
+    image: ghcr.io/berriai/litellm:main-stable@sha256:37e2dafb088a7723beb998590682957386dfc83ffea1848486f8e0e5cfac0b06
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    # 값은 docker compose가 저장소 루트의 .env에서 읽어 넣는다
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?.env에 LITELLM_MASTER_KEY를 정하세요(.env.example 참고)}
+      CEREBRAS_API_KEY: ${CEREBRAS_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      LOCAL_MODEL_URL: ${LOCAL_MODEL_URL:-http://ollama:11434/v1}
+      EMBEDDING_MODEL_URL: ${EMBEDDING_MODEL_URL:-http://ollama:11434/v1}
+    volumes:
+      - ./docker/litellm/config.yaml:/app/config.yaml:ro
+    ports:
+      - "4000:4000"
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+  # 로컬 모델(예비 LLM·VLM과 임베딩). 호스트에서 도는 Ollama와 겹치지 않게 포트를 열지 않고 litellm만 붙는다.
+  ollama:
+    image: ollama/ollama:0.40.13
+    volumes:
+      - ollama:/root/.ollama
+    restart: unless-stopped
+
+  # 파이프라인 실행 도구. 늘 떠 있지 않고 docker compose run --rm pipeline <스크립트> … 로 부른다.
+  pipeline:
+    build:
+      context: .
+      dockerfile: docker/pipeline.Dockerfile
+    profiles: ["tools"]
+    environment:
+      LITELLM_URL: http://litellm:4000
+      LITELLM_API_KEY: ${LITELLM_MASTER_KEY:-}
+    volumes:
+      - ./data:/app/data
+      - ./fixtures:/app/fixtures
+    depends_on:
+      - litellm
+
+volumes:
+  ollama:

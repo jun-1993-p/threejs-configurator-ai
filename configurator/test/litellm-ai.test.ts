@@ -52,22 +52,30 @@ type Content = string | ({ type: "text"; text: string } | { type: "image_url"; i
 /** 사용자 메시지의 문장 부분 */
 const textOf = (content: Content) => (typeof content === "string" ? content : content.flatMap((p) => (p.type === "text" ? [p.text] : [])).join(""));
 
-/** 모델 이름별 답 목록을 차례로 내는 가짜 LiteLLM 프록시 */
-async function fakeLiteLlm(answers: Record<string, string[]>) {
+/**
+ * 모델이 낸 답. 문장만 주면 그 문장이 content이고, 객체면 응답 메시지 그대로다.
+ * 추론 모델은 추론을 content 밖의 필드나 content 앞의 <think> 블록에 싣는다.
+ */
+type Answer = string | { content: string | null; reasoning?: string; reasoning_content?: string };
+
+/** 모델 이름별 답 목록을 차례로 내는 가짜 LiteLLM 프록시. delayMs만큼 늦게 답한다(예비 모델로 넘어가느라 늦는 프록시). */
+async function fakeLiteLlm(answers: Record<string, Answer[]>, { delayMs = 0 } = {}) {
   const requests: ChatRequest[] = [];
   const server = createServer((req, res) => {
     let raw = "";
     req.on("data", (chunk) => (raw += chunk));
-    req.on("end", () => {
+    req.on("end", async () => {
       const body = JSON.parse(raw);
       requests.push({ path: req.url ?? "", authorization: req.headers.authorization, body });
-      const content = answers[body.model]?.shift();
-      if (content === undefined) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      const answer = answers[body.model]?.shift();
+      if (answer === undefined) {
         res.writeHead(500).end(JSON.stringify({ error: { message: `${body.model}에 남은 답이 없습니다` } }));
         return;
       }
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }] }));
+      const message = { role: "assistant", ...(typeof answer === "string" ? { content: answer } : answer) };
+      res.end(JSON.stringify({ choices: [{ index: 0, message, finish_reason: "stop" }] }));
     });
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -78,11 +86,16 @@ async function fakeLiteLlm(answers: Record<string, string[]>) {
     /** 그 모델에 보낸 요청의 사용자 메시지(JSON) */
     inputs: (model: string) =>
       requests.filter((r) => r.body.model === model).map((r) => JSON.parse(textOf(r.body.messages.find((m) => m.role === "user")!.content))),
-    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+    // 늦게 답하는 중에 끊은 연결이 남아 있어도 닫는다
+    close: () =>
+      new Promise<void>((resolve) => {
+        server.close(() => resolve());
+        server.closeAllConnections();
+      }),
   };
 }
 
-async function run(answers: Partial<Record<keyof typeof MODELS, string[]>>, cases = memoryCaseStore()) {
+async function run(answers: Partial<Record<keyof typeof MODELS, Answer[]>>, cases = memoryCaseStore()) {
   const llm = await fakeLiteLlm({
     [MODELS.parts]: answers.parts ?? [JSON.stringify(parts)],
     [MODELS.candidates]: answers.candidates ?? [JSON.stringify(candidates)],
@@ -253,6 +266,18 @@ test("피드백을 받은 명세를 고치다 형식 오류가 나도, 다시 �
   assert.deepEqual(third.feedback, second.feedback);
 });
 
+test("LiteLLM이 정한 시간 안에 답하지 않으면 그 사실을 담아 실패한다", async () => {
+  // 제한 시간은 LiteLLM이 예비 모델을 차례로 기다리는 시간보다 길게 둔다. 여기서는 짧게 줄여 끊기는지만 본다.
+  const llm = await fakeLiteLlm({ [MODELS.style]: [JSON.stringify({ style: "natural" })] }, { delayMs: 500 });
+  try {
+    const ai = liteLlmAi({ baseUrl: llm.baseUrl, models: MODELS, timeoutMs: 100 });
+    const candidate = { ...candidates[0], axes: { W: "X", D: "Y", H: "Z" } as const, sliders: [{ parameter: "body_w", name: "전체 폭", parent: "body_w" }] };
+    await assert.rejects(ai.chooseStyle({ intake, candidate, styles, rejected: null, schemaErrors: [] }), /LiteLLM이 0\.1초 안에 답하지 않았습니다\(llm-style\)/);
+  } finally {
+    await llm.close();
+  }
+});
+
 test("LiteLLM 주소에 경로가 붙어 있어도 그 아래의 채팅 API를 부른다", async () => {
   const llm = await fakeLiteLlm({ [MODELS.style]: [JSON.stringify({ style: "natural" })] });
   try {
@@ -270,6 +295,43 @@ test("코드 블록으로 감싼 JSON 답도 읽는다", async () => {
 
   assert.equal(result.status, "submitted");
   assert.equal(llm.inputs(MODELS.spec).length, 1);
+});
+
+// LiteLLM 설정에서 모델을 바꾸면 같은 단계에 다른 모양의 답이 온다(ADR-0015). 실제로 본 모양마다 같은 녹화본으로 끝까지 간다.
+const ANSWER_SHAPES: [string, (json: string) => Answer][] = [
+  ["Cerebras·Groq의 gpt-oss: 추론을 reasoning 필드에 따로 싣는다", (json) => ({ content: json, reasoning: "정면은 -Y로 본다." })],
+  ["LiteLLM이 추론을 reasoning_content로 옮긴 답", (json) => ({ content: json, reasoning_content: "정면은 -Y로 본다." })],
+  ["로컬 추론 모델: content 앞에 <think> 블록을 붙인다", (json) => `<think>
+정면은 -Y로 본다. {"front": "+X"}는 아니다.
+</think>
+
+${json}`],
+];
+
+for (const [shape, answer] of ANSWER_SHAPES) {
+  test(`모델을 바꿔도 같은 녹화본으로 제출까지 간다: ${shape}`, async () => {
+    const { result, store, llm } = await run({
+      parts: [answer(JSON.stringify(parts))],
+      candidates: [answer(JSON.stringify(candidates))],
+      style: [answer(JSON.stringify({ style: "natural" }))],
+      spec: [answer(JSON.stringify(spec))],
+      judgment: [answer(JSON.stringify({ problems: [] }))],
+    });
+
+    assert.equal(result.status, "submitted");
+    assert.deepEqual(JSON.parse(store.submissions[0].files["spec.json"]), spec);
+    // 형식 오류로 다시 묻지 않고 단계마다 한 번씩만 물었다
+    assert.equal(llm.requests.length, 5);
+  });
+}
+
+test("내용이 빈 답(추론만 하다 끝난 답)은 조립으로 가지 않고, 형식 오류로 다시 묻는다", async () => {
+  const { result, llm } = await run({ spec: [{ content: null, reasoning: "축을 정하는 중" }, JSON.stringify(spec)] });
+
+  assert.equal(result.status, "submitted");
+  const [, retry] = llm.inputs(MODELS.spec);
+  assert.deepEqual(retry.rejected, "");
+  assert.deepEqual(retry.schemaErrors, ["(최상위): JSON으로 읽을 수 없는 답입니다. 설명 없이 JSON 하나만 내세요"]);
 });
 
 test("LiteLLM이 오류로 답하면 그 상태와 이유를 담아 실패한다", async () => {

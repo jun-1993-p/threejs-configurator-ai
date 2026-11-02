@@ -1,5 +1,5 @@
 #!/bin/sh
-# 커밋 전 검사. 스테이지된 파일에 따라 TS(구성기·파이프라인)와 Python(애드인·서버·합성 녹화본) 검사를 돌린다.
+# 커밋 전 검사. 스테이지된 파일에 따라 TS(구성기·파이프라인)와 Python(애드인·서버·합성 녹화본·LiteLLM 설정) 검사를 돌린다.
 # 켜기: git config core.hooksPath .githooks
 set -e
 
@@ -12,7 +12,7 @@ if echo "$staged" | grep -qE '^(configurator/|schema/|fixtures/)'; then
   (cd configurator && npm run --silent typecheck && npm test --silent -- --test-reporter=dot)
 fi
 
-if echo "$staged" | grep -qE '^(addin/|server/|synthetic/|schema/|fixtures/|pyproject\.toml)'; then
+if echo "$staged" | grep -qE '^(addin/|server/|synthetic/|docker/|schema/|fixtures/|pyproject\.toml)'; then
   echo "[pre-commit] Python: pytest"
   if [ -x .venv/Scripts/python ]; then py=.venv/Scripts/python; else py=.venv/bin/python; fi
   "$py" -m pytest -q

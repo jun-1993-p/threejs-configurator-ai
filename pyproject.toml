@@ -22,10 +22,12 @@ dev = [
     "httpx",
     "mypy",
     "types-jsonschema",
+    "pyyaml",
+    "types-PyYAML",
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["addin/tests", "server/tests", "synthetic/tests"]
+testpaths = ["addin/tests", "server/tests", "synthetic/tests", "docker/tests"]
 pythonpath = ["addin/ConfiguratorUploader", "."]
 
 [tool.mypy]

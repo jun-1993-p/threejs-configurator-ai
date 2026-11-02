@@ -1,6 +1,8 @@
 // AI 모델 포트의 LiteLLM 구현. LiteLLM 프록시의 OpenAI 호환 채팅 API로 단계마다 정해진 모델을 부른다(ADR-0015).
 // 응답 형식 검사와 다시 묻기는 실행기가 한다. 여기서는 묻고, 모델이 낸 문장을 JSON으로 읽어 돌려줄 뿐이다.
 // 특정 API에만 있는 기능(JSON 모드 등)에 기대지 않도록, 출력 형식은 JSON Schema를 지시문에 적어 알린다.
+import { Agent, fetch } from "undici";
+
 import type { Embed } from "./case-store.ts";
 import { boundsOf, round } from "./measure.ts";
 import { sweepResponse } from "./parameter-relations.ts";
@@ -14,7 +16,15 @@ export interface LiteLlmOptions {
   apiKey?: string;
   /** 단계별 모델 이름. LiteLLM 설정의 model_name이라, 실제 모델은 LiteLLM 설정만 바꿔 전환한다. */
   models: Record<AiStage, string>;
+  /** 한 번 묻고 답을 기다리는 시간(ms). 기본은 LiteLLM이 예비 모델을 차례로 기다리는 시간보다 길다. */
+  timeoutMs?: number;
 }
+
+/**
+ * docker/litellm/config.yaml에서 외부 API 둘(120초씩)이 답하지 않아 로컬 모델(900초)까지 가는 시간보다 길게 둔다.
+ * Node fetch의 기본 제한(헤더 300초)으로는 LiteLLM이 예비 모델로 넘어가는 중에 끊긴다.
+ */
+const DEFAULT_TIMEOUT_MS = 20 * 60 * 1000;
 
 /**
  * 모델에 보내는 업로드 묶음 요약. 격자 점은 수 MB라 빼고, 부품은 기본 형상의 바운딩 박스(Fusion 좌표, mm)로,
@@ -112,11 +122,16 @@ const JUDGMENT_PROMPT = `너는 가구 쇼핑몰 구성기가 고객에게 보�
 /** 답 전체를 감싼 마크다운 코드 블록(```json … ```) */
 const CODE_BLOCK = /^\s*```[a-z]*\s*\n([\s\S]*?)\n\s*```\s*$/;
 
+/** 로컬 추론 모델(Ollama 등)이 답 앞에 붙이는 추론 블록. Cerebras·Groq은 추론을 content 밖의 필드에 싣는다. */
+const THINK_BLOCK = /^\s*<think>[\s\S]*?<\/think>/;
+
 /**
  * 모델이 낸 문장을 JSON으로 읽는다. 지시해도 코드 블록으로 감싸는 모델이 있어 감싼 것은 벗긴다.
  * 읽을 수 없으면 문장 그대로 돌려줘, 실행기의 형식 검사에 걸려 다시 묻게 한다.
+ * 추론만 하다 끝난 답은 content가 null이라 빈 문장으로 본다.
  */
-function readJson(content: string): unknown {
+function readJson(raw: string | null): unknown {
+  const content = (raw ?? "").replace(THINK_BLOCK, "");
   try {
     return JSON.parse(content.match(CODE_BLOCK)?.[1] ?? content);
   } catch {
@@ -144,8 +159,10 @@ export function liteLlmEmbed({ baseUrl, apiKey, model }: { baseUrl: string; apiK
   };
 }
 
-export function liteLlmAi({ baseUrl, apiKey, models }: LiteLlmOptions): AiPort {
+export function liteLlmAi({ baseUrl, apiKey, models, timeoutMs = DEFAULT_TIMEOUT_MS }: LiteLlmOptions): AiPort {
   const chat = apiUrl(baseUrl, "v1/chat/completions");
+  // 기다리는 시간은 signal 하나로 정하고, undici 자체 제한(헤더·본문 300초)은 끈다
+  const dispatcher = new Agent({ headersTimeout: 0, bodyTimeout: 0 });
   /** images: 사용자 메시지에 문장 뒤로 붙일 PNG(base64). 있으면 OpenAI 호환 문장·그림 조각 목록으로 보낸다. */
   async function ask(stage: AiStage, instructions: string, input: unknown, images: string[] = []): Promise<unknown> {
     const text = JSON.stringify(input);
@@ -153,8 +170,13 @@ export function liteLlmAi({ baseUrl, apiKey, models }: LiteLlmOptions): AiPort {
       images.length === 0
         ? text
         : [{ type: "text", text }, ...images.map((png) => ({ type: "image_url", image_url: { url: `data:image/png;base64,${png}` } }))];
+    const timedOut = (error: unknown): never => {
+      throw (error as Error).name === "TimeoutError" ? new Error(`LiteLLM이 ${timeoutMs / 1000}초 안에 답하지 않았습니다(${models[stage]})`) : error;
+    };
     const response = await fetch(chat, {
       method: "POST",
+      dispatcher,
+      signal: AbortSignal.timeout(timeoutMs),
       headers: { "content-type": "application/json", ...authorization(apiKey) },
       body: JSON.stringify({
         model: models[stage],
@@ -163,9 +185,9 @@ export function liteLlmAi({ baseUrl, apiKey, models }: LiteLlmOptions): AiPort {
           { role: "user", content },
         ],
       }),
-    });
+    }).catch(timedOut);
     if (!response.ok) throw new Error(`LiteLLM 호출 실패(${models[stage]}): ${response.status} ${await response.text()}`);
-    const body = (await response.json()) as { choices: { message: { content: string } }[] };
+    const body = (await response.json().catch(timedOut)) as { choices: { message: { content: string | null } }[] };
     return readJson(body.choices[0].message.content);
   }
   // 실행기가 업로드 단계에서 형식을 검사한 뒤에만 AI 단계를 부른다

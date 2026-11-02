@@ -36,6 +36,7 @@
 ### 5. 실제 상품으로 실제 모델 확인 (티켓 15에서 옮김)
 
 - [ ] 실제 상품 하나로 실제 모델을 써서 수치 검증까지 통과하는 수동 확인 기록이 있다. LiteLLM에 Cerebras `gpt-oss-120b`를 걸고 `scripts/run-pipeline.ts`로 돌린다. 기록은 이 티켓 아래에 남긴다
+- [ ] Docker 구성(`docs/docker.md`)에 Cerebras·Groq 실제 키를 넣고 `llm`·`vlm`이 실제로 답하는지, Cerebras 키를 비우면 Groq로 넘어가는지 확인한다. `docker/litellm/config.yaml`의 Cerebras VLM 이름 `qwen3.8-27b`가 실제 모델 이름인지도 본다(티켓 22에서 옮김)
 
 ## Comments
 
