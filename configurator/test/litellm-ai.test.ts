@@ -10,7 +10,7 @@ import type { Spec } from "../src/engine.ts";
 import { liteLlmAi } from "../pipeline/litellm-ai.ts";
 import { memoryStore } from "../pipeline/memory-store.ts";
 import type { DimensionRule } from "../pipeline/range-intersection.ts";
-import { runPipeline, type Candidate, type FusionPort, type HumanPort, type Intake } from "../pipeline/runner.ts";
+import { runPipeline, type Candidate, type FusionPort, type HumanPort, type Intake, type PartsFound } from "../pipeline/runner.ts";
 
 const fixtures = new URL("../../fixtures/synthetic/", import.meta.url);
 const bundle = JSON.parse(readFileSync(new URL("drawer.json", fixtures), "utf-8"));
@@ -22,9 +22,10 @@ const candidates: Candidate[] = [
   { id: "c1", front: "-Y", parents: ["body_w"], showThickness: false, summary: "전체 폭 하나", diff: "정면 -Y" },
   { id: "c2", front: "+Y", parents: ["body_w"], showThickness: false, summary: "전체 폭 하나", diff: "정면 +Y" },
 ];
+const parts: PartsFound = { parts: [{ name: "DrawerBox", role: "서랍" }], fronts: ["-Y", "+Y"], up: "+Z" };
 const styles = [{ id: "natural" }, { id: "dark" }];
 
-const MODELS = { candidates: "llm-candidates", style: "llm-style", spec: "llm-spec" };
+const MODELS = { parts: "vlm-parts", candidates: "llm-candidates", style: "llm-style", spec: "llm-spec" };
 
 const offline: FusionPort = {
   requestSamples: () => Promise.reject(new Error("이 시험에서는 추가 샘플을 요청하지 않는다")),
@@ -39,8 +40,14 @@ const approveFirst: HumanPort = {
 interface ChatRequest {
   path: string;
   authorization: string | undefined;
-  body: { model: string; messages: { role: string; content: string }[] };
+  body: { model: string; messages: { role: string; content: Content }[] };
 }
+
+/** 문장 하나, 또는 VLM에 보내는 문장·그림 조각 목록(OpenAI 호환 형식) */
+type Content = string | ({ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } })[];
+
+/** 사용자 메시지의 문장 부분 */
+const textOf = (content: Content) => (typeof content === "string" ? content : content.flatMap((p) => (p.type === "text" ? [p.text] : [])).join(""));
 
 /** 모델 이름별 답 목록을 차례로 내는 가짜 LiteLLM 프록시 */
 async function fakeLiteLlm(answers: Record<string, string[]>) {
@@ -67,13 +74,14 @@ async function fakeLiteLlm(answers: Record<string, string[]>) {
     requests,
     /** 그 모델에 보낸 요청의 사용자 메시지(JSON) */
     inputs: (model: string) =>
-      requests.filter((r) => r.body.model === model).map((r) => JSON.parse(r.body.messages.find((m) => m.role === "user")!.content)),
+      requests.filter((r) => r.body.model === model).map((r) => JSON.parse(textOf(r.body.messages.find((m) => m.role === "user")!.content))),
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   };
 }
 
 async function run(answers: Partial<Record<keyof typeof MODELS, string[]>>) {
   const llm = await fakeLiteLlm({
+    [MODELS.parts]: answers.parts ?? [JSON.stringify(parts)],
     [MODELS.candidates]: answers.candidates ?? [JSON.stringify(candidates)],
     [MODELS.style]: answers.style ?? [JSON.stringify({ style: "natural" })],
     [MODELS.spec]: answers.spec ?? [JSON.stringify(spec)],
@@ -96,6 +104,7 @@ test("LiteLLM을 거친 모델의 답으로 업로드부터 제출까지 진행�
   assert.deepEqual(
     llm.requests.map((r) => [r.path, r.body.model, r.authorization]),
     [
+      ["/v1/chat/completions", MODELS.parts, "Bearer sk-test"],
       ["/v1/chat/completions", MODELS.candidates, "Bearer sk-test"],
       ["/v1/chat/completions", MODELS.style, "Bearer sk-test"],
       ["/v1/chat/completions", MODELS.spec, "Bearer sk-test"],
@@ -124,11 +133,28 @@ test("명세 작성 요청에는 정보 입력·고른 후보·치수 규칙과,
   const carcass = input.bundle.parts.find((p: { name: string }) => p.name === "Carcass");
   assert.deepEqual(carcass.size, [600, 450, 700]);
   // 출력 형식은 명세 JSON Schema로 알려 준다
-  const system = request.body.messages.find((m) => m.role === "system")!.content;
+  const system = request.body.messages.find((m) => m.role === "system")!.content as string;
   assert.match(system, /"affects"/);
   // 모델이 $ref를 값으로 옮겨 적지 않도록 참조는 풀어서 보낸다
   assert.match(system, /"W":\{"enum":\["X","Y","Z"\]\}/);
   assert.doesNotMatch(system, /\$ref|\$defs/);
+});
+
+test("부품 탐색은 VLM 모델에 여섯 방향 그림을 PNG로 싣고, 그 결과가 후보 제시 요청에 담긴다", async () => {
+  const { llm } = await run({});
+
+  const [request] = llm.requests.filter((r) => r.body.model === MODELS.parts);
+  const content = request.body.messages.find((m) => m.role === "user")!.content as Exclude<Content, string>;
+  const images = content.flatMap((p) => (p.type === "image_url" ? [p.image_url.url] : []));
+  assert.equal(images.length, 6);
+  assert.ok(images.every((url) => url.startsWith("data:image/png;base64,iVBORw0KGgo")));
+  // 문장에는 그림 순서대로 어느 쪽에서 본 그림인지와 부품 색이 담기고, 그림 데이터는 다시 싣지 않는다
+  const [input] = llm.inputs(MODELS.parts);
+  assert.deepEqual(input.views, ["+X", "-X", "+Y", "-Y", "+Z", "-Z"]);
+  assert.deepEqual(input.colors.map((c: { name: string }) => c.name), ["Carcass", "DrawerBox"]);
+  assert.ok(textOf(content).length < 5_000);
+  assert.match(request.body.messages.find((m) => m.role === "system")!.content as string, /"fronts"/);
+  assert.deepEqual(llm.inputs(MODELS.candidates)[0].parts, parts);
 });
 
 test("JSON으로 읽을 수 없는 답은 조립으로 가지 않고, 형식 오류와 그 답을 붙여 다시 묻는다", async () => {

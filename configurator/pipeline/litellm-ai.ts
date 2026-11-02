@@ -3,7 +3,7 @@
 // 특정 API에만 있는 기능(JSON 모드 등)에 기대지 않도록, 출력 형식은 JSON Schema를 지시문에 적어 알린다.
 import { boundsOf, round } from "./measure.ts";
 import type { AiPort, AiStage } from "./runner.ts";
-import { CANDIDATES_SCHEMA, SPEC_SCHEMA, styleChoiceSchema } from "./schemas.ts";
+import { CANDIDATES_SCHEMA, PARTS_SCHEMA, SPEC_SCHEMA, styleChoiceSchema } from "./schemas.ts";
 import type { UploadBundle } from "./upload-bundle.ts";
 
 export interface LiteLlmOptions {
@@ -61,11 +61,18 @@ const OUTPUT_RULES = (schema: object) =>
     JSON.stringify(inlineRefs(schema)),
   ].join("\n");
 
+const PARTS_PROMPT = `너는 가구 쇼핑몰 구성기를 만들기 전에 가구 그림에서 부품을 찾는다.
+입력: intake(정보 입력), views(붙인 그림의 순서대로, 각 그림을 어느 쪽에서 봤는지: Fusion 좌표 방향), colors(그림에서 부품마다 칠한 색).
+- 그림은 기본 형상을 그 방향에서 본 직교 투영이다. X·Y 쪽에서 본 그림은 Z가 위, Z 쪽에서 본 그림은 Y가 위다.
+- parts는 colors의 부품마다 name(colors의 name 그대로)과 role(서랍·몸통·상판·문 같은 역할, 한국어)이다.
+- up은 가구가 바닥에 놓였을 때 위쪽 방향이다.
+- fronts는 고객이 가구를 마주하는 정면 방향(서랍 손잡이·문이 보이는 쪽)이다. 확신하면 하나만, 확신하지 못하면 가능성 높은 순서로 2~4개 낸다. up과 같은 축은 정면이 될 수 없다.`;
+
 const CANDIDATES_PROMPT = `너는 가구 쇼핑몰 구성기의 슬라이더 구성 후보를 제시한다.
-입력: bundle(Fusion 업로드 묶음 요약: 파라미터 이름·값·수식, 부품과 바운딩 박스, 스윕한 파라미터와 범위), intake(정보 입력), failures(앞서 검증을 통과하지 못한 후보와 마지막 검증 피드백).
+입력: bundle(Fusion 업로드 묶음 요약: 파라미터 이름·값·수식, 부품과 바운딩 박스, 스윕한 파라미터와 범위), intake(정보 입력), parts(그림으로 찾은 부품 역할·정면 후보·위쪽), failures(앞서 검증을 통과하지 못한 후보와 마지막 검증 피드백).
 - 답은 후보 객체 2~4개를 담은 JSON 배열 하나([ … ])다. 후보끼리 정면(front)·노출할 부모 파라미터(parents)·두께 선택 노출(showThickness) 중 하나 이상이 다르다.
 - parents는 bundle.sweeps에 있는 파라미터만 쓴다. 개수형(is_count) 파라미터는 쓰지 않는다. 다른 파라미터의 수식이 따르는 부모 파라미터를 고른다.
-- front는 고객이 가구를 바라보는 정면 방향(Fusion 좌표)이다. 확신이 없으면 후보끼리 정면을 다르게 둔다.
+- front는 고객이 가구를 바라보는 정면 방향(Fusion 좌표)이다. parts.fronts가 하나면 그 정면을 쓰고, 여럿이면 그 정면을 후보끼리 모두 나눠 쓴다. parts.up과 같은 축은 정면이 될 수 없다.
 - summary는 후보 설명 한 줄, diff는 다른 후보와의 차이 한 줄(한국어).
 - failures에 있는 후보는 같은 구성으로 다시 내지 않는다.`;
 
@@ -105,7 +112,13 @@ function readJson(content: string): unknown {
 export function liteLlmAi({ baseUrl, apiKey, models }: LiteLlmOptions): AiPort {
   // 주소에 붙은 경로(예: /litellm) 아래의 채팅 API를 부르도록 끝을 /로 맞춘다
   const chat = new URL("v1/chat/completions", baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`);
-  async function ask(stage: AiStage, instructions: string, input: unknown): Promise<unknown> {
+  /** images: 사용자 메시지에 문장 뒤로 붙일 PNG(base64). 있으면 OpenAI 호환 문장·그림 조각 목록으로 보낸다. */
+  async function ask(stage: AiStage, instructions: string, input: unknown, images: string[] = []): Promise<unknown> {
+    const text = JSON.stringify(input);
+    const content =
+      images.length === 0
+        ? text
+        : [{ type: "text", text }, ...images.map((png) => ({ type: "image_url", image_url: { url: `data:image/png;base64,${png}` } }))];
     const response = await fetch(chat, {
       method: "POST",
       headers: { "content-type": "application/json", ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}) },
@@ -113,7 +126,7 @@ export function liteLlmAi({ baseUrl, apiKey, models }: LiteLlmOptions): AiPort {
         model: models[stage],
         messages: [
           { role: "system", content: instructions },
-          { role: "user", content: JSON.stringify(input) },
+          { role: "user", content },
         ],
       }),
     });
@@ -124,6 +137,15 @@ export function liteLlmAi({ baseUrl, apiKey, models }: LiteLlmOptions): AiPort {
   // 실행기가 업로드 단계에서 형식을 검사한 뒤에만 AI 단계를 부른다
   const summary = (bundle: unknown) => bundleForPrompt(bundle as UploadBundle);
   return {
+    // 그림은 조각으로 붙이고, 문장에는 그림 순서대로 어느 쪽에서 본 것인지만 남긴다
+    findParts: ({ views, ...input }) =>
+      ask(
+        "parts",
+        `${PARTS_PROMPT}
+${OUTPUT_RULES(PARTS_SCHEMA)}`,
+        { ...input, views: views.map((v) => v.from) },
+        views.map((v) => v.image),
+      ),
     proposeCandidates: (input) =>
       ask("candidates", `${CANDIDATES_PROMPT}\n${OUTPUT_RULES(CANDIDATES_SCHEMA)}`, { ...input, bundle: summary(input.bundle) }),
     chooseStyle: (input) => ask("style", `${STYLE_PROMPT}\n${OUTPUT_RULES(styleChoiceSchema(input.styles.map((s) => s.id)))}`, input),

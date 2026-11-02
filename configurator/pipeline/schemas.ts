@@ -13,6 +13,7 @@ const loadSharedSchema = (name: string) =>
 
 /** 정면 방향(Fusion 좌표 기준). 명세의 front와 같은 값이다. */
 export const FRONTS = ["+X", "-X", "+Y", "-Y", "+Z", "-Z"] as const;
+export type Front = (typeof FRONTS)[number];
 
 /** 값이 스키마에 맞으면 빈 목록, 아니면 사람이 읽을 문장 목록 */
 export type Check = (value: unknown) => string[];
@@ -41,6 +42,49 @@ export const SPEC_SCHEMA = loadSharedSchema("spec.schema.json");
 export const checkSpec = checker(SPEC_SCHEMA);
 /** 추가 샘플 요청에 대한 애드인 응답. 형식은 업로드 묶음 스키마에 함께 있다(위에서 컴파일해 $id로 찾는다). */
 export const checkSampleResponse = checker({ $ref: "upload-bundle.schema.json#/$defs/sampleResponse" });
+
+/** 상품 종류 목록. 사례 저장소와 치수 규칙을 이 값으로 거른다. */
+export const PRODUCT_KINDS = ["서랍장", "책장", "선반", "수납장", "테이블", "의자"] as const;
+export type ProductKind = (typeof PRODUCT_KINDS)[number];
+
+/** 정보 입력의 두께 선택 노출 여부. ai는 "AI 판단"이다. */
+export const THICKNESS_CHOICES = ["ai", "show", "hide"] as const;
+export type ThicknessExposure = (typeof THICKNESS_CHOICES)[number];
+
+/** 정보 입력. 직업처럼 쓰이지 않는 항목은 받지 않는다(사용자 스토리 18). */
+export const checkIntake = checker({
+  type: "object",
+  required: ["name", "kind", "memo", "thickness"],
+  additionalProperties: false,
+  properties: {
+    name: { type: "string", minLength: 1 },
+    kind: { enum: PRODUCT_KINDS },
+    memo: { type: "string" },
+    thickness: { enum: THICKNESS_CHOICES },
+  },
+});
+
+/** 부품 탐색(VLM) 응답. fronts가 둘 이상이면 정면을 확신하지 못한 것이고, 확신 순서다. */
+export const PARTS_SCHEMA = {
+  type: "object",
+  required: ["parts", "fronts", "up"],
+  additionalProperties: false,
+  properties: {
+    parts: {
+      type: "array",
+      minItems: 1,
+      items: {
+        type: "object",
+        required: ["name", "role"],
+        additionalProperties: false,
+        properties: { name: { type: "string", minLength: 1 }, role: { type: "string", minLength: 1 } },
+      },
+    },
+    fronts: { type: "array", minItems: 1, maxItems: 4, uniqueItems: true, items: { enum: FRONTS } },
+    up: { enum: FRONTS },
+  },
+};
+export const checkParts = checker(PARTS_SCHEMA);
 
 /** 후보 제시 응답. 후보는 2~4개(사용자 스토리 19). */
 export const CANDIDATES_SCHEMA = {
@@ -159,6 +203,67 @@ export function fixedThicknessChecker(spec: Pick<Spec, "sliders" | "thickness" |
       ]),
     ),
   ];
+}
+
+/** 정면이 위쪽과 같은 축이면 그 오류 문장(at: 오류 위치) */
+const frontOnUpAxis = (at: string, front: Front, up: Front) => (front[1] === up[1] ? [`${at}: 위쪽 ${up}와 같은 축이라 정면이 될 수 없습니다`] : []);
+
+/**
+ * 부품 탐색 답이 업로드 묶음의 부품을 가리키고, 위쪽이 어느 정면 후보와도 같은 축이 아닌지.
+ * JSON Schema 검사를 통과한 답에 쓴다.
+ */
+export function partsReferenceChecker(bundle: { parts: { name: string }[] }) {
+  const parts = new Set(bundle.parts.map((p) => p.name));
+  return ({ parts: found, fronts, up }: { parts: { name: string }[]; fronts: Front[]; up: Front }): string[] => [
+    ...found.flatMap(({ name }, i) => (parts.has(name) ? [] : [`/parts/${i}/name: ${name}는 업로드 묶음의 부품이 아닙니다`])),
+    ...fronts.flatMap((front, i) => frontOnUpAxis(`/fronts/${i}`, front, up)),
+  ];
+}
+
+/**
+ * 후보가 부품 탐색과 정보 입력을 따르고 서로 사실상 같지 않은지(사용자 스토리 17·21·23).
+ * - 두 후보는 정면·노출할 부모 파라미터(순서 무관)·두께 선택 노출 중 하나 이상이 달라야 한다.
+ * - 부품 탐색이 정면을 확신했으면(정면 후보 하나) 모든 후보가 그 정면이고, 확신하지 못했으면 정면 후보가 모두 후보에 있어야 한다.
+ *   위쪽과 같은 축은 정면이 될 수 없다.
+ * - 정보 입력이 두께 선택을 보이기나 숨기기로 정했으면 모든 후보가 따른다. "AI 판단"이면 후보마다 다를 수 있다.
+ * JSON Schema 검사를 통과한 후보에 쓴다.
+ */
+export function candidateDiversityChecker({ fronts, up }: { fronts: Front[]; up: Front }, thickness: ThicknessExposure) {
+  return (candidates: { id: string; front: Front; parents: string[]; showThickness: boolean }[]): string[] => {
+    const shape = (c: (typeof candidates)[number]) => JSON.stringify([c.front, [...c.parents].sort(), c.showThickness]);
+    const errors = candidates.flatMap((c, i) => [
+      ...frontOnUpAxis(`/${i}/front`, c.front, up),
+      ...(fronts.length === 1 && c.front !== fronts[0] ? [`/${i}/front: 부품 탐색이 확신한 정면 ${fronts[0]}이어야 합니다`] : []),
+      ...(thickness !== "ai" && c.showThickness !== (thickness === "show")
+        ? [`/${i}/showThickness: 정보 입력이 두께 선택을 ${thickness === "show" ? "보이기" : "숨기기"}로 정해 ${thickness === "show"}이어야 합니다`]
+        : []),
+      ...candidates
+        .slice(0, i)
+        .filter((other) => shape(other) === shape(c))
+        .map((other) => `/${i}: 후보 ${other.id}와 정면·부모 파라미터·두께 선택 노출이 모두 같습니다. 하나 이상을 다르게 하세요`),
+    ]);
+    const missing = fronts.length > 1 ? fronts.filter((f) => !candidates.some((c) => c.front === f)) : [];
+    if (missing.length > 0) {
+      errors.push(`${ROOT}: 정면을 확신하지 못해(정면 후보 ${fronts.join("·")}) 후보끼리 정면이 달라야 합니다. 빠진 정면: ${missing.join("·")}`);
+    }
+    return errors;
+  };
+}
+
+/**
+ * 명세가 운영자가 고른 후보를 따르는지: 정면이 후보의 정면이고, W·D·H 축 대응이 후보 카드에 보인 것과 같다.
+ * 축 대응 자체가 틀렸으면(axesChecker) 그 오류만으로 충분해 축 비교는 하지 않는다. JSON Schema 검사를 통과한 명세에 쓴다.
+ */
+export function chosenCandidateChecker({ front, axes }: { front: Front; axes: Spec["axes"] }) {
+  return (spec: Pick<Spec, "front" | "axes">): string[] => {
+    const errors = spec.front === front ? [] : [`/front: 고른 후보의 정면 ${front}이어야 합니다(지금 ${spec.front})`];
+    const axesErrors = axesChecker(spec);
+    if (axesErrors.length > 0) return [...errors, ...axesErrors];
+    if (spec.front === front && (["W", "D", "H"] as const).some((a) => spec.axes[a] !== axes[a])) {
+      errors.push(`/axes: 고른 후보 카드의 축 대응(W ${axes.W}, D ${axes.D}, H ${axes.H})이어야 합니다(지금 W ${spec.axes.W}, D ${spec.axes.D}, H ${spec.axes.H})`);
+    }
+    return errors;
+  };
 }
 
 /**

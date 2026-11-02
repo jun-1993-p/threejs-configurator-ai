@@ -21,6 +21,7 @@ export function scriptedAi(script: Script): ScriptedAi {
   };
   return {
     calls,
+    findParts: (input) => answer("parts", input),
     proposeCandidates: (input) => answer("candidates", input),
     chooseStyle: (input) => answer("style", input),
     writeSpec: (input) => answer("spec", input),

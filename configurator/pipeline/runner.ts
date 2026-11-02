@@ -2,21 +2,28 @@
 // 바깥 의존은 Fusion 연결·AI 모델·저장소 세 포트로만 접근한다.
 import { samePair, thicknessSamplePlan, type GridSweep, type Pair, type Spec, type SweepData } from "../src/engine.ts";
 import { assembleProduct, type ProductFiles } from "./assemble.ts";
+import { candidateCards, partViews, type CandidateCard, type PartColor, type PartView } from "./candidate-cards.ts";
 import type { Feedback } from "./feedback.ts";
 import {
-  FRONTS,
-  axesChecker,
+  candidateDiversityChecker,
   candidateReferenceChecker,
   checkCandidates,
+  checkIntake,
+  checkParts,
   checkSampleResponse,
   checkSpec,
   checkUploadBundle,
+  chosenCandidateChecker,
   fixedThicknessChecker,
+  partsReferenceChecker,
   specReferenceChecker,
   styleChoiceChecker,
   thicknessChoiceChecker,
   UNREADABLE_ANSWER,
   type Check,
+  type Front,
+  type ProductKind,
+  type ThicknessExposure,
 } from "./schemas.ts";
 import type { UploadBundle } from "./upload-bundle.ts";
 import { verifyAxisResponse } from "./verify-axis.ts";
@@ -55,14 +62,14 @@ export type Stage =
 export interface Intake {
   name: string;
   /** 상품 종류(서랍장·책장·수납장·테이블 등) */
-  kind: string;
+  kind: ProductKind;
   /** 원하는 슬라이더와 범위 메모(자유 문장) */
   memo: string;
   /** 두께 선택 노출 여부. ai는 "AI 판단" */
-  thickness: "show" | "hide" | "ai";
+  thickness: ThicknessExposure;
 }
 
-export type Front = (typeof FRONTS)[number];
+export type { Front };
 
 /** 슬라이더 구성 후보 */
 export interface Candidate {
@@ -74,6 +81,13 @@ export interface Candidate {
   summary: string;
   /** 다른 후보와의 차이 한 줄 */
   diff: string;
+}
+
+/** 부품 탐색(VLM) 결과: 그림에서 찾은 부품의 역할, 정면 후보(확신 순서, 하나면 확신), 위쪽 방향 */
+export interface PartsFound {
+  parts: { name: string; role: string }[];
+  fronts: Front[];
+  up: Front;
 }
 
 export interface Style {
@@ -129,7 +143,7 @@ export const FUSION_NEEDED = "Fusion 연결 필요";
 export const FUSION_RECONNECTED = "다시 연결됨";
 
 /** AI 단계. AI 모델 포트의 메서드마다 하나다. */
-export const AI_STAGES = ["candidates", "style", "spec"] as const;
+export const AI_STAGES = ["parts", "candidates", "style", "spec"] as const;
 export type AiStage = (typeof AI_STAGES)[number];
 
 /**
@@ -138,9 +152,16 @@ export type AiStage = (typeof AI_STAGES)[number];
  * 모델이 낸 문장을 JSON으로 읽을 수 없으면 그 문장(string)을 돌려준다. 단계마다 응답은 객체나 배열이라 문자열은 늘 형식 오류다.
  */
 export interface AiPort {
+  /**
+   * 부품 탐색(VLM). 기본 형상을 여섯 방향에서 본 그림(views)과 그림 속 부품 색(colors)을 보고 부품의 역할과 정면·위쪽을 찾는다.
+   * 후보 제시 전에 상품마다 한 번 부른다.
+   */
+  findParts(input: { intake: Intake; views: PartView[]; colors: PartColor[]; rejected: unknown; schemaErrors: string[] }): Promise<unknown>;
   proposeCandidates(input: {
     bundle: unknown;
     intake: Intake;
+    /** 부품 탐색 결과. 정면 후보가 여럿이면 후보끼리 그 정면을 모두 써야 한다. */
+    parts: PartsFound;
     failures: CandidateFailure[];
     rejected: unknown;
     schemaErrors: string[];
@@ -172,7 +193,8 @@ export interface StorePort {
 
 /** 사람 결정. 시험에서는 각본, 운영에서는 화면이 답한다. */
 export interface HumanPort {
-  chooseCandidate(candidates: Candidate[]): Promise<{ candidate: string }>;
+  /** 후보 카드(후보와 정면에 따른 축 대응, 업로드한 스윕으로 만든 변형 미리보기) 중 하나를 고른다 */
+  chooseCandidate(cards: CandidateCard[]): Promise<{ candidate: string }>;
   finalApproval(review: { spec: Spec; files: ProductFiles }): Promise<{ decision: "approve" }>;
 }
 
@@ -190,6 +212,9 @@ const SCHEMA_RETRIES = 3;
 
 /** 같은 후보로 검증 피드백을 붙여 명세를 다시 쓰는 횟수. 이를 넘으면 후보 제시로 돌아간다. */
 const SPEC_RETRIES = 3;
+
+/** 카드에서 AI가 낸 후보만 꺼낸다. AI 입력과 사례 기록에는 미리보기 그림을 싣지 않는다. */
+const candidateOf = ({ axes: _axes, previews: _previews, ...candidate }: CandidateCard): Candidate => candidate;
 
 class PipelineStop extends Error {
   readonly stage: Stage;
@@ -259,7 +284,8 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
   const rules = await store.dimensionRules(intake.kind);
   const ranges = rangeIntersection({ rules, intake, bundle: uploaded });
 
-  const checkProductSpec: Check = (value) => {
+  /** 고른 후보 카드를 따르는 명세인지까지 본다 */
+  const checkProductSpec = (card: CandidateCard): Check => (value) => {
     const errors = checkSpec(value);
     if (errors.length > 0) return errors;
     const spec = value as Spec;
@@ -269,15 +295,22 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
       ...ranges.check(spec),
       ...thicknessChoiceChecker(uploaded)(spec),
       ...fixedThicknessChecker(spec),
-      ...axesChecker(spec),
+      ...chosenCandidateChecker(card)(spec),
     );
     return errors;
   };
 
+  const checkBundleParts: Check = (value) => {
+    const errors = checkParts(value);
+    return errors.length > 0 ? errors : partsReferenceChecker(uploaded)(value as PartsFound);
+  };
+
   // 후보의 부모 파라미터는 업로드 묶음에서 슬라이더로 쓸 수 있는 파라미터여야 한다(개수형 제외).
-  const checkBundleCandidates: Check = (value) => {
+  // 후보끼리 사실상 같으면 안 되고, 정면은 부품 탐색을, 두께 선택 노출은 정보 입력을 따른다.
+  const checkBundleCandidates = (parts: PartsFound): Check => (value) => {
     const errors = checkCandidates(value);
-    return errors.length > 0 ? errors : candidateReferenceChecker(uploaded)(value as Candidate[]);
+    if (errors.length > 0) return errors;
+    return [...candidateReferenceChecker(uploaded)(value as Candidate[]), ...candidateDiversityChecker(parts, intake.thickness)(value as Candidate[])];
   };
 
   /** 받은 격자 보강. key는 요청한 값 묶음이라, 명세의 범위나 기본값이 바뀌면 그 격자는 쓰지 않는다. */
@@ -334,7 +367,7 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
    * 교차 검증에 실패한 쌍은 먼저 피드백으로 명세를 고치게 하고, 다시 쓴 명세에서도 실패하면 그 쌍을 3×3 격자로
    * 보강해 같은 명세를 한 번 더 검증한다(ADR-0008). 격자 보강은 명세가 아니라 결과물의 스윕 데이터에 담긴다.
    */
-  async function writeVerifiedSpec(candidate: Candidate): Promise<{ spec: Spec; files: ProductFiles } | { feedback: Feedback[] }> {
+  async function writeVerifiedSpec(card: CandidateCard): Promise<{ spec: Spec; files: ProductFiles } | { feedback: Feedback[] }> {
     let feedback: Feedback[] = [];
     /** 검증 피드백을 받은 직전 명세 */
     let previous: Spec | null = null;
@@ -344,8 +377,8 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
     const pairsFailedBefore: Pair[] = [];
 
     for (let attempt = 0; attempt <= SPEC_RETRIES; attempt++) {
-      const spec: Spec = await askUntilValid("spec", checkProductSpec, (schemaErrors, rejected) =>
-        ai.writeSpec({ bundle, intake, candidate, rules: structuredClone(rules), previous: structuredClone(previous), feedback, rejected, schemaErrors }),
+      const spec: Spec = await askUntilValid("spec", checkProductSpec(card), (schemaErrors, rejected) =>
+        ai.writeSpec({ bundle, intake, candidate: candidateOf(card), rules: structuredClone(rules), previous: structuredClone(previous), feedback, rejected, schemaErrors }),
       );
       previous = spec;
       await log("spec");
@@ -415,21 +448,31 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
     const rangeFeedback = uploadRangeFeedback(uploaded);
     await log("upload", rangeFeedback.length > 0 ? { feedback: rangeFeedback } : undefined);
 
+    const intakeErrors = checkIntake(intake);
+    if (intakeErrors.length > 0) throw new PipelineStop("intake", `정보 입력 형식 오류: ${intakeErrors.join("; ")}`);
     await log("intake", intake);
     // 메모에서 어느 부위에도 붙지 않아 범위로 읽지 못한 "값~값"은 운영자가 의도를 확인하도록 남긴다
     if (ranges.unreadMemo.length > 0) await log("intake", { memoUnread: ranges.unreadMemo });
 
+    // 부품 탐색은 상품마다 한 번이다. 후보 제시로 돌아와도 같은 형상이라 다시 묻지 않는다.
+    const { views, colors } = partViews(uploaded);
+    const parts = await askUntilValid<PartsFound>("candidates", checkBundleParts, (schemaErrors, rejected) =>
+      ai.findParts({ intake, views, colors, rejected, schemaErrors }),
+    );
+
     // 후보 제시로 돌아오는 고리. 회차마다 사람이 후보를 고르므로 사람 없이 끝없이 돌지는 않는다.
     const failures: CandidateFailure[] = [];
     for (;;) {
-      const candidates = await askUntilValid<Candidate[]>("candidates", checkBundleCandidates, (schemaErrors, rejected) =>
-        ai.proposeCandidates({ bundle, intake, failures: structuredClone(failures), rejected, schemaErrors }),
+      const candidates = await askUntilValid<Candidate[]>("candidates", checkBundleCandidates(parts), (schemaErrors, rejected) =>
+        ai.proposeCandidates({ bundle, intake, parts: structuredClone(parts), failures: structuredClone(failures), rejected, schemaErrors }),
       );
       await log("candidates", candidates.map((c) => c.id));
 
-      const { candidate: chosenId } = await human.chooseCandidate(candidates);
-      const candidate = candidates.find((c) => c.id === chosenId);
-      if (!candidate) throw new PipelineStop("choice", `제시되지 않은 후보 ${chosenId}를 골랐습니다`);
+      const cards = candidateCards(candidates, uploaded, parts.up);
+      const { candidate: chosenId } = await human.chooseCandidate(cards);
+      const card = cards.find((c) => c.id === chosenId);
+      if (!card) throw new PipelineStop("choice", `제시되지 않은 후보 ${chosenId}를 골랐습니다`);
+      const candidate = candidateOf(card);
       await log("choice", chosenId);
 
       const styles = await store.styles();
@@ -440,7 +483,7 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
       );
       await log("style", style);
 
-      const written = await writeVerifiedSpec(candidate);
+      const written = await writeVerifiedSpec(card);
       if ("feedback" in written) {
         failures.push({ candidate, feedback: written.feedback });
         continue;

@@ -5,10 +5,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
+import { inflateSync } from "node:zlib";
 
 import type { Spec } from "../src/engine.ts";
+import type { CandidateCard } from "../pipeline/candidate-cards.ts";
 import type { Feedback } from "../pipeline/feedback.ts";
-import { FUSION_NEEDED, FUSION_RECONNECTED, runPipeline, type Candidate, type FusionPort, type HumanPort, type Intake, type SampleRequest } from "../pipeline/runner.ts";
+import { FUSION_NEEDED, FUSION_RECONNECTED, runPipeline, type Candidate, type FusionPort, type PartsFound, type HumanPort, type Intake, type SampleRequest } from "../pipeline/runner.ts";
 import { scriptedAi, type Script } from "../pipeline/scripted-ai.ts";
 import { memoryStore } from "../pipeline/memory-store.ts";
 import type { DimensionRule } from "../pipeline/range-intersection.ts";
@@ -57,6 +59,26 @@ const candidates: Candidate[] = [
   { id: "c2", front: "+Y", parents: ["body_w"], showThickness: false, summary: "전체 폭 하나", diff: "정면 +Y" },
 ];
 
+/** 부품 탐색(VLM) 답: 정면이 -Y인지 +Y인지 확신하지 못해, 위 두 후보가 그 정면을 나눠 갖는다 */
+const partsFound: PartsFound = {
+  parts: [
+    { name: "Carcass", role: "몸통" },
+    { name: "DrawerBox", role: "서랍" },
+  ],
+  fronts: ["-Y", "+Y"],
+  up: "+Z",
+};
+
+/** 칸막이 선반 녹화본의 부품 탐색 답 */
+const shelfParts: PartsFound = {
+  parts: [
+    { name: "Carcass", role: "몸통" },
+    { name: "Divider", role: "칸막이" },
+  ],
+  fronts: ["-Y"],
+  up: "+Z",
+};
+
 const styles = [{ id: "natural" }, { id: "dark" }];
 
 const offline: FusionPort = {
@@ -85,7 +107,7 @@ const approveFirst: HumanPort = {
 };
 
 function setup(script: Partial<Script> = {}, fusion: FusionPort = offline, dimensionRules: DimensionRule[] = rules) {
-  const ai = scriptedAi({ candidates: [candidates], style: [{ style: "natural" }], spec: [spec], ...script });
+  const ai = scriptedAi({ parts: [partsFound], candidates: [candidates], style: [{ style: "natural" }], spec: [spec], ...script });
   const store = memoryStore({ styles, rules: dimensionRules });
   return { ai, store, ports: { fusion, ai, store } };
 }
@@ -131,6 +153,184 @@ test("승인된 결정이 사례로 기록된다", async () => {
   assert.deepEqual(store.cases, [{ kind: "서랍장", intake, candidates, chosen: "c1", spec }]);
 });
 
+/** 미리보기 PNG(base64)에서 배경이 아닌 픽셀이 차지하는 가로 폭(픽셀). 렌더러는 필터 없는 8비트 RGB로 쓴다. */
+function drawnWidth(base64: string): number {
+  const png = Buffer.from(base64, "base64");
+  assert.deepEqual([...png.subarray(1, 4)], [...Buffer.from("PNG")]);
+  const width = png.readUInt32BE(16);
+  const height = png.readUInt32BE(20);
+  const idat = png.indexOf("IDAT");
+  const raw = inflateSync(png.subarray(idat + 4, idat + 4 + png.readUInt32BE(idat - 4)));
+  let [left, right] = [width, -1];
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const k = y * (width * 3 + 1) + 1 + x * 3;
+      if (raw[k] === 244 && raw[k + 1] === 244 && raw[k + 2] === 242) continue;
+      [left, right] = [Math.min(left, x), Math.max(right, x)];
+    }
+  }
+  return right - left + 1;
+}
+
+/** 받은 후보 카드를 남기고 정해 둔 후보를 고르는 사람 */
+function choosing(id: string) {
+  const shown: CandidateCard[][] = [];
+  const human: HumanPort = {
+    chooseCandidate: (cards) => {
+      shown.push(cards);
+      return Promise.resolve({ candidate: id });
+    },
+    finalApproval: () => Promise.resolve({ decision: "approve" }),
+  };
+  return { human, shown };
+}
+
+test("후보 제시 전에 VLM이 기본 형상을 여섯 방향에서 본 그림과 부품 색으로 부품 탐색을 한 번 한다", async () => {
+  const { ai, ports } = setup();
+
+  await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  const [asked] = ai.calls.parts as { views: { from: string; image: string }[]; colors: { name: string; color: string }[] }[];
+  assert.equal(ai.calls.parts.length, 1);
+  assert.deepEqual(asked.views.map((v) => v.from), ["+X", "-X", "+Y", "-Y", "+Z", "-Z"]);
+  assert.ok(asked.views.every((v) => drawnWidth(v.image) > 100));
+  assert.deepEqual(asked.colors.map((c) => c.name), ["Carcass", "DrawerBox"]);
+  assert.notEqual(asked.colors[0].color, asked.colors[1].color);
+  // 후보 제시는 부품 탐색 결과를 입력으로 받는다
+  assert.deepEqual((ai.calls.candidates[0] as { parts: PartsFound }).parts, partsFound);
+});
+
+test("부품이 여섯 개를 넘어도 부품 탐색 그림의 부품 색은 모두 다르다", async () => {
+  // 서랍장 녹화본의 면을 부품 여덟 개로 나눈다
+  const manyParts = structuredClone(bundle);
+  const faces = manyParts.parts.flatMap((p: { faces: number[] }) => p.faces);
+  manyParts.parts = Array.from({ length: 8 }, (_, i) => ({ ...manyParts.parts[0], name: `P${i}`, faces: faces.filter((_: number, k: number) => k % 8 === i) }));
+  // 명세는 서랍장의 부품 이름을 가리켜 형식 검사를 끝내 통과하지 못하고 멈춘다. 이 시험은 부품 탐색 입력만 본다.
+  const { ai, ports } = setup({ parts: [{ ...partsFound, parts: [{ name: "P0", role: "몸통" }] }], spec: [spec, spec, spec, spec] });
+
+  await runPipeline({ bundle: manyParts, intake, human: approveFirst, ports });
+
+  const colors = (ai.calls.parts[0] as { colors: { name: string; color: string }[] }).colors;
+  assert.equal(colors.length, 8);
+  assert.equal(new Set(colors.map((c) => c.color)).size, 8);
+});
+
+test("부품 탐색이 업로드 묶음에 없는 부품을 가리키거나 위쪽과 같은 축을 정면으로 내면 다시 묻는다", async () => {
+  const wrong = { ...partsFound, parts: [{ name: "Door", role: "문" }], fronts: ["-Y", "+Z"] };
+  const { ai, ports } = setup({ parts: [wrong, partsFound] });
+
+  const result = await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  assert.deepEqual((ai.calls.parts[1] as { schemaErrors: string[] }).schemaErrors, [
+    "/parts/0/name: Door는 업로드 묶음의 부품이 아닙니다",
+    "/fronts/1: 위쪽 +Z와 같은 축이라 정면이 될 수 없습니다",
+  ]);
+});
+
+test("후보끼리 정면·부모 파라미터·두께 선택 노출이 모두 같으면 다시 만든다", async () => {
+  // 부모 파라미터 순서만 다른 후보도 같은 후보다
+  const same = [
+    { ...candidates[0], parents: ["body_w", "body_h"] },
+    { ...candidates[0], id: "c2", parents: ["body_h", "body_w"], diff: "순서만 다름" },
+  ];
+  const { ai, ports } = setup({ parts: [{ ...partsFound, fronts: ["-Y"] }], candidates: [same, [candidates[0], { ...candidates[0], id: "c2", showThickness: true }]] });
+
+  const result = await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  assert.deepEqual((ai.calls.candidates[1] as { schemaErrors: string[] }).schemaErrors, [
+    "/1: 후보 c1와 정면·부모 파라미터·두께 선택 노출이 모두 같습니다. 하나 이상을 다르게 하세요",
+  ]);
+});
+
+test("VLM이 정면을 확신하지 못하면 후보끼리 정면 후보를 모두 나눠 갖게 다시 만든다", async () => {
+  const unsure: PartsFound = { ...partsFound, fronts: ["-Y", "+X"] };
+  const allMinusY = [candidates[0], { ...candidates[0], id: "c2", showThickness: true, diff: "두께 선택 노출" }];
+  const split = [candidates[0], { ...candidates[0], id: "c2", front: "+X", diff: "정면 +X" }];
+  const { ai, ports } = setup({ parts: [unsure], candidates: [allMinusY, split] });
+
+  const result = await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  assert.deepEqual((ai.calls.candidates[1] as { schemaErrors: string[] }).schemaErrors, [
+    "(최상위): 정면을 확신하지 못해(정면 후보 -Y·+X) 후보끼리 정면이 달라야 합니다. 빠진 정면: +X",
+  ]);
+});
+
+test("VLM이 정면을 확신하면 모든 후보가 그 정면이어야 한다", async () => {
+  const sure: PartsFound = { ...partsFound, fronts: ["-Y"] };
+  const thicknessSplit = [candidates[0], { ...candidates[0], id: "c2", showThickness: true, diff: "두께 선택 노출" }];
+  const { ai, ports } = setup({ parts: [sure], candidates: [candidates, thicknessSplit] });
+
+  const result = await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  assert.deepEqual((ai.calls.candidates[1] as { schemaErrors: string[] }).schemaErrors, ["/1/front: 부품 탐색이 확신한 정면 -Y이어야 합니다"]);
+});
+
+test("정보 입력이 두께 선택을 숨기기로 정하면 두께 선택을 보이는 후보는 다시 만든다", async () => {
+  const thicknessSplit = [candidates[0], { ...candidates[1], showThickness: true, diff: "정면 +Y, 두께 선택 노출" }];
+  const { ai, ports } = setup({ candidates: [thicknessSplit, candidates] });
+
+  const result = await runPipeline({ bundle, intake: { ...intake, thickness: "hide" }, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  assert.deepEqual((ai.calls.candidates[1] as { schemaErrors: string[] }).schemaErrors, [
+    "/1/showThickness: 정보 입력이 두께 선택을 숨기기로 정해 false이어야 합니다",
+  ]);
+});
+
+test("후보 카드마다 다른 후보와의 차이, 정면에 따른 W·D·H 축 대응, 업로드 스윕으로 만든 변형 미리보기가 붙는다", async () => {
+  const sideways = [candidates[0], { ...candidates[0], id: "c2", front: "+X", diff: "정면 +X" }];
+  const { ports } = setup({ parts: [{ ...partsFound, fronts: ["-Y", "+X"] }], candidates: [sideways] });
+  const { human, shown } = choosing("c1");
+
+  await runPipeline({ bundle, intake, human, ports });
+
+  const [cards] = shown;
+  assert.deepEqual(
+    cards.map((c) => [c.id, c.diff, c.axes]),
+    [
+      ["c1", "정면 -Y", { W: "X", D: "Y", H: "Z" }],
+      ["c2", "정면 +X", { W: "Y", D: "X", H: "Z" }],
+    ],
+  );
+  // 전체 폭 슬라이더 하나: 스윕 범위 300~900과 기본값 600의 형상
+  const [preview] = cards[0].previews;
+  assert.equal(cards[0].previews.length, 1);
+  assert.deepEqual([preview.parameter, preview.values], ["body_w", [300, 600, 900]]);
+  const [narrow, middle, wide] = preview.images.map(drawnWidth);
+  assert.ok(narrow < middle && middle < wide, `${narrow} < ${middle} < ${wide}`);
+});
+
+test("운영자가 고른 후보가 명세 작성의 입력이 되고, 명세의 정면은 그 후보를 따라야 한다", async () => {
+  const back = { ...spec, front: "+Y" };
+  const { ai, store, ports } = setup({ spec: [spec, back] });
+  const { human } = choosing("c2");
+
+  const result = await runPipeline({ bundle, intake, human, ports });
+
+  assert.equal(result.status, "submitted");
+  const [first, second] = ai.calls.spec as { candidate: Candidate; schemaErrors: string[] }[];
+  assert.deepEqual(first.candidate, candidates[1]);
+  assert.deepEqual(second.schemaErrors, ["/front: 고른 후보의 정면 +Y이어야 합니다(지금 -Y)"]);
+  assert.equal(store.cases[0].chosen, "c2");
+});
+
+test("정보 입력의 상품 종류가 정해진 목록 밖이거나 상품명이 비었으면 후보 제시 전에 멈춘다", async () => {
+  const { ai, store, ports } = setup();
+
+  const result = await runPipeline({ bundle, intake: { ...intake, name: "", kind: "가구" as Intake["kind"] }, human: approveFirst, ports });
+
+  assert.equal(result.status, "stopped");
+  assert.equal(result.status === "stopped" && result.stage, "intake");
+  assert.match(result.status === "stopped" ? result.reason : "", /\/kind: .*서랍장/);
+  assert.match(result.status === "stopped" ? result.reason : "", /\/name/);
+  assert.equal(ai.calls.parts.length + ai.calls.candidates.length, 0);
+  assert.ok(!store.log.some((e) => e.stage === "candidates"));
+});
+
 test("명세가 JSON Schema 검사를 통과하지 못하면 이유를 붙여 다시 묻고, 고친 명세로 조립한다", async () => {
   const broken = { ...spec, sliders: [{ ...spec.sliders[0], unit: "cm" }] };
   const { ai, store, ports } = setup({ spec: [broken, spec] });
@@ -162,7 +362,7 @@ test("깊이 축이 정면 방향의 축이 아니거나 W·D·H가 같은 축�
 
   assert.equal(result.status, "submitted");
   const [, second, third] = ai.calls.spec as { schemaErrors: string[] }[];
-  assert.deepEqual(second.schemaErrors, ["/axes/D: 정면 +X 쪽에서 보면 깊이는 X축입니다(지금 Y)"]);
+  assert.deepEqual(second.schemaErrors, ["/front: 고른 후보의 정면 -Y이어야 합니다(지금 +X)", "/axes/D: 정면 +X 쪽에서 보면 깊이는 X축입니다(지금 Y)"]);
   assert.deepEqual(third.schemaErrors, ["/axes: W·D·H는 서로 다른 축이어야 합니다(W X, D Y, H X)"]);
 });
 
@@ -734,7 +934,7 @@ test("칸막이 수가 바뀌는 선반도 위상 묶음을 넘나드는 슬라�
     { id: "c1", front: "-Y", parents: ["shelf_w", "shelf_d"], showThickness: false, summary: "폭과 깊이", diff: "정면 -Y" },
     { id: "c2", front: "-Y", parents: ["shelf_w"], showThickness: false, summary: "폭 하나", diff: "깊이 고정" },
   ];
-  const ai = scriptedAi({ candidates: [shelfCandidates], style: [{ style: "natural" }], spec: [shelfSpec] });
+  const ai = scriptedAi({ parts: [shelfParts], candidates: [shelfCandidates], style: [{ style: "natural" }], spec: [shelfSpec] });
   const store = memoryStore({ styles, rules });
   const fusion = recordedFusion(shelfCrossCorners);
 
@@ -746,7 +946,7 @@ test("칸막이 수가 바뀌는 선반도 위상 묶음을 넘나드는 슬라�
   assert.equal(sweeps.sweeps.find((s: { parameter: string }) => s.parameter === "shelf_w").groups.length, 2);
 });
 
-const shelfIntake: Intake = { name: "칸막이 선반", kind: "선반", memo: "폭 500~1300, 깊이 200~400", thickness: "show" };
+const shelfIntake: Intake = { name: "칸막이 선반", kind: "선반", memo: "폭 500~1300, 깊이 200~400", thickness: "ai" };
 const shelfCandidates: Candidate[] = [
   { id: "c1", front: "-Y", parents: ["shelf_w", "shelf_d"], showThickness: true, summary: "폭·깊이와 판재 두께", diff: "두께 선택 노출" },
   { id: "c2", front: "-Y", parents: ["shelf_w", "shelf_d"], showThickness: false, summary: "폭·깊이", diff: "두께 고정" },
@@ -756,7 +956,7 @@ const shelfThickness = { ids: ["t"], name: "판재 두께", default: 18, options
 
 /** 칸막이 선반 명세들을 차례로 쓰는 AI로 실행한다. 첫 명세의 재작성 이유(schemaErrors)를 돌려준다. */
 async function shelfSchemaErrors(first: Spec, bundle: unknown = shelfRecording) {
-  const ai = scriptedAi({ candidates: [shelfCandidates], style: [{ style: "natural" }], spec: [first, shelfSpec] });
+  const ai = scriptedAi({ parts: [shelfParts], candidates: [shelfCandidates], style: [{ style: "natural" }], spec: [first, shelfSpec] });
   const store = memoryStore({ styles, rules });
   const result = await runPipeline({ bundle, intake: shelfIntake, human: approveFirst, ports: { fusion: recordedFusion(shelfCrossCorners).port, ai, store } });
   assert.equal(result.status, "submitted", JSON.stringify(store.log.at(-1)));
@@ -815,7 +1015,7 @@ test("고정 두께 파라미터가 슬라이더의 자식에 있으면 명세�
 
 /** 칸막이 선반 두께 선택 명세를 실행한다. Fusion 연결은 교차 검증 모서리와 두께 후보 형상으로 답한다. */
 async function runShelfThickness(specs: Spec[], thicknessSamples: CrossSample[] = shelfThicknessSamples) {
-  const ai = scriptedAi({ candidates: [shelfCandidates], style: [{ style: "natural" }], spec: specs });
+  const ai = scriptedAi({ parts: [shelfParts], candidates: [shelfCandidates], style: [{ style: "natural" }], spec: specs });
   const store = memoryStore({ styles, rules });
   const fusion = recordedFusion([...shelfCrossCorners, ...shelfThicknessCross, ...thicknessSamples]);
   const result = await runPipeline({ bundle: shelfRecording, intake: shelfIntake, human: approveFirst, ports: { fusion: fusion.port, ai, store } });
@@ -930,7 +1130,7 @@ test("두께 후보마다 각 슬라이더의 범위 끝에서 교차 검증 샘
 const mixedThicknessSpec: Spec = { ...spec, thickness: [{ ids: ["t"], name: "몸통 두께", default: 18, options: [15, 18, 24] }] };
 
 test("두께 후보에서 슬라이더와 덧셈이 맞지 않으면 그 두께 선택과 슬라이더를 가리키는 피드백이 나오고, 다시 실패하면 격자로 보강해 제출한다", async () => {
-  const ai = scriptedAi({ candidates: [candidates], style: [{ style: "natural" }], spec: [mixedThicknessSpec, mixedThicknessSpec] });
+  const ai = scriptedAi({ parts: [partsFound], candidates: [candidates], style: [{ style: "natural" }], spec: [mixedThicknessSpec, mixedThicknessSpec] });
   const store = memoryStore({ styles, rules });
   const fusion = recordedFusion(mixedThicknessSamples);
 
@@ -974,7 +1174,7 @@ test("두께 후보에서 슬라이더와 덧셈이 맞지 않으면 그 두께 
 async function runMixedThickness(specs: Spec[], change: (sample: CrossSample) => void = () => {}) {
   const samples = structuredClone(mixedThicknessSamples);
   samples.forEach(change);
-  const ai = scriptedAi({ candidates: [candidates], style: [{ style: "natural" }], spec: specs });
+  const ai = scriptedAi({ parts: [partsFound], candidates: [candidates], style: [{ style: "natural" }], spec: specs });
   const store = memoryStore({ styles, rules });
   const result = await runPipeline({ bundle: mixedThicknessRecording, intake, human: approveFirst, ports: { fusion: recordedFusion(samples).port, ai, store } });
   assert.equal(result.status, "submitted", JSON.stringify(store.log.at(-1)));
