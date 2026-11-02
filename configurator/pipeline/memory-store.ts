@@ -1,23 +1,26 @@
 // 메모리 저장소 포트. 시험과 개발용이며, 넣은 것을 그대로 들여다볼 수 있다.
 import type { ProductFiles } from "./assemble.ts";
+import { memoryCaseStore, type CaseStore } from "./case-store.ts";
 import type { DimensionRule } from "./range-intersection.ts";
 import type { Style } from "../src/style.ts";
-import type { CaseRecord, LogEntry, StorePort } from "./runner.ts";
+import type { LogEntry, StorePort } from "./runner.ts";
 
 export interface MemoryStore extends StorePort {
   log: LogEntry[];
   submissions: { product: string; files: ProductFiles }[];
-  cases: CaseRecord[];
   /** 저장한 AI 판정 렌더링. 경로는 renders/<상품명>/<이름>이다. */
   renders: { path: string; png: Buffer }[];
 }
 
-/** onLog: 처리 기록이 쌓일 때마다 불린다(수동 실행 도구가 진행을 보여 줄 때) */
-export function memoryStore({ styles, rules, onLog }: { styles: Style[]; rules: DimensionRule[]; onLog?: (entry: LogEntry) => void }): MemoryStore {
+/**
+ * onLog: 처리 기록이 쌓일 때마다 불린다(수동 실행 도구가 진행을 보여 줄 때).
+ * cases: 사례 저장소. 없으면 메모리 사례 저장소다. 여러 상품을 같은 저장소로 돌리면 앞 상품의 사례가 뒤 상품의 예시가 된다.
+ */
+export function memoryStore({ styles, rules, onLog, cases = memoryCaseStore() }: { styles: Style[]; rules: DimensionRule[]; onLog?: (entry: LogEntry) => void; cases?: CaseStore }): MemoryStore {
   const store: MemoryStore = {
     log: [],
     submissions: [],
-    cases: [],
+    cases,
     renders: [],
     dimensionRules: (kind) => Promise.resolve(structuredClone(rules.filter((r) => r.kind === kind))),
     styles: () => Promise.resolve(structuredClone(styles)),
@@ -31,7 +34,6 @@ export function memoryStore({ styles, rules, onLog }: { styles: Style[]; rules: 
       return path;
     },
     submit: async (product, files) => void store.submissions.push({ product, files }),
-    recordCase: async (record) => void store.cases.push(structuredClone(record)),
   };
   return store;
 }

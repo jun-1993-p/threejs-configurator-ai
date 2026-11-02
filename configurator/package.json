@@ -8,7 +8,9 @@
     "build": "node scripts/build.ts"
   },
   "dependencies": {
+    "@lancedb/lancedb": "0.41.0",
     "ajv": "8.17.1",
+    "apache-arrow": "21.1.0",
     "three": "0.170.0"
   },
   "devDependencies": {

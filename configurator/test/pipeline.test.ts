@@ -10,9 +10,11 @@ import { inflateSync } from "node:zlib";
 import type { Spec } from "../src/engine.ts";
 import type { CandidateCard } from "../pipeline/candidate-cards.ts";
 import type { Feedback } from "../pipeline/feedback.ts";
-import { FUSION_NEEDED, FUSION_RECONNECTED, runPipeline, type Candidate, type FusionPort, type PartsFound, type HumanPort, type Intake, type SampleRequest } from "../pipeline/runner.ts";
+import { FUSION_NEEDED, FUSION_RECONNECTED, runPipeline, type Candidate, type CaseRecord, type FusionPort, type PartsFound, type HumanPort, type Intake, type SampleRequest } from "../pipeline/runner.ts";
 import { scriptedAi, type Script } from "../pipeline/scripted-ai.ts";
 import { memoryStore } from "../pipeline/memory-store.ts";
+import { recordOf } from "../pipeline/case-store.ts";
+import { pastCase } from "./cases.ts";
 import { UI_STYLES } from "../pipeline/ui-styles.ts";
 import type { Style } from "../src/style.ts";
 import type { DimensionRule } from "../pipeline/range-intersection.ts";
@@ -165,7 +167,77 @@ test("승인된 결정이 사례로 기록된다", async () => {
 
   await runPipeline({ bundle, intake, human: approveFirst, ports });
 
-  assert.deepEqual(store.cases, [{ kind: "서랍장", intake, candidates, chosen: "c1", spec }]);
+  const [{ id, chosen, ...record }, ...rest] = await store.cases.list();
+  assert.deepEqual(rest, []);
+  assert.equal(typeof id, "string");
+  assert.deepEqual(record, { kind: "서랍장", intake, candidates: [candidates], spec, edits: {}, rejections: [], backToChoice: [] });
+  assert.deepEqual([chosen.id, chosen.sliders], ["c1", [{ parameter: "body_w", name: "전체 폭", parent: "body_w" }]]);
+});
+
+test("사례에는 회차마다 제시된 후보, 거절 이유, 최종 승인 때 고친 내용이 함께 남는다", async () => {
+  const reason = "정면을 반대로 보고 싶다";
+  const edits = { body_w: { name: "가로 길이", max: 800 } };
+  const { human } = deciding(["c1", "c2"], [{ decision: "reject", back: "candidates", reason }, { decision: "approve", edits }]);
+  const second = candidates.map((c) => ({ ...c, summary: `다시 낸 ${c.summary}` }));
+  const plusY = { ...spec, front: "+Y", axes: { W: "X", D: "Y", H: "Z" } };
+  const { store, ports } = setup({
+    candidates: [candidates, second],
+    style: [{ style: "natural" }, { style: "natural" }],
+    spec: [spec, plusY],
+    judgment: [judged(), judged()],
+  });
+
+  await runPipeline({ bundle, intake, human, ports });
+
+  const [stored] = await store.cases.list();
+  assert.deepEqual(stored.candidates, [candidates, second]);
+  assert.equal(stored.chosen.id, "c2");
+  assert.deepEqual(stored.rejections.map((r) => [r.candidate.id, r.reason]), [["c1", reason]]);
+  assert.deepEqual(stored.edits, edits);
+  assert.deepEqual(stored.spec.sliders[0], { ...plusY.sliders[0], name: "가로 길이", max: 800 });
+});
+
+test("후보 제시·명세 작성·AI 판정에 같은 상품 종류의 사례 중 정보 입력이 비슷한 3개가 예시로 들어간다", async () => {
+  const { ai, store, ports } = setup();
+  for (const past of [
+    pastCase("원목 협탁", "깊이만 바꾸고 싶음"),
+    pastCase("3단 서랍장", "폭 500~900"),
+    pastCase("1단 서랍장", "폭 400~900, 높이는 고정"),
+    pastCase("2단 서랍장", "폭 400~800, 높이는 고정"),
+    // 정보 입력은 지금 상품과 같지만 상품 종류가 다르다
+    pastCase("1단 서랍장", "폭 400~900, 높이는 고정", "책장"),
+  ]) {
+    await store.cases.record(past);
+  }
+
+  await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  const names = (calls: unknown[]) => (calls[0] as { examples: CaseRecord[] }).examples.map((e) => [e.kind, e.intake.name]);
+  const expected = [
+    ["서랍장", "1단 서랍장"],
+    ["서랍장", "2단 서랍장"],
+    ["서랍장", "3단 서랍장"],
+  ];
+  assert.deepEqual(names(ai.calls.candidates), expected);
+  assert.deepEqual(names(ai.calls.spec), expected);
+  assert.deepEqual(names(ai.calls.judgment), expected);
+});
+
+test("승인된 사례는 다음 상품부터 예시로 들어가고, 사례를 빼면 그다음 상품부터 나오지 않는다", async () => {
+  const store = memoryStore({ styles, rules });
+  const run = async () => {
+    const ai = scriptedAi({ parts: [partsFound], candidates: [candidates], style: [{ style: "natural" }], spec: [spec], judgment: [judged()] });
+    await runPipeline({ bundle, intake, human: approveFirst, ports: { fusion: offline, ai, store } });
+    return (ai.calls.spec[0] as { examples: CaseRecord[] }).examples;
+  };
+
+  assert.deepEqual(await run(), []);
+  const [first] = await store.cases.list();
+  assert.deepEqual(await run(), [recordOf(first)]);
+  // 두 번째 상품의 사례는 남기고 첫 상품의 사례만 뺀다
+  const [, second] = await store.cases.list();
+  await store.cases.remove(first.id);
+  assert.deepEqual(await run(), [recordOf(second)]);
 });
 
 /** 미리보기 PNG(base64)에서 배경이 아닌 픽셀이 차지하는 가로 폭(픽셀). 렌더러는 필터 없는 8비트 RGB로 쓴다. */
@@ -330,7 +402,7 @@ test("운영자가 고른 후보가 명세 작성의 입력이 되고, 명세의
   const [first, second] = ai.calls.spec as { candidate: Candidate; schemaErrors: string[] }[];
   assert.deepEqual(first.candidate, { ...candidates[1], axes: { W: "X", D: "Y", H: "Z" }, sliders: [{ parameter: "body_w", name: "전체 폭", parent: "body_w" }] });
   assert.deepEqual(second.schemaErrors, ["/front: 고른 후보의 정면 +Y이어야 합니다(지금 -Y)"]);
-  assert.equal(store.cases[0].chosen, "c2");
+  assert.equal((await store.cases.list())[0].chosen.id, "c2");
   // 부모 파라미터인 슬라이더에도 같이 변하는 다른 치수가 적힌다(자기 치수 "전체 폭"은 빼고)
   assert.deepEqual(shown[0][1].choices, [{ parameter: "body_w", name: "전체 폭", options: [{ parent: "body_w", alsoChanges: ["몸통 폭", "서랍 폭"] }] }]);
 });
@@ -1517,7 +1589,7 @@ test("최종 승인에서 슬라이더 이름을 고치면 제출된 명세와 �
   assert.equal(result.status, "submitted");
   const submitted: Spec = JSON.parse(store.submissions[0].files["spec.json"]);
   assert.deepEqual(submitted, { ...spec, sliders: [{ ...spec.sliders[0], name: "가로 길이" }] });
-  assert.deepEqual(store.cases[0].spec, submitted);
+  assert.deepEqual((await store.cases.list())[0].spec, submitted);
   assert.deepEqual(store.log.find((e) => e.stage === "approval")?.detail, { decision: "approve", edits });
 });
 
@@ -1550,7 +1622,10 @@ test("최종 승인에서 반려하고 다른 후보를 고르면 후보 제시�
   assert.equal(ai.calls.candidates.length, 1);
   assert.equal(shown.length, 2);
   assert.deepEqual(shown[1], shown[0]);
-  assert.deepEqual(store.cases[0].chosen, "c2");
+  const [stored] = await store.cases.list();
+  assert.equal(stored.chosen.id, "c2");
+  assert.deepEqual(stored.backToChoice.map((c) => c.id), ["c1"]);
+  assert.deepEqual(stored.rejections, []);
   assert.deepEqual(
     store.log.filter((e) => e.stage === "approval").map((e) => e.detail),
     [{ decision: "reject", back: "choice" }, { decision: "approve" }],

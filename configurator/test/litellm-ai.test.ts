@@ -7,7 +7,9 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 
 import type { Spec } from "../src/engine.ts";
-import { liteLlmAi } from "../pipeline/litellm-ai.ts";
+import { liteLlmAi, liteLlmEmbed } from "../pipeline/litellm-ai.ts";
+import { memoryCaseStore } from "../pipeline/case-store.ts";
+import { pastCase } from "./cases.ts";
 import { memoryStore } from "../pipeline/memory-store.ts";
 import { UI_STYLES } from "../pipeline/ui-styles.ts";
 import type { DimensionRule } from "../pipeline/range-intersection.ts";
@@ -80,7 +82,7 @@ async function fakeLiteLlm(answers: Record<string, string[]>) {
   };
 }
 
-async function run(answers: Partial<Record<keyof typeof MODELS, string[]>>) {
+async function run(answers: Partial<Record<keyof typeof MODELS, string[]>>, cases = memoryCaseStore()) {
   const llm = await fakeLiteLlm({
     [MODELS.parts]: answers.parts ?? [JSON.stringify(parts)],
     [MODELS.candidates]: answers.candidates ?? [JSON.stringify(candidates)],
@@ -88,7 +90,7 @@ async function run(answers: Partial<Record<keyof typeof MODELS, string[]>>) {
     [MODELS.spec]: answers.spec ?? [JSON.stringify(spec)],
     [MODELS.judgment]: answers.judgment ?? [JSON.stringify({ problems: [] })],
   });
-  const store = memoryStore({ styles, rules });
+  const store = memoryStore({ styles, rules, cases });
   const ai = liteLlmAi({ baseUrl: llm.baseUrl, apiKey: "sk-test", models: MODELS });
   try {
     const result = await runPipeline({ bundle, intake, human: approveFirst, ports: { fusion: offline, ai, store } });
@@ -273,4 +275,42 @@ test("코드 블록으로 감싼 JSON 답도 읽는다", async () => {
 test("LiteLLM이 오류로 답하면 그 상태와 이유를 담아 실패한다", async () => {
   // 명세 작성 모델에 남은 답이 없으면 가짜 프록시가 500으로 답한다
   await assert.rejects(run({ spec: [] }), /LiteLLM.*500.*llm-spec에 남은 답이 없습니다/);
+});
+
+test("사례 예시는 후보 제시·명세 작성·AI 판정 요청에 담기고, 지시문이 그 쓰임을 알린다", async () => {
+  const cases = memoryCaseStore();
+  const past = pastCase("2단 서랍장", intake.memo);
+  await cases.record(past);
+
+  const { llm } = await run({}, cases);
+
+  for (const model of [MODELS.candidates, MODELS.spec, MODELS.judgment]) {
+    assert.deepEqual(llm.inputs(model)[0].examples, [past], model);
+    const [request] = llm.requests.filter((r) => r.body.model === model);
+    assert.match(textOf(request.body.messages[0].content), /examples\(/, model);
+  }
+});
+
+test("임베딩은 LiteLLM 임베딩 API로 문장마다 벡터 하나를 받는다", async () => {
+  const requests: { path: string; authorization: string | undefined; body: { model: string; input: string[] } }[] = [];
+  const server = createServer((req, res) => {
+    let raw = "";
+    req.on("data", (chunk) => (raw += chunk));
+    req.on("end", () => {
+      requests.push({ path: req.url ?? "", authorization: req.headers.authorization, body: JSON.parse(raw) });
+      // OpenAI 호환 API는 index로 순서를 알리므로, 일부러 뒤집어 보낸다
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ data: [{ index: 1, embedding: [0, 1] }, { index: 0, embedding: [1, 0] }] }));
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  try {
+    const embed = liteLlmEmbed({ baseUrl: `http://127.0.0.1:${port}/litellm`, apiKey: "sk-test", model: "embedding" });
+
+    assert.deepEqual(await embed(["가", "나"]), [[1, 0], [0, 1]]);
+    assert.deepEqual(requests, [{ path: "/litellm/v1/embeddings", authorization: "Bearer sk-test", body: { model: "embedding", input: ["가", "나"] } }]);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 });

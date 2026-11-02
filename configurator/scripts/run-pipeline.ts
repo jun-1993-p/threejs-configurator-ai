@@ -2,11 +2,13 @@
 // 추가 샘플을 받을 애드인 연결이 없으므로, 교차 검증이 필요 없는 슬라이더 하나짜리 후보 중 첫 번째를 고른다. 자식 치수면 첫 부모 후보다.
 // 실행: node scripts/run-pipeline.ts <업로드 묶음.json> <정보 입력.json> <치수 규칙.json> <출력 폴더>
 // 환경 변수: LITELLM_URL(기본 http://localhost:4000), LITELLM_API_KEY, LITELLM_MODEL(LLM 단계 공통 model_name, 기본 llm),
-// LITELLM_VLM_MODEL(부품 탐색·AI 판정 model_name, 기본 vlm)
+// LITELLM_VLM_MODEL(부품 탐색·AI 판정 model_name, 기본 vlm), LITELLM_EMBED_MODEL(사례 저장소 임베딩 model_name, 기본 embedding),
+// CASES_DIR(사례 저장소 폴더, 기본 저장소 루트의 data/cases). 승인된 사례가 쌓여 다음 실행의 예시가 된다.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import { liteLlmAi } from "../pipeline/litellm-ai.ts";
+import { DEFAULT_CASES_DIR, lanceCaseStore } from "../pipeline/case-store.ts";
+import { liteLlmAi, liteLlmEmbed } from "../pipeline/litellm-ai.ts";
 import { memoryStore } from "../pipeline/memory-store.ts";
 import { candidateCardsHtml, finalApprovalHtml } from "../pipeline/operator-screens.ts";
 import { runPipeline, type FusionPort, type HumanPort, type Intake, type PipelineResult } from "../pipeline/runner.ts";
@@ -44,14 +46,14 @@ function singleSliderAndApprove(product: string, outDir: string): HumanPort {
 export async function runWithLiteLlm(bundle: unknown, intake: Intake, rules: DimensionRule[], outDir: string): Promise<PipelineResult> {
   const model = process.env.LITELLM_MODEL ?? "llm";
   const vlm = process.env.LITELLM_VLM_MODEL ?? "vlm";
-  const ai = liteLlmAi({
-    baseUrl: process.env.LITELLM_URL ?? "http://localhost:4000",
-    apiKey: process.env.LITELLM_API_KEY,
-    models: { parts: vlm, candidates: model, style: model, spec: model, judgment: vlm },
-  });
+  const baseUrl = process.env.LITELLM_URL ?? "http://localhost:4000";
+  const apiKey = process.env.LITELLM_API_KEY;
+  const ai = liteLlmAi({ baseUrl, apiKey, models: { parts: vlm, candidates: model, style: model, spec: model, judgment: vlm } });
+  const embed = liteLlmEmbed({ baseUrl, apiKey, model: process.env.LITELLM_EMBED_MODEL ?? "embedding" });
   const store = memoryStore({
     styles: UI_STYLES,
     rules,
+    cases: lanceCaseStore({ dir: process.env.CASES_DIR ?? DEFAULT_CASES_DIR, embed }),
     onLog: (entry) => console.log(`[${entry.stage}]`, entry.detail === undefined ? "" : JSON.stringify(entry.detail)),
   });
   const result = await runPipeline({ bundle, intake, human: singleSliderAndApprove(intake.name, outDir), ports: { fusion: noAddin, ai, store } });

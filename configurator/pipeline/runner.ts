@@ -3,6 +3,7 @@
 import { samePair, thicknessSamplePlan, type Axis, type GridSweep, type Pair, type Spec, type SweepData } from "../src/engine.ts";
 import type { Style } from "../src/style.ts";
 import { assembleProduct, withApprovedSpec, type ProductFiles } from "./assemble.ts";
+import { caseQuery, type CaseStore } from "./case-store.ts";
 import { candidateCards, partViews, pickParent, type CandidateCard, type PartColor, type PartView } from "./candidate-cards.ts";
 import type { Feedback } from "./feedback.ts";
 import {
@@ -119,7 +120,8 @@ export interface CandidateFailure {
 
 /** 최종 승인에서 반려하며 거절 이유를 적은 기록. 다음 후보 제시가 방향을 고치는 데 쓴다(사용자 스토리 72). */
 export interface Rejection {
-  candidate: Candidate;
+  /** 반려한 명세의 고른 후보 */
+  candidate: ChosenCandidate;
   reason: string;
 }
 
@@ -140,12 +142,25 @@ export interface LogEntry {
   detail?: unknown;
 }
 
+/**
+ * 사례 기록(ADR-0011): 최종 승인된 상품의 결정. 다음 상품의 후보 제시·명세 작성·AI 판정에 예시로 들어간다.
+ * 사람이 고친 내용(edits)과 거절 이유(rejections)가 다음 명세를 고치는 가장 큰 신호다.
+ */
 export interface CaseRecord {
-  kind: string;
+  kind: ProductKind;
   intake: Intake;
-  candidates: Candidate[];
-  chosen: string;
+  /** 후보 제시 회차마다 제시된 후보. 고르지 않은 후보도 남긴다. */
+  candidates: Candidate[][];
+  /** 최종 승인된 명세의 후보 */
+  chosen: ChosenCandidate;
+  /** 최종 승인 때 고친 내용을 넣은 명세 */
   spec: Spec;
+  /** 최종 승인 때 고친 내용 */
+  edits: SliderEdits;
+  /** 이 상품에서 반려하며 적은 거절 이유 */
+  rejections: Rejection[];
+  /** 최종 승인에서 거절 이유 없이 반려하고 다른 후보를 고르러 돌아간 고른 후보(사용자 스토리 71) */
+  backToChoice: ChosenCandidate[];
 }
 
 /** 추가 샘플 요청(ADR-0013). 응답 형식은 업로드 묶음의 샘플과 같다. */
@@ -197,6 +212,8 @@ export interface AiPort {
     failures: CandidateFailure[];
     /** 최종 승인에서 반려하며 적은 거절 이유. 새 후보는 이 방향으로 고친다. */
     rejections: Rejection[];
+    /** 같은 상품 종류의 비슷한 사례(ADR-0011). 운영자가 앞서 고른 구성과 고친 이름을 따르는 데 쓴다. */
+    examples: CaseRecord[];
     rejected: unknown;
     schemaErrors: string[];
   }): Promise<unknown>;
@@ -211,6 +228,8 @@ export interface AiPort {
     /** 검증 피드백(feedback)을 받은 명세. 처음 쓰는 것이면 null이다. 형식 재요청 중에도 그대로다. */
     previous: Spec | null;
     feedback: Feedback[];
+    /** 같은 상품 종류의 비슷한 사례. 최종 명세와 최종 승인 때 고친 내용이 다음 명세를 고치는 신호다. */
+    examples: CaseRecord[];
     rejected: unknown;
     schemaErrors: string[];
   }): Promise<unknown>;
@@ -218,7 +237,16 @@ export interface AiPort {
    * AI 판정(VLM). 슬라이더 끝값과 쌍별 모서리 조합의 렌더링(renders, 같은 축척)과 그림 속 부품 색(colors)을 보고
    * 뚫림·겹침·비례 깨짐이 보이는 렌더링을 이유 한 줄과 함께 낸다. 수치 검증·축 반응·교차 검증을 통과한 명세에만 부른다.
    */
-  judge(input: { intake: Intake; spec: Spec; renders: JudgmentRender[]; colors: PartColor[]; rejected: unknown; schemaErrors: string[] }): Promise<unknown>;
+  judge(input: {
+    intake: Intake;
+    spec: Spec;
+    renders: JudgmentRender[];
+    colors: PartColor[];
+    /** 같은 상품 종류의 비슷한 사례. 운영자가 승인한 범위가 받아들일 수 있는 비례의 비교 예시다. */
+    examples: CaseRecord[];
+    rejected: unknown;
+    schemaErrors: string[];
+  }): Promise<unknown>;
 }
 
 /** 저장소 포트: 치수 규칙, UI 스타일 목록, 처리 기록, AI 판정 렌더링, 결과물, 사례 저장소 */
@@ -230,7 +258,8 @@ export interface StorePort {
   /** AI 판정이 문제를 찾은 렌더링(PNG)을 저장하고 그 경로를 돌려준다. 경로는 ai_judgment 피드백과 최종 승인 화면에 쓴다. */
   saveRender(product: string, name: string, png: Buffer): Promise<string>;
   submit(product: string, files: ProductFiles): Promise<void>;
-  recordCase(record: CaseRecord): Promise<void>;
+  /** 사례 저장소. 승인된 사례를 기록하고 예시를 꺼낸다. */
+  cases: CaseStore;
 }
 
 /** 사람 결정. 시험에서는 각본, 운영에서는 화면이 답한다. */
@@ -265,6 +294,9 @@ const SPEC_RETRIES = 3;
 
 /** 같은 후보로 수치 검증·축 반응은 통과했는데 AI 판정만 실패해도 되는 횟수. 이에 닿으면 판정 이유를 붙여 최종 승인으로 넘긴다(사용자 스토리 67). */
 export const JUDGMENT_FAILURES = 3;
+
+/** AI 단계에 예시로 넣는 사례 수(ADR-0011) */
+export const CASE_EXAMPLES = 3;
 
 /**
  * 카드와 운영자가 고른 부모로 고른 후보를 만든다. AI 입력과 사례 기록에는 미리보기 그림을 싣지 않는다.
@@ -354,6 +386,8 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
   // 슬라이더 범위의 근거는 정보 입력의 상품 종류의 치수 규칙이다. 상품 하나를 처리하는 동안 바뀌지 않는다.
   const rules = await store.dimensionRules(intake.kind);
   const ranges = rangeIntersection({ rules, intake, bundle: uploaded });
+  /** 사례 예시는 상품마다 한 번 꺼낸다. 상품을 처리하는 동안 뺀 사례는 다음 상품부터 빠진다. */
+  let examples: CaseRecord[] = [];
 
   /** 고른 후보 카드를 따르는 명세인지까지 본다 */
   const checkProductSpec = (chosen: ChosenCandidate): Check => (value) => {
@@ -411,12 +445,13 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
   }
 
   /**
-   * 승인한 명세로 결과물을 제출하고 사례로 기록한다. 좁힌 범위는 검증한 범위 안이라 다시 검증하지 않고,
+   * 승인한 명세에 고친 내용을 넣어 결과물을 제출하고 사례로 기록한다. 좁힌 범위는 검증한 범위 안이라 다시 검증하지 않고,
    * 결과물의 명세와 스윕 데이터만 그 범위로 다시 만든다.
    */
-  async function submit(spec: Spec, files: ProductFiles, candidates: Candidate[], chosen: ChosenCandidate): Promise<void> {
+  async function submit(approved: Spec, files: ProductFiles, decisions: Omit<CaseRecord, "kind" | "intake" | "spec">): Promise<void> {
+    const spec = applyEdits(approved, decisions.edits);
     await store.submit(intake.name, withApprovedSpec(files, spec));
-    await store.recordCase({ kind: intake.kind, intake, candidates, chosen: chosen.id, spec });
+    await store.cases.record(structuredClone({ kind: intake.kind, intake, ...decisions, spec }));
     await log("submission");
   }
 
@@ -475,7 +510,7 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
     const { shots, colors } = judgmentShots(spec, JSON.parse(files["sweeps.json"]));
     const renders = shots.map((s) => s.render);
     const { problems } = await askUntilValid<{ problems: JudgmentProblem[] }>("verification", judgmentChecker(renders.map((r) => r.name)), (schemaErrors, rejected) =>
-      ai.judge({ intake, spec: structuredClone(spec), renders: structuredClone(renders), colors, rejected, schemaErrors }),
+      ai.judge({ intake, spec: structuredClone(spec), renders: structuredClone(renders), colors, examples: structuredClone(examples), rejected, schemaErrors }),
     );
     // 같은 렌더링을 여러 번 짚으면 이유를 이어 붙여 그림 하나에 피드백 하나로 둔다
     const reasons = new Map<string, string[]>();
@@ -513,7 +548,17 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
 
     for (let attempt = 0; attempt <= SPEC_RETRIES; attempt++) {
       const spec: Spec = await askUntilValid("spec", checkProductSpec(candidate), (schemaErrors, rejected) =>
-        ai.writeSpec({ bundle, intake, candidate: structuredClone(candidate), rules: structuredClone(rules), previous: structuredClone(previous), feedback, rejected, schemaErrors }),
+        ai.writeSpec({
+          bundle,
+          intake,
+          candidate: structuredClone(candidate),
+          rules: structuredClone(rules),
+          previous: structuredClone(previous),
+          feedback,
+          examples: structuredClone(examples),
+          rejected,
+          schemaErrors,
+        }),
       );
       previous = spec;
       await log("spec");
@@ -591,6 +636,8 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
     await log("intake", intake);
     // 메모에서 어느 부위에도 붙지 않아 범위로 읽지 못한 "값~값"은 운영자가 의도를 확인하도록 남긴다
     if (ranges.unreadMemo.length > 0) await log("intake", { memoUnread: ranges.unreadMemo });
+    // 형식 검사를 통과한 정보 입력의 상품 종류로 거른다
+    examples = await store.cases.similar(intake.kind, caseQuery(intake), CASE_EXAMPLES);
 
     // 부품 탐색은 상품마다 한 번이다. 후보 제시로 돌아와도 같은 형상이라 다시 묻지 않는다.
     const { views, colors } = partViews(uploaded);
@@ -601,6 +648,10 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
     // 후보 제시로 돌아오는 고리. 회차마다 사람이 후보를 고르므로 사람 없이 끝없이 돌지는 않는다.
     const failures: CandidateFailure[] = [];
     const rejections: Rejection[] = [];
+    /** 후보 제시 회차마다 받은 후보. 사례에 남긴다. */
+    const proposed: Candidate[][] = [];
+    /** 최종 승인에서 "다른 후보"로 반려한 고른 후보. 사례에 남긴다. */
+    const backToChoice: ChosenCandidate[] = [];
     for (;;) {
       const candidates = await askUntilValid<Candidate[]>("candidates", checkBundleCandidates(parts), (schemaErrors, rejected) =>
         ai.proposeCandidates({
@@ -609,11 +660,13 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
           parts: structuredClone(parts),
           failures: structuredClone(failures),
           rejections: structuredClone(rejections),
+          examples: structuredClone(examples),
           rejected,
           schemaErrors,
         }),
       );
       await log("candidates", candidates.map((c) => c.id));
+      proposed.push(candidates);
 
       // 후보 선택으로 돌아오는 고리. 최종 승인에서 "다른 후보"로 반려하면 이미 받은 카드로 다시 고른다.
       const cards = candidateCards(candidates, uploaded, parts);
@@ -646,12 +699,15 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
         const answer = await finalApproval(written.spec, files, judgment);
         await log("approval", answer);
         if (answer.decision === "reject") {
-          if (answer.back === "choice") continue;
+          if (answer.back === "choice") {
+            backToChoice.push(candidate);
+            continue;
+          }
           rejections.push({ candidate, reason: answer.reason.trim() });
           break;
         }
 
-        await submit(applyEdits(written.spec, answer.edits ?? {}), files, candidates, candidate);
+        await submit(written.spec, files, { candidates: proposed, chosen: candidate, edits: answer.edits ?? {}, rejections, backToChoice });
         return { status: "submitted" };
       }
     }

@@ -1,6 +1,7 @@
 // AI 모델 포트의 LiteLLM 구현. LiteLLM 프록시의 OpenAI 호환 채팅 API로 단계마다 정해진 모델을 부른다(ADR-0015).
 // 응답 형식 검사와 다시 묻기는 실행기가 한다. 여기서는 묻고, 모델이 낸 문장을 JSON으로 읽어 돌려줄 뿐이다.
 // 특정 API에만 있는 기능(JSON 모드 등)에 기대지 않도록, 출력 형식은 JSON Schema를 지시문에 적어 알린다.
+import type { Embed } from "./case-store.ts";
 import { boundsOf, round } from "./measure.ts";
 import { sweepResponse } from "./parameter-relations.ts";
 import type { AiPort, AiStage } from "./runner.ts";
@@ -79,14 +80,15 @@ const CANDIDATES_PROMPT = `너는 가구 쇼핑몰 구성기의 슬라이더 구
 - front는 고객이 가구를 바라보는 정면 방향(Fusion 좌표)이다. parts.fronts가 하나면 그 정면을 쓰고, 여럿이면 그 정면을 후보끼리 모두 나눠 쓴다. parts.up과 같은 축은 정면이 될 수 없다.
 - summary는 후보 설명 한 줄, diff는 다른 후보와의 차이 한 줄(한국어).
 - failures에 있는 후보는 같은 구성으로 다시 내지 않는다.
-- rejections가 있으면 그 거절 이유를 따르도록 구성을 고치고, 반려된 후보를 같은 구성으로 다시 내지 않는다.`;
+- rejections가 있으면 그 거절 이유를 따르도록 구성을 고치고, 반려된 후보를 같은 구성으로 다시 내지 않는다.
+- examples(같은 상품 종류의 비슷한 사례: 그때의 intake, 회차마다 제시된 후보 candidates, 운영자가 고른 후보 chosen, 반려한 후보와 거절 이유 rejections, 이유 없이 반려하고 다른 후보로 바꾼 후보 backToChoice, 최종 명세 spec, 최종 승인 때 운영자가 고친 슬라이더 이름·범위 edits)는 운영자의 선택 방식이다. 고른 구성과 고친 슬라이더 이름을 따르고, 거절 이유가 가리킨 구성은 피한다. 파라미터 이름은 이 상품의 bundle을 따른다.`;
 
 const STYLE_PROMPT = `너는 가구 쇼핑몰 구성기의 UI 스타일을 고른다.
 입력: intake(정보 입력), candidate(고른 슬라이더 구성 후보), styles(고를 수 있는 스타일 목록: id, summary(분위기 설명), colors(바탕·글자·강조·부품 색), font(글꼴), slider(슬라이더 모양)).
 - intake의 상품 종류·상품명과 어울리는 스타일을 summary와 colors로 판단해 그 id 하나만 고른다. 목록 밖의 값을 만들지 않는다.`;
 
 const SPEC_PROMPT = `너는 가구 쇼핑몰 구성기의 명세(JSON)를 쓴다. 명세는 고정 코어와 변형 엔진이 읽는 유일한 입력이다.
-입력: bundle(Fusion 업로드 묶음 요약), intake(정보 입력), candidate(운영자가 고른 슬라이더 구성 후보), rules(이 상품 종류의 치수 규칙), previous(검증 피드백을 받은 명세, 처음이면 null), feedback(previous가 받은 검증 피드백), rejected(형식 검사에 걸린 직전 답, 없으면 null), schemaErrors(rejected의 형식 검사 오류).
+입력: bundle(Fusion 업로드 묶음 요약), intake(정보 입력), candidate(운영자가 고른 슬라이더 구성 후보), rules(이 상품 종류의 치수 규칙), previous(검증 피드백을 받은 명세, 처음이면 null), feedback(previous가 받은 검증 피드백), examples(같은 상품 종류의 비슷한 사례), rejected(형식 검사에 걸린 직전 답, 없으면 null), schemaErrors(rejected의 형식 검사 오류).
 - product는 intake.name 그대로다.
 - front는 candidate.front다. axes는 W(폭)·D(깊이)·H(높이)가 대응하는 Fusion 축이다. 정면이 ±Y면 W는 X, D는 Y이고, 정면이 ±X면 W는 Y, D는 X다. bundle.parts의 바운딩 박스(size는 X·Y·Z 순)로 높이 축을 확인한다.
 - sliders는 candidate.sliders마다 하나다. id는 그 parent(움직일 부모 파라미터), name은 그 name 그대로, unit은 "mm"다. parent가 parameter와 다르면 children에 parameter를 넣는다.
@@ -97,12 +99,14 @@ const SPEC_PROMPT = `너는 가구 쇼핑몰 구성기의 명세(JSON)를 쓴다
 - affects.shape는 이 슬라이더를 움직이면 크기가 바뀌는 부품, affects.move는 크기는 그대로이고 자리만 옮겨지는 부품이다. bundle.parts의 name만 쓰고, 한 부품을 둘 다에 넣지 않는다.
 - thickness는 판재 두께 선택이다. candidate.showThickness가 false면 빈 목록이다. 두께 후보(options)는 표준 두께 목록 3·6·9·12·15·18·24·30 mm에서 기본 두께와 그 앞뒤 한 칸이다. ids로 묶는 두께 파라미터는 기본 두께가 같아야 하고 default는 그 값이다.
 - fixed는 슬라이더로 바꾸지 않는 판재 두께 파라미터다. 어떤 슬라이더의 children에도, thickness에도 넣지 않는다. 확실하지 않으면 빈 목록이다.
-- feedback이 비어 있지 않으면 previous를 바탕으로 각 항목의 path가 가리키는 곳을 고쳐 전체 명세를 다시 낸다. 그 밖의 곳은 바꾸지 않는다. measured·expected·hint가 고칠 값을 알려 준다.`;
+- feedback이 비어 있지 않으면 previous를 바탕으로 각 항목의 path가 가리키는 곳을 고쳐 전체 명세를 다시 낸다. 그 밖의 곳은 바꾸지 않는다. measured·expected·hint가 고칠 값을 알려 준다.
+- examples(같은 상품 종류의 비슷한 사례의 최종 명세 spec과, 운영자가 최종 승인 때 고친 슬라이더 이름·범위 edits)는 운영자가 받아들인 명세다. 이름 짓는 방식과 범위·step 고르는 방식을 따르고, edits가 고친 쪽으로 처음부터 쓴다. 파라미터 이름과 범위의 근거는 이 상품의 bundle·rules·intake다.`;
 
 const JUDGMENT_PROMPT = `너는 가구 쇼핑몰 구성기가 고객에게 보일 형상을 그림으로 보고 이상을 찾는다.
-입력: intake(정보 입력), spec(구성기 명세), renders(붙인 그림의 순서대로, 각 그림의 name과 슬라이더 값 values), colors(그림에서 부품마다 칠한 색).
+입력: intake(정보 입력), spec(구성기 명세), renders(붙인 그림의 순서대로, 각 그림의 name과 슬라이더 값 values), colors(그림에서 부품마다 칠한 색), examples(같은 상품 종류의 비슷한 사례).
 - 그림은 슬라이더 끝값과 두 슬라이더의 모서리 조합에서 그린 형상이다. 모두 같은 축척이고, 정면에서 오른쪽 위로 비켜 본 직교 투영이다. name에 없는 슬라이더는 기본값이다.
 - 판 사이가 벌어져 뚫린 곳, 부품끼리 파고든 겹침, 상품 종류로 보아 비례가 깨진 모양(너무 얇거나 길쭉한 판, 몸통 밖으로 나간 서랍 등)만 찾는다. 치수 값이 맞는지는 이미 검증했으니 보지 않는다.
+- examples의 최종 명세 spec은 운영자가 승인한 상품이다. 그 범위 안의 비례는 운영자가 받아들인 것이니 비교 기준으로 삼는다.
 - problems는 이상이 보이는 그림마다 image(그 그림의 name 그대로)와 reason(무엇이 어디서 이상한지 한국어 한 줄)이다. 이상이 없으면 빈 목록이다.`;
 
 /** 답 전체를 감싼 마크다운 코드 블록(```json … ```) */
@@ -120,9 +124,28 @@ function readJson(content: string): unknown {
   }
 }
 
+/** LiteLLM 주소 아래의 API. 주소에 붙은 경로(예: /litellm) 아래를 부르도록 끝을 /로 맞춘다. */
+const apiUrl = (baseUrl: string, path: string) => new URL(path, baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`);
+
+const authorization = (apiKey: string | undefined): Record<string, string> => (apiKey ? { authorization: `Bearer ${apiKey}` } : {});
+
+/** 사례 저장소의 임베딩. LiteLLM 프록시의 OpenAI 호환 임베딩 API로 부른다. model은 LiteLLM 설정의 model_name이다. */
+export function liteLlmEmbed({ baseUrl, apiKey, model }: { baseUrl: string; apiKey?: string; model: string }): Embed {
+  const url = apiUrl(baseUrl, "v1/embeddings");
+  return async (texts) => {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...authorization(apiKey) },
+      body: JSON.stringify({ model, input: texts }),
+    });
+    if (!response.ok) throw new Error(`LiteLLM 임베딩 실패(${model}): ${response.status} ${await response.text()}`);
+    const { data } = (await response.json()) as { data: { index: number; embedding: number[] }[] };
+    return [...data].sort((a, b) => a.index - b.index).map((d) => d.embedding);
+  };
+}
+
 export function liteLlmAi({ baseUrl, apiKey, models }: LiteLlmOptions): AiPort {
-  // 주소에 붙은 경로(예: /litellm) 아래의 채팅 API를 부르도록 끝을 /로 맞춘다
-  const chat = new URL("v1/chat/completions", baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`);
+  const chat = apiUrl(baseUrl, "v1/chat/completions");
   /** images: 사용자 메시지에 문장 뒤로 붙일 PNG(base64). 있으면 OpenAI 호환 문장·그림 조각 목록으로 보낸다. */
   async function ask(stage: AiStage, instructions: string, input: unknown, images: string[] = []): Promise<unknown> {
     const text = JSON.stringify(input);
@@ -132,7 +155,7 @@ export function liteLlmAi({ baseUrl, apiKey, models }: LiteLlmOptions): AiPort {
         : [{ type: "text", text }, ...images.map((png) => ({ type: "image_url", image_url: { url: `data:image/png;base64,${png}` } }))];
     const response = await fetch(chat, {
       method: "POST",
-      headers: { "content-type": "application/json", ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}) },
+      headers: { "content-type": "application/json", ...authorization(apiKey) },
       body: JSON.stringify({
         model: models[stage],
         messages: [
