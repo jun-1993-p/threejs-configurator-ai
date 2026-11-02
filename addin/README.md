@@ -13,7 +13,7 @@ python -m venv .venv
 
 ## 애드인 설치
 
-> 지금은 Fusion 애드인으로 업로드할 수 없다. 업로드 묶음이 면 이름·모서리·연결 정보를 요구하게 바뀌었는데(ADR-0016, 티켓 25), Fusion 쪽 추출은 사람 확인 전이라 `sample_edges`가 오류를 낸다. 그동안 시험 데이터는 SolidCraft 합성 녹화본(`python -m synthetic.make_recording`, 티켓 24)으로 만든다.
+> 지금은 Fusion 애드인으로 업로드할 수 없다. 업로드 묶음이 면 이름·모서리·연결 정보를 요구하게 바뀌었는데(ADR-0016, 티켓 25), Fusion 쪽 추출은 사람 확인 전이라(티켓 26) `sample_edges`가 오류를 낸다. 그동안 시험 데이터는 SolidCraft 합성 녹화본(`python -m synthetic.make_recording`, 티켓 24)으로 만든다.
 
 1. Fusion → 유틸리티 → 추가 기능 → 스크립트 및 추가 기능 → 추가 기능 탭 → `+` 로 `addin/ConfiguratorUploader` 폴더를 연결한다.
 2. 서버 주소는 `addin/ConfiguratorUploader/config.py`의 `SERVER_URL`에서 바꾼다.
@@ -47,4 +47,4 @@ curl -X POST http://localhost:8000/uploads/<업로드 ID>/recording -H "Content-
 - 일꾼 스레드가 3초마다 사용자 이벤트를 쏘고, 주 스레드가 `GET /uploads/<ID>/sample-requests/next`로 요청을 가져가 `POST .../<요청 ID>/response`로 답한다. 샘플을 뽑지 못하면 `POST .../<요청 ID>/failure`로 이유를 알린다(바꾼 파라미터의 수식은 되돌린다). 샘플을 뽑는 동안에는 일꾼 스레드가 `POST /uploads/<ID>/fusion`으로 연결 신호를 보낸다.
 - 서버는 애드인 소식이 15초 넘게 없으면 연결이 끊긴 것으로 보고, 파이프라인은 "Fusion 연결 필요"로 기다린다.
 - 새로 업로드하면 그 업로드의 요청에만 답한다.
-- Fusion 안에서의 이 연결 동작은 아직 사람이 확인하지 않았다(Fusion 업로드 자체가 티켓 25 사람 확인을 기다린다).
+- Fusion 안에서의 이 연결 동작은 아직 사람이 확인하지 않았다(Fusion 업로드 자체가 티켓 26 사람 확인을 기다린다).
