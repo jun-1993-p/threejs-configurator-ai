@@ -44,3 +44,5 @@ docker compose run --rm pipeline scripts/cases.ts list
 ```
 
 컨테이너 안에서 저장소 루트는 `/app`이다. `fixtures/`와 `data/`가 같은 이름으로 연결되어 있다.
+
+최종 확인 도구(`scripts/final-check.ts`)는 git이 필요해 컨테이너 밖에서 돌린다. 절차는 `docs/final-check.md`.

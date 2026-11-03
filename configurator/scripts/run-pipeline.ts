@@ -9,9 +9,9 @@ import { dirname, join } from "node:path";
 
 import { DEFAULT_CASES_DIR, lanceCaseStore } from "../pipeline/case-store.ts";
 import { liteLlmAi, liteLlmEmbed } from "../pipeline/litellm-ai.ts";
-import { memoryStore } from "../pipeline/memory-store.ts";
+import { memoryStore, type MemoryStore } from "../pipeline/memory-store.ts";
 import { candidateCardsHtml, finalApprovalHtml } from "../pipeline/operator-screens.ts";
-import { runPipeline, type FusionPort, type HumanPort, type Intake, type PipelineResult } from "../pipeline/runner.ts";
+import { runPipeline, type FusionPort, type HumanPort, type Intake, type LogEntry, type PipelineResult } from "../pipeline/runner.ts";
 import type { DimensionRule } from "../pipeline/range-intersection.ts";
 import { UI_STYLES } from "../pipeline/ui-styles.ts";
 
@@ -42,21 +42,39 @@ function singleSliderAndApprove(product: string, outDir: string): HumanPort {
   };
 }
 
-/** 파이프라인을 돌리고 처리 기록, AI 판정이 문제를 찾은 렌더링(최종 승인 화면이 그 경로로 읽는다), 제출된 결과물을 outDir에 쓴다 */
-export async function runWithLiteLlm(bundle: unknown, intake: Intake, rules: DimensionRule[], outDir: string): Promise<PipelineResult> {
-  const model = process.env.LITELLM_MODEL ?? "llm";
-  const vlm = process.env.LITELLM_VLM_MODEL ?? "vlm";
-  const baseUrl = process.env.LITELLM_URL ?? "http://localhost:4000";
-  const apiKey = process.env.LITELLM_API_KEY;
-  const ai = liteLlmAi({ baseUrl, apiKey, models: { parts: vlm, candidates: model, style: model, spec: model, judgment: vlm } });
-  const embed = liteLlmEmbed({ baseUrl, apiKey, model: process.env.LITELLM_EMBED_MODEL ?? "embedding" });
-  const store = memoryStore({
+const LITELLM_URL = process.env.LITELLM_URL ?? "http://localhost:4000";
+const LITELLM_API_KEY = process.env.LITELLM_API_KEY;
+
+/** 처리 기록을 찍으며 쌓고, 사례 저장소는 CASES_DIR의 LanceDB인 저장소 */
+export function liteLlmStore(rules: DimensionRule[]): MemoryStore {
+  const embed = liteLlmEmbed({ baseUrl: LITELLM_URL, apiKey: LITELLM_API_KEY, model: process.env.LITELLM_EMBED_MODEL ?? "embedding" });
+  return memoryStore({
     styles: UI_STYLES,
     rules,
     cases: lanceCaseStore({ dir: process.env.CASES_DIR ?? DEFAULT_CASES_DIR, embed }),
     onLog: (entry) => console.log(`[${entry.stage}]`, entry.detail === undefined ? "" : JSON.stringify(entry.detail)),
   });
-  const result = await runPipeline({ bundle, intake, human: singleSliderAndApprove(intake.name, outDir), ports: { fusion: noAddin, ai, store } });
+}
+
+/**
+ * 파이프라인을 돌리고 처리 기록, AI 판정이 문제를 찾은 렌더링(최종 승인 화면이 그 경로로 읽는다), 제출된 결과물을 outDir에 쓴다.
+ * 사람 결정·Fusion 연결·저장소는 바꿔 끼울 수 있다(최종 확인 도구는 렌더링을 운영자 화면에 보이려고 저장소를 먼저 만든다).
+ */
+export async function runWithLiteLlm(
+  bundle: unknown,
+  intake: Intake,
+  rules: DimensionRule[],
+  outDir: string,
+  {
+    human = singleSliderAndApprove(intake.name, outDir),
+    fusion = noAddin,
+    store = liteLlmStore(rules),
+  }: { human?: HumanPort; fusion?: FusionPort; store?: MemoryStore } = {},
+): Promise<{ result: PipelineResult; log: LogEntry[] }> {
+  const model = process.env.LITELLM_MODEL ?? "llm";
+  const vlm = process.env.LITELLM_VLM_MODEL ?? "vlm";
+  const ai = liteLlmAi({ baseUrl: LITELLM_URL, apiKey: LITELLM_API_KEY, models: { parts: vlm, candidates: model, style: model, spec: model, judgment: vlm } });
+  const result = await runPipeline({ bundle, intake, human, ports: { fusion, ai, store } });
   mkdirSync(outDir, { recursive: true });
   writeFileSync(join(outDir, "log.json"), JSON.stringify(store.log, null, 2));
   for (const { path, png } of store.renders) {
@@ -64,7 +82,7 @@ export async function runWithLiteLlm(bundle: unknown, intake: Intake, rules: Dim
     writeFileSync(join(outDir, path), png);
   }
   for (const { files } of store.submissions) for (const [name, content] of Object.entries(files)) writeFileSync(join(outDir, name), content);
-  return result;
+  return { result, log: store.log };
 }
 
 if (import.meta.main) {
@@ -74,5 +92,5 @@ if (import.meta.main) {
     process.exit(2);
   }
   const read = (path: string) => JSON.parse(readFileSync(path, "utf-8"));
-  console.log(JSON.stringify(await runWithLiteLlm(read(bundlePath), read(intakePath), read(rulesPath), outDir)));
+  console.log(JSON.stringify((await runWithLiteLlm(read(bundlePath), read(intakePath), read(rulesPath), outDir)).result));
 }

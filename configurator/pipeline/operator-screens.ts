@@ -1,5 +1,5 @@
 // 운영자 화면: 정보 입력 양식, 후보 카드, 최종 승인. 화면은 HTML 문장으로 만들고, 보낸 양식 값을 정보 입력과 사람 결정으로 읽는다.
-// 화면을 띄우는 서버(운영 호스트)는 티켓 22에서 붙인다. 이 파일은 DOM 없이 Node에서 돈다.
+// 화면을 띄우는 서버는 browser-human.ts다. 이 파일은 DOM 없이 Node에서 돈다.
 import { placeOf, type Spec } from "../src/engine.ts";
 import type { ProductFiles } from "./assemble.ts";
 import { DIMENSION_NAMES, pickParent, type CandidateCard, type ParentChoice } from "./candidate-cards.ts";
@@ -102,12 +102,23 @@ ${previews}
 </article>`;
 }
 
-/** 후보 카드 화면. 카드마다 다른 후보와의 차이 한 줄, 정면에 따른 축 대응, 업로드한 스윕으로 만든 변형 미리보기가 있다. */
-export function candidateCardsHtml(product: string, cards: CandidateCard[]): string {
+/** 사람 결정을 기다리지 않는 동안의 화면. 몇 초마다 다시 읽어 다음 결정 화면이 뜨면 보인다. */
+export function progressHtml(product: string): string {
+  return page(`${product} 진행 중`, `<meta http-equiv="refresh" content="3">\n<h1>${escape(product)} 진행 중</h1>\n<p>파이프라인이 진행 중입니다. 결정할 일이 생기면 이 화면이 바뀝니다.</p>`);
+}
+
+/** 앞서 보낸 양식이 막힌 까닭 */
+const errorList = (errors: string[]) => (errors.length === 0 ? "" : `<ul class="errors">\n${errors.map((e) => `<li>${escape(e)}</li>`).join("\n")}\n</ul>\n`);
+
+/**
+ * 후보 카드 화면. 카드마다 다른 후보와의 차이 한 줄, 정면에 따른 축 대응, 업로드한 스윕으로 만든 변형 미리보기가 있다.
+ * errors는 앞서 보낸 후보 선택이 막힌 까닭이다(readCandidateChoice).
+ */
+export function candidateCardsHtml(product: string, cards: CandidateCard[], errors: string[] = []): string {
   return page(
     `${product} 후보 선택`,
     `<h1>${escape(product)} 후보 선택</h1>
-<form method="post">
+${errorList(errors)}<form method="post">
 <div class="cards">
 ${cards.map(cardHtml).join("\n")}
 </div>
@@ -220,12 +231,11 @@ export function finalApprovalHtml({
 ${reasons.join("\n")}
 </section>
 `;
-  const blocked = errors.length === 0 ? "" : `<ul class="errors">\n${errors.map((e) => `<li>${escape(e)}</li>`).join("\n")}\n</ul>\n`;
   // 반려 단추는 고치는 칸의 브라우저 검사를 건너뛴다. 반려하면 고친 내용은 쓰지 않는다.
   return page(
     `${spec.product} 최종 승인`,
     `<h1>${escape(spec.product)} 최종 승인</h1>
-${judged}${blocked}${previewHtml(spec, files)}
+${judged}${errorList(errors)}${previewHtml(spec, files)}
 <form method="post" id="approval">
 ${spec.sliders.map((s) => sliderEditHtml(s, edits[s.id])).join("\n")}
 <p><button type="submit" name="decision" value="approve">승인</button></p>

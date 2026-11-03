@@ -57,6 +57,14 @@ export type ProductKind = (typeof PRODUCT_KINDS)[number];
 export const THICKNESS_CHOICES = ["ai", "show", "hide"] as const;
 export type ThicknessExposure = (typeof THICKNESS_CHOICES)[number];
 
+/** 최종 확인에서 통과하지 못한 상품의 까닭. spec은 명세 문제, engine은 엔진 한계다(사용자 스토리 85). */
+export const FAILURE_CLASSES = ["spec", "engine"] as const;
+export type FailureClass = (typeof FAILURE_CLASSES)[number];
+
+/** 최종 확인 판정. running은 돌리지 않은 상품이 남았고, invalid는 고정 코어·변형 엔진이 바뀌었거나 처음 보는 상품이 아닌 것이 섞였다. */
+export const VERDICT_STATUSES = ["running", "passed", "failed", "invalid"] as const;
+export type VerdictStatus = (typeof VERDICT_STATUSES)[number];
+
 /** 정보 입력. 직업처럼 쓰이지 않는 항목은 받지 않는다(사용자 스토리 18). */
 export const checkIntake = checker({
   type: "object",

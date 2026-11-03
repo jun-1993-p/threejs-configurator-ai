@@ -290,6 +290,9 @@ export type PipelineResult = { status: "submitted" } | { status: "stopped"; stag
 /** 형식이 틀린 AI 응답을 다시 묻는 횟수 */
 const SCHEMA_RETRIES = 3;
 
+/** AI 응답이 끝내 형식 검사를 통과하지 못해 멈출 때 까닭의 앞부분. 최종 확인이 이것으로 명세 문제를 가린다. */
+export const AI_FORMAT_FAILURE = `AI 응답이 ${SCHEMA_RETRIES}번 다시 물어도 형식 검사를 통과하지 못했습니다`;
+
 /** 같은 후보로 검증 피드백을 붙여 명세를 다시 쓰는 횟수. 이를 넘으면 후보 제시로 돌아간다. */
 const SPEC_RETRIES = 3;
 
@@ -349,7 +352,7 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
       if (errors.length === 0) return answer as T;
       await log(stage, { schemaErrors: errors });
     }
-    throw new PipelineStop(stage, `AI 응답이 ${SCHEMA_RETRIES}번 다시 물어도 형식 검사를 통과하지 못했습니다: ${errors.join("; ")}`);
+    throw new PipelineStop(stage, `${AI_FORMAT_FAILURE}: ${errors.join("; ")}`);
   }
 
   /** 같은 요청에는 같은 형상이 오므로, 이 상품을 처리하는 동안 받은 추가 샘플은 다시 요청하지 않는다. */
