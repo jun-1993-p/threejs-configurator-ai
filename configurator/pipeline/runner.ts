@@ -592,12 +592,9 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
           else ({ files, feedback } = await assembleAndVerify(spec, gridsFor(spec, reinforcements), style));
         }
       }
-      if (feedback.length === 0) {
-        const judgment = await judge(spec, files);
-        await log("verification", { attempt, feedback: judgment });
-        return { spec, files, judgment };
-      }
-      await log("verification", { attempt, feedback });
+      const judgment = feedback.length === 0 ? await judge(spec, files) : null;
+      await log("verification", { attempt, feedback: judgment ?? feedback });
+      if (judgment) return { spec, files, judgment };
     }
     return { feedback };
   }
@@ -692,6 +689,11 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
 
         const written = await writeVerifiedSpec(candidate, styles.find((s) => s.id === styleId)!);
         if ("feedback" in written) {
+          // 다른 구성이 없는 회차라 후보 제시로 돌아가도 같은 후보를 다시 받는다. 자동으로 고르는 실행 도구에서 끝없이 돈다.
+          if (candidates.length === 1) {
+            const kinds = [...new Set(written.feedback.map((f) => f.kind))].join(", ");
+            throw new PipelineStop("candidates", `후보 ${chosenId} 하나뿐인 구성이 검증을 통과하지 못했습니다(${kinds}). 정보 입력의 메모나 두께 선택 노출을 바꿔 다시 돌리세요`);
+          }
           failures.push({ candidate, feedback: written.feedback });
           break;
         }

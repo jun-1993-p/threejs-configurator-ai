@@ -379,6 +379,19 @@ test("정면을 확신하고 정보 입력이 두께 선택 노출을 정했으�
   assert.equal(ai.calls.candidates.length, 1);
 });
 
+test("후보 하나뿐인 회차에서 그 후보가 검증을 통과하지 못하면 후보 제시로 돌아가지 않고 멈춘다", async () => {
+  // 다른 구성이 없어 같은 후보를 다시 받으면, 자동으로 고르는 실행 도구에서 끝없이 돈다(티켓 28 리뷰)
+  const tooWide: Spec = { ...spec, sliders: [{ ...spec.sliders[0], max: 900 }] };
+  const { ai, ports } = setup({ parts: [{ ...partsFound, fronts: ["-Y"] }], candidates: [[candidates[0]], [candidates[0]]], spec: [tooWide, tooWide, tooWide, tooWide] });
+
+  const result = await runPipeline({ bundle: pushMaxSide(825, "DrawerBox", "X", 0.3), intake: { ...intake, thickness: "hide" }, human: approveFirst, ports });
+
+  assert.equal(result.status, "stopped");
+  assert.equal(result.status === "stopped" && result.stage, "candidates");
+  assert.match(result.status === "stopped" ? result.reason : "", /후보 c1 하나뿐인 구성이 검증을 통과하지 못했습니다/);
+  assert.equal(ai.calls.candidates.length, 1);
+});
+
 test("두께 선택 노출이 AI 판단이면 후보 하나는 다시 만든다", async () => {
   const { ai, ports } = setup({
     parts: [{ ...partsFound, fronts: ["-Y"] }],
@@ -1584,7 +1597,7 @@ test("AI 판정이 문제를 찾으면 그 렌더링을 저장하고, 명세를 
       kind: "ai_judgment",
       measured: { image: "renders/1단 서랍장/body_w=800.png", values: { body_w: 800 }, reason: gap.reason },
       expected: "뚫림·겹침·비례 깨짐 없음",
-      hint: "body_w=800에서 렌더링 판정 실패: 그 끝값을 범위에서 빼거나 affects의 형태 변경·위치 이동 부품 확인",
+      hint: "body_w=800에서 AI 판정이 짚음: 렌더링을 보고 문제가 맞으면 그 끝값을 범위에서 빼거나 반려",
     },
   ]);
   assert.deepEqual(store.renders.map((r) => r.path), ["renders/1단 서랍장/body_w=800.png"]);

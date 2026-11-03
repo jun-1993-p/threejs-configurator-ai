@@ -71,6 +71,6 @@ export function judgmentFeedback(spec: Spec, { slider, render }: JudgmentShot, r
     kind: "ai_judgment",
     measured,
     expected: "뚫림·겹침·비례 깨짐 없음",
-    hint: `${render.name}에서 렌더링 판정 실패: 그 끝값을 범위에서 빼거나 affects의 형태 변경·위치 이동 부품 확인`,
+    hint: `${render.name}에서 AI 판정이 짚음: 렌더링을 보고 문제가 맞으면 그 끝값을 범위에서 빼거나 반려`,
   };
 }
