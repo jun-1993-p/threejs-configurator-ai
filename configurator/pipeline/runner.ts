@@ -271,7 +271,7 @@ export interface HumanPort {
    */
   chooseCandidate(cards: CandidateCard[]): Promise<{ candidate: string; parents?: Record<string, string> }>;
   /**
-   * judgment는 AI 판정만 JUDGMENT_FAILURES번 실패해 넘어왔을 때 마지막 판정의 ai_judgment 피드백이고, 아니면 빈 목록이다.
+   * judgment는 AI 판정이 짚은 렌더링의 ai_judgment 피드백이고, 짚은 곳이 없으면 빈 목록이다. 판정은 명세를 바꾸지 않고 여기에만 알린다(티켓 29).
    * errors는 앞서 낸 결정이 검사를 통과하지 못한 까닭(범위 넓히기, 빈 거절 이유 등)이고, edits는 그 결정이 고친 내용이라 화면이 다시 채워 보인다.
    * 처음 물을 때는 둘 다 비어 있다. spec은 늘 승인 전 명세다.
    */
@@ -295,9 +295,6 @@ export const AI_FORMAT_FAILURE = `AI 응답이 ${SCHEMA_RETRIES}번 다시 물�
 
 /** 같은 후보로 검증 피드백을 붙여 명세를 다시 쓰는 횟수. 이를 넘으면 후보 제시로 돌아간다. */
 const SPEC_RETRIES = 3;
-
-/** 같은 후보로 수치 검증·축 반응은 통과했는데 AI 판정만 실패해도 되는 횟수. 이에 닿으면 판정 이유를 붙여 최종 승인으로 넘긴다(사용자 스토리 67). */
-export const JUDGMENT_FAILURES = 3;
 
 /** AI 단계에 예시로 넣는 사례 수(ADR-0011) */
 export const CASE_EXAMPLES = 3;
@@ -529,9 +526,9 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
   }
 
   /**
-   * 명세 작성 → 조립 → 검증 → AI 판정. 검증 피드백을 붙여 다시 쓰고, 통과하면 명세와 결과물을,
-   * SPEC_RETRIES번 넘게 실패하면 마지막 피드백을 돌려준다. AI 판정만 JUDGMENT_FAILURES번 실패하면 마지막 명세와 결과물에
-   * 그 판정 피드백(judgment)을 붙여 돌려준다.
+   * 명세 작성 → 조립 → 검증 → AI 판정. 검증 피드백을 붙여 다시 쓰고, 통과하면 명세와 결과물에 AI 판정 피드백(judgment)을 붙여,
+   * SPEC_RETRIES번 넘게 실패하면 마지막 피드백을 돌려준다. AI 판정은 한 번만 받고 명세를 다시 쓰게 하지 않는다.
+   * VLM이 멀쩡한 형상을 오판하면 그 끝값을 빼느라 운영자가 정한 범위가 줄었다(티켓 26 6절 Groq 회차, 티켓 29).
    *
    * 교차 검증에 실패한 쌍은 먼저 피드백으로 명세를 고치게 하고, 다시 쓴 명세에서도 실패하면 그 쌍을 3×3 격자로
    * 보강해 같은 명세를 한 번 더 검증한다(ADR-0008). 격자 보강은 명세가 아니라 결과물의 스윕 데이터에 담긴다.
@@ -541,8 +538,6 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
     style: Style,
   ): Promise<{ spec: Spec; files: ProductFiles; judgment: Feedback[] } | { feedback: Feedback[] }> {
     let feedback: Feedback[] = [];
-    /** 이 후보로 수치 검증·축 반응·교차 검증은 통과했는데 AI 판정에 실패한 횟수 */
-    let judgmentFailures = 0;
     /** 검증 피드백을 받은 직전 명세 */
     let previous: Spec | null = null;
     /** 이 후보로 받은 격자 보강 */
@@ -597,11 +592,12 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
           else ({ files, feedback } = await assembleAndVerify(spec, gridsFor(spec, reinforcements), style));
         }
       }
-      const judged = feedback.length === 0;
-      if (judged) feedback = await judge(spec, files);
+      if (feedback.length === 0) {
+        const judgment = await judge(spec, files);
+        await log("verification", { attempt, feedback: judgment });
+        return { spec, files, judgment };
+      }
       await log("verification", { attempt, feedback });
-      if (feedback.length === 0) return { spec, files, judgment: [] };
-      if (judged && ++judgmentFailures === JUDGMENT_FAILURES) return { spec, files, judgment: feedback };
     }
     return { feedback };
   }

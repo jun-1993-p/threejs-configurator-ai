@@ -148,10 +148,10 @@ const judgment: Feedback[] = [
   },
 ];
 
-test("AI 판정만 3번 실패해 넘어온 구성기의 최종 승인 화면에는 판정 이유와 그 렌더링이 보인다", () => {
+test("AI 판정이 문제를 짚은 구성기의 최종 승인 화면에는 판정 이유와 그 렌더링이 보인다", () => {
   const html = finalApprovalHtml({ spec: approvedSpec, files, judgment, errors: [], edits: {} });
 
-  assert.match(html, /AI 판정을 3번 통과하지 못해 넘어왔습니다/);
+  assert.match(html, /AI 판정이 짚은 곳/);
   assert.match(html, /body_w=800·body_h=500: 서랍이 몸통 밖으로 &lt;튀어나옴&gt;/);
   assert.match(html, /<img src="renders\/1단 서랍장\/body_w=800·body_h=500\.png"/);
   assert.match(html, /<button type="submit" name="decision" value="approve">/);

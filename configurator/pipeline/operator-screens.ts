@@ -5,7 +5,7 @@ import type { ProductFiles } from "./assemble.ts";
 import { DIMENSION_NAMES, pickParent, type CandidateCard, type ParentChoice } from "./candidate-cards.ts";
 import type { Feedback } from "./feedback.ts";
 import { DIMENSIONS } from "./measure.ts";
-import { JUDGMENT_FAILURES, type ApprovalDecision, type Intake, type SliderEdits } from "./runner.ts";
+import { type ApprovalDecision, type Intake, type SliderEdits } from "./runner.ts";
 import { approvalEditChecker, checkIntake, PRODUCT_KINDS, rejectionReasonErrors, THICKNESS_CHOICES, type ThicknessExposure } from "./schemas.ts";
 import type { JudgmentMeasured } from "./verify-judgment.ts";
 
@@ -202,7 +202,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 /**
  * 최종 승인 화면. 결과물로 띄운 구성기, 슬라이더마다 이름과 범위를 고치는 칸, 승인과 반려 두 경로(다른 후보 고르기, 거절 이유를 적어 후보 제시 다시 하기)가 있다.
- * AI 판정만 JUDGMENT_FAILURES번 실패해 넘어왔으면 마지막 판정 이유와 그 렌더링이(사용자 스토리 73), 앞서 낸 결정이 막혔으면 그 까닭이 보인다.
+ * AI 판정이 짚은 곳이 있으면 그 이유와 렌더링이(사용자 스토리 73), 앞서 낸 결정이 막혔으면 그 까닭이 보인다.
  */
 export function finalApprovalHtml({
   spec,
@@ -226,8 +226,8 @@ export function finalApprovalHtml({
     reasons.length === 0
       ? ""
       : `<section class="judgment">
-<h2>AI 판정을 ${JUDGMENT_FAILURES}번 통과하지 못해 넘어왔습니다</h2>
-<p>수치 검증과 축 반응은 통과했습니다. 아래 렌더링을 눈여겨보고 결정하세요.</p>
+<h2>AI 판정이 짚은 곳</h2>
+<p>수치 검증과 축 반응은 통과했습니다. 이미지 모델은 멀쩡한 형상을 잘못 짚기도 합니다. 아래 렌더링을 직접 보고, 문제가 맞으면 범위를 좁히거나 반려하세요.</p>
 ${reasons.join("\n")}
 </section>
 `;

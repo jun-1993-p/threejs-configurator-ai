@@ -1552,15 +1552,31 @@ test("AI 판정은 수치 검증을 통과한 명세에만 돈다", async () => 
 
 const gap = { image: "body_w=800", reason: "폭 끝값에서 서랍과 몸통 옆판 사이가 벌어져 뚫려 보임" };
 
-test("AI 판정이 문제를 찾으면 그 렌더링을 저장하고 이미지 경로와 이유 한 줄을 담은 ai_judgment 피드백으로 명세를 다시 쓴다", async () => {
-  const { ai, store, ports } = setup({ spec: [spec, spec], judgment: [judged(gap), judged()] });
+/** 최종 승인에 넘어온 검토 거리를 모으고 승인하는 사람 */
+function approveAndKeep() {
+  const reviews: { spec: Spec; judgment: Feedback[] }[] = [];
+  const human: HumanPort = {
+    chooseCandidate: () => Promise.resolve({ candidate: "c1" }),
+    finalApproval: (review) => {
+      reviews.push(review);
+      return Promise.resolve({ decision: "approve" });
+    },
+  };
+  return { human, reviews };
+}
 
-  const result = await runPipeline({ bundle, intake, human: approveFirst, ports });
+test("AI 판정이 문제를 찾으면 그 렌더링을 저장하고, 명세를 다시 쓰지 않고 이미지 경로와 이유 한 줄을 담은 ai_judgment 피드백을 최종 승인에 붙인다", async () => {
+  // VLM이 멀쩡한 형상을 오판해 끝값을 빼면 운영자가 정한 범위가 줄어든다(티켓 26 6절 Groq 회차, 티켓 29)
+  const { human, reviews } = approveAndKeep();
+  const { ai, store, ports } = setup({ judgment: [judged(gap)] });
+
+  const result = await runPipeline({ bundle, intake, human, ports });
 
   assert.equal(result.status, "submitted");
-  const [, rewrite] = ai.calls.spec as { previous: Spec; feedback: Feedback[] }[];
-  assert.deepEqual(rewrite.previous, spec);
-  assert.deepEqual(rewrite.feedback, [
+  assert.equal(ai.calls.spec.length, 1);
+  assert.equal(ai.calls.judgment.length, 1);
+  assert.deepEqual(reviews[0].spec, spec);
+  assert.deepEqual(reviews[0].judgment, [
     {
       path: "sliders[0]",
       slider: "body_w",
@@ -1574,7 +1590,7 @@ test("AI 판정이 문제를 찾으면 그 렌더링을 저장하고 이미지 �
   assert.deepEqual(store.renders.map((r) => r.path), ["renders/1단 서랍장/body_w=800.png"]);
   const [input] = ai.calls.judgment as JudgmentInput[];
   assert.equal(store.renders[0].png.toString("base64"), input.renders[1].image);
-  assert.deepEqual(verificationLog(store).map((d) => (d as { feedback: Feedback[] }).feedback.map((f) => f.kind)), [["ai_judgment"], []]);
+  assert.deepEqual(verificationLog(store).map((d) => (d as { feedback: Feedback[] }).feedback.map((f) => f.kind)), [["ai_judgment"]]);
 });
 
 test("AI 판정이 보내지 않은 렌더링을 가리키거나 이유가 한 줄이 아니면 형식 오류를 붙여 다시 묻는다", async () => {
@@ -1588,55 +1604,14 @@ test("AI 판정이 보내지 않은 렌더링을 가리키거나 이유가 한 �
   assert.match(again.schemaErrors.join("\n"), /\/problems\/1\/reason/);
 });
 
-test("수치 검증·축 반응은 통과했는데 AI 판정만 3번 실패하면 마지막 판정 이유를 붙여 최종 승인으로 넘어간다", async () => {
-  const reviews: { spec: Spec; judgment: Feedback[] }[] = [];
-  const human: HumanPort = {
-    chooseCandidate: () => Promise.resolve({ candidate: "c1" }),
-    finalApproval: (review) => {
-      reviews.push(review);
-      return Promise.resolve({ decision: "approve" });
-    },
-  };
-  const last = { image: "body_w=400", reason: "폭 끝값에서 서랍이 너무 좁아 비례가 깨짐" };
-  const { ai, store, ports } = setup({ spec: [spec, spec, spec], judgment: [judged(gap), judged(gap), judged(last)] });
-
-  const result = await runPipeline({ bundle, intake, human, ports });
-
-  assert.equal(result.status, "submitted");
-  assert.equal(ai.calls.spec.length, 3);
-  assert.equal(reviews.length, 1);
-  assert.deepEqual(reviews[0].spec, spec);
-  assert.deepEqual(
-    reviews[0].judgment.map((f) => f.measured),
-    [{ image: "renders/1단 서랍장/body_w=400.png", values: { body_w: 400 }, reason: last.reason }],
-  );
-  assert.equal(store.submissions.length, 1);
-});
-
-test("판정 실패 사이에 수치 검증 실패가 끼면 판정 실패만 세어, 3번에 못 미치면 후보 제시로 돌아간다", async () => {
-  const { ai, ports } = setup({
-    candidates: [candidates, candidates],
-    style: [{ style: "natural" }, { style: "natural" }],
-    spec: [spec, tooWide, spec, tooWide, spec],
-    judgment: [judged(gap), judged(gap), judged()],
-  });
-
-  const result = await runPipeline({ bundle: nonlinearAt825(), intake, human: approveFirst, ports });
-
-  assert.equal(result.status, "submitted");
-  const proposals = ai.calls.candidates as { failures: { feedback: Feedback[] }[] }[];
-  assert.equal(proposals.length, 2);
-  assert.ok(proposals[1].failures[0].feedback.every((f) => f.kind === "dimension_error" || f.kind === "shape_error"), JSON.stringify(proposals[1].failures[0].feedback.map((f) => f.kind)));
-});
-
-test("AI 판정이 같은 렌더링을 여러 번 짚으면 이유를 이어 붙인 피드백 하나로 명세를 다시 쓴다", async () => {
+test("AI 판정이 같은 렌더링을 여러 번 짚으면 이유를 이어 붙인 피드백 하나를 최종 승인에 붙인다", async () => {
   const overlap = { image: "body_w=800", reason: "서랍이 옆판에 파고듦" };
-  const { ai, store, ports } = setup({ spec: [spec, spec], judgment: [judged(gap, overlap), judged()] });
+  const { human, reviews } = approveAndKeep();
+  const { store, ports } = setup({ judgment: [judged(gap, overlap)] });
 
-  await runPipeline({ bundle, intake, human: approveFirst, ports });
+  await runPipeline({ bundle, intake, human, ports });
 
-  const [, rewrite] = ai.calls.spec as { feedback: Feedback[] }[];
-  assert.deepEqual(rewrite.feedback.map((f) => (f.measured as { reason: string }).reason), [`${gap.reason}; ${overlap.reason}`]);
+  assert.deepEqual(reviews[0].judgment.map((f) => (f.measured as { reason: string }).reason), [`${gap.reason}; ${overlap.reason}`]);
   assert.equal(store.renders.length, 1);
 });
 
