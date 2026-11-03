@@ -17,7 +17,7 @@ export interface LiteLlmOptions {
   apiKey?: string;
   /** 단계별 모델 이름. LiteLLM 설정의 model_name이라, 실제 모델은 LiteLLM 설정만 바꿔 전환한다. */
   models: Record<AiStage, string>;
-  /** 한 번 묻고 답을 기다리는 시간(ms). 기본은 LiteLLM이 예비 모델을 차례로 기다리는 시간보다 길다. */
+  /** 한 번 묻고 답을 기다리는 시간(ms). 기본은 LiteLLM이 속도 제한으로 기다렸다 다시 묻는 시간보다 길다. */
   timeoutMs?: number;
   /** VLM 요청 하나에 붙일 수 있는 그림(모음 그림) 수. 기본은 Groq VLM의 제한이다. */
   maxImages?: number;
@@ -27,8 +27,8 @@ export interface LiteLlmOptions {
 const DEFAULT_MAX_IMAGES = 3;
 
 /**
- * docker/litellm/config.yaml에서 외부 API 둘(120초씩)이 답하지 않아 로컬 모델(900초)까지 가는 시간보다 길게 둔다.
- * Node fetch의 기본 제한(헤더 300초)으로는 LiteLLM이 예비 모델로 넘어가는 중에 끊긴다.
+ * docker/litellm/config.yaml에서 Groq가 속도 제한으로 60초씩 기다렸다 세 번 다시 묻고 매번 120초를 채우는 시간(약 11분)보다 길게 둔다.
+ * Node fetch의 기본 제한(헤더 300초)으로는 LiteLLM이 기다렸다 다시 묻는 중에 끊긴다.
  */
 const DEFAULT_TIMEOUT_MS = 20 * 60 * 1000;
 

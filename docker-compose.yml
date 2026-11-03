@@ -24,7 +24,6 @@ services:
     environment:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?.env에 LITELLM_MASTER_KEY를 정하세요(.env.example 참고)}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
-      LOCAL_MODEL_URL: ${LOCAL_MODEL_URL:-http://ollama:11434/v1}
       EMBEDDING_MODEL_URL: ${EMBEDDING_MODEL_URL:-http://ollama:11434/v1}
     volumes:
       - ./docker/litellm/config.yaml:/app/config.yaml:ro
@@ -34,12 +33,9 @@ services:
       - ollama
     restart: unless-stopped
 
-  # 로컬 모델(예비 LLM·VLM과 임베딩). 호스트에서 도는 Ollama와 겹치지 않게 포트를 열지 않고 litellm만 붙는다.
+  # 로컬 모델(사례 저장소 임베딩). 호스트에서 도는 Ollama와 겹치지 않게 포트를 열지 않고 litellm만 붙는다.
   ollama:
     image: ollama/ollama:0.40.13
-    environment:
-      # 기본 4096 토큰으로는 그림과 사례 예시가 든 VLM 요청이 넘친다(티켓 26 6절 실행 기록)
-      OLLAMA_CONTEXT_LENGTH: 16384
     volumes:
       - ollama:/root/.ollama
     restart: unless-stopped

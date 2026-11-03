@@ -70,7 +70,7 @@ const textOf = (content: Content) => (typeof content === "string" ? content : co
  */
 type Answer = string | { content: string | null; reasoning?: string; reasoning_content?: string };
 
-/** 모델 이름별 답 목록을 차례로 내는 가짜 LiteLLM 프록시. delayMs만큼 늦게 답한다(예비 모델로 넘어가느라 늦는 프록시). */
+/** 모델 이름별 답 목록을 차례로 내는 가짜 LiteLLM 프록시. delayMs만큼 늦게 답한다(속도 제한으로 기다렸다 다시 묻느라 늦는 프록시). */
 async function fakeLiteLlm(answers: Record<string, Answer[]>, { delayMs = 0 } = {}) {
   const requests: ChatRequest[] = [];
   const server = createServer((req, res) => {
@@ -375,7 +375,7 @@ test("피드백을 받은 명세를 고치다 형식 오류가 나도, 다시 �
 });
 
 test("LiteLLM이 정한 시간 안에 답하지 않으면 그 사실을 담아 실패한다", async () => {
-  // 제한 시간은 LiteLLM이 예비 모델을 차례로 기다리는 시간보다 길게 둔다. 여기서는 짧게 줄여 끊기는지만 본다.
+  // 제한 시간은 LiteLLM이 속도 제한으로 기다렸다 다시 묻는 시간보다 길게 둔다. 여기서는 짧게 줄여 끊기는지만 본다.
   const llm = await fakeLiteLlm({ [MODELS.style]: [JSON.stringify({ style: "natural" })] }, { delayMs: 500 });
   try {
     const ai = liteLlmAi({ baseUrl: llm.baseUrl, models: MODELS, timeoutMs: 100 });

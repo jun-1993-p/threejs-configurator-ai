@@ -198,7 +198,7 @@ finish() {
 # the whole file before the first prompt, so an edit mid-run can't break it.
 # ──────────────────────────────────────────────────────────────────────────
 
-# 티켓 26 6절: 실제 키로 예비 모델 전환 확인(docs/docker.md). 저장소 루트에서 .env를 읽고 쓴다.
+# 티켓 26 6절: 실제 Groq 키로 LLM·VLM이 답하고 파이프라인이 도는지 확인(docs/docker.md). 예비 모델은 없다(ADR-0015). 저장소 루트에서 .env를 읽고 쓴다.
 cd "$(dirname "$0")/.."
 CHECK_DIR=data/runs/fallback-check
 SUMMARY="$CHECK_DIR/summary.md"
@@ -241,7 +241,8 @@ run_round() {
   # 사례 저장소는 회차마다 따로 둔다. 앞 회차의 사례가 예시로 끼지 않고, 실제 사례 저장소(data/cases)도 건드리지 않는다.
   # 컨테이너 안 경로(/app/…)는 Git Bash가 Windows 경로로 바꾸지 않게 이 명령에서만 변환을 끈다.
   # 끄는 범위를 넓히면 Windows용 curl이 mktemp의 /tmp/… 경로를 찾지 못한다.
-  MSYS_NO_PATHCONV=1 docker compose run --rm -T -e CASES_DIR="/app/$out/cases" pipeline scripts/run-pipeline.ts \
+  # --no-deps: 없으면 compose가 litellm_with_key로 띄운 litellm을 .env 설정으로 다시 만들어, 재시작 중에 연결이 거부된다.
+  MSYS_NO_PATHCONV=1 docker compose run --rm -T --no-deps -e CASES_DIR="/app/$out/cases" pipeline scripts/run-pipeline.ts \
     /app/fixtures/synthetic/drawer.json "/app/$CHECK_DIR/intake.json" "/app/$CHECK_DIR/rules.json" "/app/$out" \
     2>&1 | tee "$out.out" || true
   # 끝까지 돌면 마지막 줄이 실행 결과({"status":…})이고, 파이프라인 밖 오류로 끊기면 그 오류 줄을 남긴다
@@ -272,7 +273,7 @@ run_wizard() {
 
 TOTAL_STAGES=5
 
-banner "티켓 26 6절: 실제 키로 예비 모델 전환 확인"
+banner "티켓 26 6절: 실제 Groq 키로 확인"
 
 stage "LiteLLM 프록시 키"
 say "파이프라인과 LiteLLM이 함께 쓰는 프록시 키다. 사람이 고를 값이 아니라 이미 있으면 그대로 두고, 없으면 새로 만든다."
@@ -341,12 +342,12 @@ mkdir -p "$CHECK_DIR"
 # 티켓 15 수동 확인과 같은 정보 입력과 치수 규칙
 printf '%s\n' '{"name":"1단 서랍장","kind":"서랍장","memo":"슬라이더는 전체 폭 하나만. 폭 400~800","thickness":"hide"}' > "$CHECK_DIR/intake.json"
 printf '%s\n' '[{"id":"치수규칙/서랍장/폭","kind":"서랍장","part":"폭","axis":"W","min":300,"max":1200,"origin":"티켓 15 수동 확인"},{"id":"치수규칙/서랍장/깊이","kind":"서랍장","part":"깊이","axis":"D","min":250,"max":700,"origin":"티켓 15 수동 확인"},{"id":"치수규칙/서랍장/높이","kind":"서랍장","part":"높이","axis":"H","min":300,"max":1200,"origin":"티켓 15 수동 확인"}]' > "$CHECK_DIR/rules.json"
-printf '# 예비 모델 전환 확인 (티켓 26 6절)\n\n- 커밋: `%s`\n\n' "$(git log -1 --format='%h %s')" > "$SUMMARY"
+printf '# 실제 Groq 키로 확인 (티켓 26 6절)\n\n- 커밋: `%s`\n\n' "$(git log -1 --format='%h %s')" > "$SUMMARY"
 if [[ -f "$SUMMARY.pending" ]]; then cat "$SUMMARY.pending" >> "$SUMMARY"; rm -f "$SUMMARY.pending"; fi
 note "정보 입력과 치수 규칙을 $CHECK_DIR 에 썼다."
 pause "Enter"
 
-# 로컬 예비 회차는 돌리지 않는다. 개발 PC(메모리 16GB, CPU만)에는 로컬 예비 모델이 메모리에 들지 않는다(티켓 26 6절).
+# 로컬 예비 모델은 없다(ADR-0015 바뀐 것). Groq 회차만 돌린다.
 stage "Groq가 답한다"
 say "Groq 키를 넣은 채로 llm·vlm이 Groq에서 답하는지 보고, 합성 서랍장으로 파이프라인을 돌린다."
 note "Groq 속도 제한에 걸리면 LiteLLM이 1분 가까이 기다렸다 다시 묻는다. 조용해도 멈춘 것이 아니다."

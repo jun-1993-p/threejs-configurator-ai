@@ -43,8 +43,8 @@ Docker 구성(`docs/docker.md`)을 띄우고 `.env`에 실제 키를 넣어 확�
 
 - [x] Groq 키로 `llm`·`vlm`이 실제로 답한다(헤더가 `llm`·`vlm`)
 - [x] `docker/litellm/config.yaml`의 Groq 모델 이름(`openai/gpt-oss-120b`, `meta-llama/llama-4-scout-17b-16e-instruct`)이 Groq 모델 목록에 있다. 아니면 설정을 고친다
-- [ ] Groq 키를 비우면 로컬 모델이 답한다(헤더가 `llm-local`·`vlm-local`). 먼저 `docker compose exec ollama ollama pull gpt-oss:20b`와 `qwen3-vl:4b`를 받는다. 티켓 22에서는 받지 않아 `qwen2.5:3b`로만 확인했다. 개발 PC(메모리 16GB 중 Docker 7.7GB, CPU만)에서는 확인하지 않는다: `gpt-oss:20b`(13GB)가 메모리에 들지 않고, 더 작은 `qwen3-vl:8b`도 그림을 읽다 죽었다(아래 두 번째 실행 기록). 메모리 32GB 이상이나 VRAM 12GB 이상 GPU가 있는 기계에서 본다
-- [ ] 위 확인마다(개발 PC에서는 Groq 회차만) `scripts/run-pipeline.ts`를 합성 서랍장 녹화본 `fixtures/synthetic/drawer.json`으로 돌려, 모델이 바뀌어도 형식 오류가 다음 단계로 새지 않는지 처리 기록(`log.json`)으로 본다
+- [x] ~~Groq 키를 비우면 로컬 모델이 답한다~~ 로컬 예비를 뺐다(ADR-0015 바뀐 것). 개발 PC에서 로컬 LLM·VLM이 15분 안에 답하지 못했다(아래 세 번째 기록)
+- [ ] Groq로 `scripts/run-pipeline.ts`를 합성 서랍장 녹화본 `fixtures/synthetic/drawer.json`으로 돌려, 형식 오류가 다음 단계로 새지 않는지 처리 기록(`log.json`)으로 본다
 
 ## Comments
 
@@ -71,3 +71,15 @@ Docker 구성(`docs/docker.md`)을 띄우고 `.env`에 실제 키를 넣어 확�
   - 로컬 예비 VLM을 `qwen3-vl:4b`로 낮췄다(운영자 결정). 위저드·`docs/docker.md`·`docs/plan.md`도 고쳤다.
 - 걱정: 로컬 예비 LLM `gpt-oss:20b`(약 13GB)도 Docker 메모리 7.7GB에 들지 않는다. 2회차 후보 제시에서 같은 식으로 죽을 수 있다.
 - 남은 일: 위저드를 다시 돌린다.
+
+### 2026-11-03 로컬 예비 측정과 포기
+
+운영자가 당분간 이 개발 PC(i7-4770, 메모리 16GB 중 Docker 7.7GB, GPU 없음)에서만 시험한다고 정했다. 로컬 예비를 이 사양에 맞추되, 요청마다 15분 안에 죽지 않고 답하고 파이프라인이 제출까지 가지 못하면 포기하기로 했다. Groq 키를 비운 LiteLLM으로 합성 서랍장을 돌렸다(`data/runs/local-check/`).
+
+- `qwen3-vl:8b`: 부품 탐색 그림을 읽다 9분 40초 만에 죽었다(두 번째 실행 기록).
+- `qwen3-vl:4b`: 프롬프트는 초당 27토큰으로 읽었으나 이 판은 추론(thinking)이 기본이라 답 앞에 추론을 2,475토큰(초당 3.2토큰) 쓰다 15분 제한에 걸렸다.
+- `qwen3-vl:4b-instruct`: 14분 30초 동안 모델을 올리지 못했다("timed out waiting for llama-server to start"). 끝에 `docker compose run`이 다시 연결을 잃었다.
+- 로컬 LLM(`qwen3:4b-instruct`)은 부품 탐색을 넘지 못해 재지 못했다. `gpt-oss:20b`(13GB)는 메모리에 들지 않는다.
+- 결정: 로컬 예비 LLM·VLM을 뺐다(ADR-0015 바뀐 것). LiteLLM 설정에서 `llm-local`·`vlm-local`과 `fallbacks`를, 구성에서 `LOCAL_MODEL_URL`·`OLLAMA_CONTEXT_LENGTH`를 뺐다. 임베딩(`embeddinggemma`)은 그대로 로컬이다. 위저드는 Groq 회차만 돈다.
+- 따로 찾은 것: `docker compose run`은 의존 서비스(litellm)를 `.env` 설정으로 다시 만든다. 위저드처럼 litellm을 다른 환경으로 띄운 뒤 부르면 재시작 중에 연결이 거부된다. 위저드의 파이프라인 실행에 `--no-deps`를 붙였다.
+- 남은 일: 위저드를 다시 돌려 Groq 회차의 파이프라인 항목을 본다.

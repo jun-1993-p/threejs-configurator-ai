@@ -1,4 +1,4 @@
-"""LiteLLM 설정(docker/litellm/config.yaml)이 파이프라인이 부르는 모델 이름과 예비 모델 순서를 지키는지 본다(ADR-0015)."""
+"""LiteLLM 설정(docker/litellm/config.yaml)이 파이프라인이 부르는 모델 이름과 Groq·로컬 배치를 지키는지 본다(ADR-0015)."""
 
 from pathlib import Path
 from typing import Any
@@ -8,9 +8,6 @@ import yaml
 CONFIG_PATH = Path(__file__).parents[1] / "litellm" / "config.yaml"
 config: dict[str, Any] = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
 deployments: dict[str, dict[str, Any]] = {m["model_name"]: m["litellm_params"] for m in config["model_list"]}
-fallbacks: dict[str, list[str]] = {
-    name: targets for entry in config["router_settings"]["fallbacks"] for name, targets in entry.items()
-}
 
 # configurator/scripts/run-pipeline.ts의 기본 model_name(LITELLM_MODEL·LITELLM_VLM_MODEL·LITELLM_EMBED_MODEL)
 PIPELINE_MODELS = ["llm", "vlm", "embedding"]
@@ -27,14 +24,15 @@ def test_파이프라인이_부르는_모델_이름이_설정에_있다() -> Non
     assert set(PIPELINE_MODELS) <= deployments.keys()
 
 
-def test_Groq가_먼저_답하고_로컬_예비_모델로_넘어간다() -> None:
+def test_LLM과_VLM은_Groq가_답하고_예비_모델은_없다() -> None:
+    # 개발 PC에서 로컬 LLM·VLM이 돌지 않아 예비를 뺐다(ADR-0015 바뀐 것)
     for name in ["llm", "vlm"]:
         assert deployments[name]["model"].startswith("groq/")
-        chain = fallbacks[name]
-        assert len(chain) == 1 and is_local(chain[0]), f"{name}의 예비 모델은 로컬 모델 하나여야 한다"
+    assert deployments.keys() == set(PIPELINE_MODELS)
+    assert "fallbacks" not in config["router_settings"]
 
 
-def test_속도_제한만_기다려_다시_묻고_다른_오류는_바로_예비_모델로_넘어간다() -> None:
+def test_속도_제한만_기다려_다시_묻고_다른_오류는_바로_실패로_돌려준다() -> None:
     router = config["router_settings"]
     # num_retries가 0이면 LiteLLM이 retry_policy를 보지 않는다
     assert router["num_retries"] > 0
@@ -42,10 +40,9 @@ def test_속도_제한만_기다려_다시_묻고_다른_오류는_바로_예비
     assert router["retry_policy"]["RateLimitErrorRetries"] > 0
 
 
-def test_임베딩은_예비_모델_없이_로컬에서_돈다() -> None:
+def test_임베딩은_로컬에서_돈다() -> None:
     # Groq에 임베딩 API가 없다
     assert is_local("embedding")
-    assert "embedding" not in fallbacks
 
 
 def test_로컬_모델은_환경에서_받은_주소의_OpenAI_호환_API로_부른다() -> None:

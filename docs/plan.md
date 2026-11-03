@@ -90,8 +90,8 @@ flowchart TD
 | 기술 | 쓰는 단계 | 구현 |
 | --- | --- | --- |
 | LLM (텍스트 모델) | 후보, UI 스타일, 명세 작성 | gpt-oss-120b (Groq), 예비 gpt-oss-20b (로컬) |
-| VLM (이미지 모델) | 부품 탐색, AI 판정 | llama-4-scout-17b (Groq), 예비 qwen3-vl-4b (로컬) |
-| 모델 중계 | 전체 | LiteLLM, 예비 로컬 모델 |
+| VLM (이미지 모델) | 부품 탐색, AI 판정 | qwen3.8-27b (Groq), 예비 없음 (ADR-0015) |
+| 모델 중계 | 전체 | LiteLLM |
 | 구조화 출력 | 후보, 명세, 판정 결과 | JSON Schema 검사 |
 | RAG + 예시 주입 | 후보·명세·판정 | 사례 임베딩 검색(LanceDB) |
 | 고정 워크플로 | 전체 | 순서는 코드, AI는 단계 안 |

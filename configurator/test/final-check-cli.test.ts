@@ -84,7 +84,7 @@ const uploadServer = () =>
     return bundle ? { status: 200, body: bundle } : { status: 404, body: { detail: "업로드 묶음이 없습니다" } };
   });
 
-/** LiteLLM 자리: 단계별 답을 차례로 낸다. broken이면 모든 호출에 500으로 답한다(외부 API와 예비 모델이 모두 막힌 경우). */
+/** LiteLLM 자리: 단계별 답을 차례로 낸다. broken이면 모든 호출에 500으로 답한다(외부 API가 막힌 경우). */
 function fakeLiteLlm(broken = false) {
   const answers: Record<string, unknown[]> = { vlm: [parts, { problems: [] }], llm: [candidates, { style: "natural" }, spec] };
   return jsonServer((_, url, raw) => {
