@@ -8,6 +8,13 @@
 
 set -euo pipefail
 
+# The wizard reads the human's keyboard. A shell without one (an agent's tool
+# call, a `!` prompt prefix, a pipe) would end at the first prompt in silence.
+if [[ ! -t 0 ]]; then
+  printf 'This wizard needs a keyboard: run it in your own terminal window.\n' >&2
+  exit 1
+fi
+
 # ──────────────────────────────────────────────────────────────────────────
 # Wizard library: delightful, consistent UX, identical across every wizard.
 # ──────────────────────────────────────────────────────────────────────────
