@@ -152,12 +152,22 @@ def test_평면과_원기둥이_아닌_면이_있으면_면_이름과_함께_오
         model.sample_faces(3)
 
 
-def test_mm가_아닌_단위의_파라미터는_바꾸지_않는다() -> None:
-    model = SolidCraftModel(FakeCli())
-    model._parameters.append(ParameterInfo(name="a", value=1.0, unit="deg", expression="1 deg", is_user=True))
+def test_각도_파라미터는_도_단위로_바꾼다() -> None:
+    cli = FakeCli()
+    model = SolidCraftModel(cli)
+    model._parameters.append(ParameterInfo(name="a", value=30.0, unit="deg", expression="30 deg", is_user=True))
 
-    with pytest.raises(ValueError, match="deg"):
-        model.set_parameter("a", 2.0)
+    model.set_parameter("a", 45.0)
+
+    assert {"name": "a", "expression": "45.0 deg"} in [c["params"] for c in cli.scripts[-1] if c["command"] == "parameters.change"]
+
+
+def test_mm와_도가_아닌_단위의_파라미터는_바꾸지_않는다() -> None:
+    model = SolidCraftModel(FakeCli())
+    model._parameters.append(ParameterInfo(name="k", value=1.5, unit="in", expression="1.5 in", is_user=True))
+
+    with pytest.raises(ValueError, match="in"):
+        model.set_parameter("k", 2.0)
 
 
 def test_면_이름에_세로선이_있어도_모서리를_두_면으로_나눈다() -> None:

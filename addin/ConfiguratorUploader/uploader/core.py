@@ -1,5 +1,6 @@
 """업로드 묶음을 만드는 애드인 핵심. Fusion API에 의존하지 않는다."""
 
+import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
@@ -104,8 +105,8 @@ def _parts(bodies: list[BodyInfo], faces: list[dict[str, Any]]) -> list[dict[str
     return list(parts.values())
 
 
-# 단독 스윕의 샘플 위치: 기본값에 곱하는 비율. 기본값 ±50% 범위를 5점 균등으로 나눈다(ADR-0007).
-# 비선형 구간을 더 나누는 적응형 샘플과 재계산 실패에 따른 범위 축소는 티켓 05에서 한다.
+# 단독 스윕의 처음 샘플 위치: 기본값에 곱하는 비율. 기본값 ±50% 범위를 5점 균등으로 나눈다(ADR-0007).
+# 비선형 구간은 _adaptive_points가 더 나눈다.
 SWEEP_FACTORS = (0.5, 0.75, 1.0, 1.25, 1.5)
 
 
@@ -258,7 +259,7 @@ def _limit_range(
 ) -> tuple[dict[str, float], list[dict[str, Any]]]:
     """기본값에서 범위 끝 쪽으로 가며 면 구성이 처음 바뀌는 지점을 찾아, 그 앞 샘플까지로 범위를 줄인다.
 
-    샘플과 검증점을 함께 본다. 범위 끝은 보간할 수 있도록 샘플 값이어야 한다. 재계산 실패는 건너뛴다(티켓 05).
+    샘플과 검증점을 함께 본다. 범위 끝은 보간할 수 있도록 샘플 값이어야 한다. 재계산 실패 지점 밖은 이미 지웠다(_adaptive_points).
     위상 묶음 안의 단독 스윕이 쓴다. 묶음 안에서 다시 묶음으로 나누지 않으므로, 개수형 값이 바뀐 지점에서도 줄인다.
     """
     bounds = {"min": samples[0]["value"], "max": samples[-1]["value"]}
@@ -280,14 +281,194 @@ def _limit_range(
     return bounds, reductions
 
 
-def _coarse_points(
-    model: FusionModel, parameter: ParameterInfo, counts: Sequence[str]
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """기본값 ±50% 5점 샘플과 검증점(이웃 샘플 사이 가운데 값, ADR-0012). 파라미터는 되돌리지 않는다."""
-    values = [parameter.value * factor for factor in SWEEP_FACTORS]
-    samples = [_sample(model, parameter, value, counts) for value in values]
-    checks = [_sample(model, parameter, (a + b) / 2, counts) for a, b in zip(values, values[1:])]
-    return samples, checks
+# 적응형 스윕(ADR-0007)의 샘플 상한(ADR-0012). 5점에서 구간을 두 번 다 반으로 나눈 수다.
+SAMPLE_LIMIT = 17
+
+# 합격선(ADR-0012): 치수 오차는 0.2 mm, 형상 오차는 1 mm와 상품 전체 바운딩 박스 대각선의 0.1% 중 큰 값.
+# 수치 검증(configurator/pipeline/verify-numeric.ts)과 같은 값이다.
+DIMENSION_TOLERANCE = 0.2
+
+
+def _shape_tolerance(points: list[Point]) -> float:
+    diagonal = math.dist([min(p[k] for p in points) for k in range(3)], [max(p[k] for p in points) for k in range(3)])
+    return max(1.0, diagonal * 0.001)
+
+
+@dataclass(frozen=True)
+class _Miss:
+    """검증점 하나에서 보간이 빗나간 양: 오차 종류(검증 피드백 종류와 같은 이름), 부품, 오차와 합격선(mm)"""
+
+    kind: str
+    part: str
+    error: float
+    tolerance: float
+
+    @property
+    def ratio(self) -> float:
+        return self.error / self.tolerance
+
+    def failure_json(self, at: float) -> dict[str, Any]:
+        """업로드 묶음의 interpolation_failure"""
+        return {"at": at, "kind": self.kind, "part": self.part, "error": self.error, "tolerance": self.tolerance}
+
+
+def _interpolation_error(
+    lo: dict[str, Any], hi: dict[str, Any], check: dict[str, Any], part_of: dict[str, str]
+) -> _Miss | None:
+    """검증점에서 이웃 두 샘플의 선형 보간이 빗나간 양. 변형 엔진의 단독 스윕 보간과 같은 규칙이다:
+    면은 (바디, 면 이름)으로 짝짓고, 점마다 lo + (hi - lo) * t로 섞는다(configurator/src/engine.ts의 addDelta).
+
+    부품마다 형상 오차와 W·D·H 치수 오차를 재서 오차 / 합격선이 가장 큰 것을 돌려준다. 점이 짝지어지지 않으면 None.
+    """
+    t = (check["value"] - lo["value"]) / (hi["value"] - lo["value"])
+    faces_lo = {(f["body"], f["name"]): f["points"] for f in lo["faces"]}
+    faces_hi = {(f["body"], f["name"]): f["points"] for f in hi["faces"]}
+    predicted: dict[str, list[Point]] = {}
+    actual: dict[str, list[Point]] = {}
+    distance: dict[str, float] = {}
+    for face in check["faces"]:
+        key = (face["body"], face["name"])
+        a, b = faces_lo.get(key), faces_hi.get(key)
+        if a is None or b is None or not len(a) == len(b) == len(face["points"]):
+            return None
+        part = part_of.get(face["body"], face["body"])
+        for pa, pb, pc in zip(a, b, face["points"]):
+            p = (pa[0] + (pb[0] - pa[0]) * t, pa[1] + (pb[1] - pa[1]) * t, pa[2] + (pb[2] - pa[2]) * t)
+            predicted.setdefault(part, []).append(p)
+            actual.setdefault(part, []).append(tuple(pc))
+            distance[part] = max(distance.get(part, 0.0), math.dist(p, pc))
+    if not actual:
+        return None
+    tolerance = _shape_tolerance([p for points in actual.values() for p in points])
+    misses = []
+    for part in actual:
+        misses.append(_Miss("shape_error", part, distance[part], tolerance))
+        # 부품별 W·D·H: 바운딩 박스 크기의 차이
+        size = max(
+            abs(
+                (max(p[k] for p in predicted[part]) - min(p[k] for p in predicted[part]))
+                - (max(p[k] for p in actual[part]) - min(p[k] for p in actual[part]))
+            )
+            for k in range(3)
+        )
+        misses.append(_Miss("dimension_error", part, size, DIMENSION_TOLERANCE))
+    return max(misses, key=lambda m: m.ratio)
+
+
+@dataclass
+class _Points:
+    """단독 스윕 한 번에 뽑은 점. 재계산 실패로 줄인 쪽은 reductions에, 상한까지 늘려도 합격선을 넘은 구간은 failure에 남는다."""
+
+    samples: list[dict[str, Any]]
+    checks: list[dict[str, Any]]
+    reductions: dict[str, dict[str, Any]]
+    failure: dict[str, Any] | None
+
+
+def _adaptive_points(
+    model: FusionModel, parameter: ParameterInfo, counts: Sequence[str], part_of: dict[str, str]
+) -> _Points:
+    """적응형 샘플(ADR-0007): 기본값 ±50% 5점 균등에서 시작해 _refine으로 비선형 구간만 나눈다.
+
+    재계산이 실패한 점이 있으면 기본값에서 그쪽으로 가며 처음 실패한 점 안쪽의 가장 먼 점까지로 범위를 줄인다.
+    파라미터는 되돌리지 않는다.
+    """
+    samples = {v: _sample(model, parameter, v, counts) for v in (parameter.value * f for f in SWEEP_FACTORS)}
+    checks: dict[float, dict[str, Any]] = {}
+    reductions: dict[str, dict[str, Any]] = {}
+    failure = _refine(model, parameter, counts, part_of, samples, checks, SAMPLE_LIMIT, reductions)
+    return _Points(_by_value(samples), _by_value(checks), reductions, failure)
+
+
+def _refine(
+    model: FusionModel,
+    parameter: ParameterInfo,
+    counts: Sequence[str],
+    part_of: dict[str, str],
+    samples: dict[float, dict[str, Any]],
+    checks: dict[float, dict[str, Any]],
+    limit: int,
+    reductions: dict[str, dict[str, Any]] | None,
+) -> dict[str, Any] | None:
+    """검증점(이웃 샘플 사이 가운데 값, ADR-0012)이 없는 구간에 검증점을 뽑고, 보간 오차가 합격선을 넘는 구간만 그 검증점을
+    샘플로 삼아 반으로 나눈다. 샘플이 limit개가 되어도 넘으면 가장 크게 넘은 검증점을 interpolation_failure 형식으로 돌려준다.
+    samples·checks는 그 자리에서 바뀐다.
+
+    reductions를 주면 재계산 실패 점부터 바깥을 지우고 그 기록을 담는다(_trim_failures). 주지 않으면 실패한 검증점의 구간은
+    보지 않는다. 면 구성이 다른 구간은 보간하지 않으므로 보지 않는다(위상 묶음과 범위 축소의 몫).
+    """
+    def mixable(a: float, b: float) -> bool:
+        return samples[a]["status"] == samples[b]["status"] == "ok" and Composition.of(samples[a]) == Composition.of(samples[b])
+
+    while True:
+        values = sorted(samples)
+        for a, b in zip(values, values[1:]):
+            # 범위를 줄일 때는 모든 구간을 본다(재계산 실패와 위상 변화를 찾는다). 아니면 보간할 구간만 본다.
+            if (a + b) / 2 not in checks and (reductions is not None or mixable(a, b)):
+                checks[(a + b) / 2] = _sample(model, parameter, (a + b) / 2, counts)
+        if reductions is not None:
+            trimmed = _trim_failures(parameter.value, samples, checks)
+            if trimmed:
+                reductions.update(trimmed)
+                continue
+        values = sorted(samples)
+        failing = []
+        for a, b in zip(values, values[1:]):
+            check = checks.get((a + b) / 2)
+            if check is None or not mixable(a, b) or Composition.of(check) != Composition.of(samples[a]):
+                continue
+            lo, hi = samples[a], samples[b]
+            # 면 구성이 같은데 점 수가 다르면 None이다. 그런 묶음은 서버의 업로드 묶음 검사가 거절한다(server/bundle.py).
+            miss = _interpolation_error(lo, hi, check, part_of)
+            if miss is not None and miss.ratio > 1:
+                failing.append((miss, check))
+        if not failing:
+            return None
+        if len(samples) >= limit:
+            miss, check = max(failing, key=lambda f: f[0].ratio)
+            return miss.failure_json(check["value"])
+        # 오차가 큰 구간부터 상한까지 나눈다
+        for _, check in sorted(failing, key=lambda f: -f[0].ratio)[: limit - len(samples)]:
+            samples[check["value"]] = checks.pop(check["value"])
+
+
+def _by_value(points: dict[float, dict[str, Any]]) -> list[dict[str, Any]]:
+    return [points[v] for v in sorted(points)]
+
+
+def _trim_failures(
+    default: float, samples: dict[float, dict[str, Any]], checks: dict[float, dict[str, Any]]
+) -> dict[str, dict[str, Any]]:
+    """기본값에서 쪽마다 처음 재계산에 실패한 점부터 바깥을 지운다. 그 안쪽의 가장 먼 점이 검증점이면 샘플로 삼는다.
+
+    줄인 쪽마다 recompute_failed 기록을 돌려준다. 줄일 것이 없으면 빈 사전이다.
+    """
+    reductions = {}
+    for side, outward in (("min", -1), ("max", 1)):
+        points = sorted(
+            ((v, p) for v, p in [*samples.items(), *checks.items()] if (v - default) * outward > 0),
+            key=lambda vp: abs(vp[0] - default),
+        )
+        failed = next((v for v, p in points if p["status"] != "ok"), None)
+        if failed is None:
+            continue
+        for store in (samples, checks):
+            for v in [v for v in store if abs(v - default) >= abs(failed - default) and (v - default) * outward > 0]:
+                del store[v]
+        inside = [v for v, _ in points if abs(v - default) < abs(failed - default)]
+        if inside and inside[-1] in checks:
+            samples[inside[-1]] = checks.pop(inside[-1])
+        reductions[side] = {
+            "side": side,
+            "at": failed,
+            "reason": "recompute_failed",
+            "removed_faces": [],
+            "added_faces": [],
+            "removed_edges": [],
+            "added_edges": [],
+            "counts": {},
+        }
+    return reductions
 
 
 def _sweep_json(
@@ -295,27 +476,40 @@ def _sweep_json(
     bounds: dict[str, float],
     samples: list[dict[str, Any]],
     checks: list[dict[str, Any]],
-    reductions: list[dict[str, Any]],
+    reductions: dict[str, dict[str, Any]],
+    failure: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """줄어든 범위 밖의 샘플·검증점은 담지 않는다. 바뀐 면 구성은 reductions에 남는다."""
+    """줄어든 범위 밖의 샘플·검증점은 담지 않는다. 줄인 까닭은 reductions에, 범위 안 보간 실패는 interpolation_failure에 남는다."""
+    def inside(value: float) -> bool:
+        return bounds["min"] <= value <= bounds["max"]
+
     sweep: dict[str, Any] = {
         "parameter": parameter.name,
         "range": bounds,
-        "samples": sorted((s for s in samples if bounds["min"] <= s["value"] <= bounds["max"]), key=lambda s: s["value"]),
-        "checks": [c for c in checks if bounds["min"] <= c["value"] <= bounds["max"]],
+        "samples": sorted((s for s in samples if inside(s["value"])), key=lambda s: s["value"]),
+        "checks": [c for c in checks if inside(c["value"])],
     }
     if reductions:
-        sweep["reductions"] = reductions
+        sweep["reductions"] = [reductions[side] for side in ("min", "max") if side in reductions]
+    if failure is not None and inside(failure["at"]):
+        sweep["interpolation_failure"] = failure
     return sweep
+
+
+def _part_names(model: FusionModel) -> dict[str, str]:
+    """바디 이름 → 부품 이름(ADR-0006). 보간 오차를 부품마다 잴 때 쓴다."""
+    return {b.name: b.component if b.component is not None else b.name for b in model.bodies()}
 
 
 def _single_sweep(model: FusionModel, parameter: ParameterInfo, baseline: Baseline) -> dict[str, Any]:
     """위상 묶음으로 나누지 않는 단독 스윕: 면 구성이 바뀌면 그 앞에서 범위를 줄인다. 다른 파라미터는 지금 값 그대로다."""
-    samples, checks = _coarse_points(model, parameter, list(baseline.counts))
+    points = _adaptive_points(model, parameter, list(baseline.counts), _part_names(model))
     # 값이 아니라 원래 수식을 되돌린다. 수식으로 묶인 자식 관계를 상수로 덮지 않기 위해서다(ADR-0003).
     model.restore_parameter(parameter)
-    bounds, reductions = _limit_range(parameter.value, samples, checks, baseline)
-    return _sweep_json(parameter, bounds, samples, checks, reductions)
+    bounds, changed = _limit_range(parameter.value, points.samples, points.checks, baseline)
+    # 면 구성이 바뀐 지점은 재계산 실패 지점보다 안쪽이다(실패 지점 밖의 점은 이미 지웠다)
+    reductions = {**points.reductions, **{r["side"]: r for r in changed}}
+    return _sweep_json(parameter, bounds, points.samples, points.checks, reductions, points.failure)
 
 
 # 파라미터 하나의 위상 묶음 상한(기본 묶음 포함). 묶음마다 나머지 파라미터를 다시 스윕하기 때문이다(ADR-0005).
@@ -427,7 +621,9 @@ def _sweep(
     def distance(value: float) -> float:
         return abs(value - default)
 
-    samples, checks = _coarse_points(model, parameter, list(baseline.counts))
+    part_of = _part_names(model)
+    points = _adaptive_points(model, parameter, list(baseline.counts), part_of)
+    samples, checks = points.samples, points.checks
     bounds = {"min": samples[0]["value"], "max": samples[-1]["value"]}
     origin = next(s for s in samples if s["value"] == default)
     sides = {
@@ -435,13 +631,21 @@ def _sweep(
         for name, outward in (("min", -1), ("max", 1))
     }
     # 경계 양쪽 점을 샘플로 더한다. 검증점이 경계 끝이면 같은 값의 샘플이 된다(형상이 같다).
-    for side in sides.values():
-        for edge in (e for pair in side.edges for e in pair):
-            if edge["value"] not in {s["value"] for s in samples}:
-                samples.append(edge)
+    by_value = {s["value"]: s for s in samples}
+    edges = [e for side in sides.values() for pair in side.edges for e in pair if e["value"] not in by_value]
+    by_value.update((e["value"], e) for e in edges)
+    # 경계 샘플과 이웃 샘플 사이 구간도 검증점으로 보간 오차를 재고 나눈다. 경계 샘플은 상한에 넣지 않는다.
+    # 재계산 실패로 다시 줄이지는 않는다(위상 묶음을 이미 나눴다). 실패한 검증점의 구간은 보지 않는다.
+    by_check = {c["value"]: c for c in checks}
+    edge_failure = _refine(
+        model, parameter, list(baseline.counts), part_of, by_value, by_check, SAMPLE_LIMIT + len(edges), None
+    )
+    samples, checks = _by_value(by_value), _by_value(by_check)
+    failure = points.failure or edge_failure
     dropped = _limit_groups(default, sides)
 
-    reductions: dict[str, dict[str, Any]] = {}
+    # 위상 때문에 줄인 쪽은 재계산 실패 기록을 덮는다. 면 구성이 바뀐 지점이 더 안쪽이다.
+    reductions = dict(points.reductions)
     groups: list[tuple[_Group, list[dict[str, Any]]]] = []
     for name, outward in (("min", -1), ("max", 1)):
         side = sides[name]
@@ -467,7 +671,7 @@ def _sweep(
             groups.append((group, members))
     model.restore_parameter(parameter)
 
-    sweep = _sweep_json(parameter, bounds, samples, checks, list(reductions.values()))
+    sweep = _sweep_json(parameter, bounds, samples, checks, reductions, failure)
     if groups:
         sweep["groups"] = sorted(
             (_group_json(model, parameter, group, members, others) for group, members in groups),

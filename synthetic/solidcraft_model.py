@@ -103,8 +103,9 @@ class SolidCraftModel:
 
     def set_parameter(self, name: str, value: float) -> bool:
         unit = next(p.unit for p in self._parameters if p.name == name)
-        if unit not in ("mm", ""):
-            raise ValueError(f"{name}: 단위 {unit}인 파라미터는 아직 바꿀 수 없습니다(mm만 지원)")
+        # parameters.list는 각도를 도로 준다. 등판 기울기처럼 비선형 스윕을 만드는 데 쓴다(티켓 05).
+        if unit not in ("mm", "deg", ""):
+            raise ValueError(f"{name}: 단위 {unit}인 파라미터는 아직 바꿀 수 없습니다(mm·deg만 지원)")
         self._overrides[name] = f"{value} {unit}".strip()
         ok: bool = self._state()["ok"]
         return ok

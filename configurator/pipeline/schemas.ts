@@ -5,7 +5,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 
 import { STANDARD_THICKNESSES, thicknessOptions, type Spec } from "../src/engine.ts";
 import { SLIDER_SHAPES } from "../src/style.ts";
-import { parameterRelations, wordsOf, type BundleParameters } from "./parameter-relations.ts";
+import { parameterRelations, unmixableSweeps, wordsOf, type BundleParameters } from "./parameter-relations.ts";
 
 // strictTypes는 끈다. 업로드 묶음 스키마가 allOf 조건 안에서 type 없이 required만 쓰는 것은 의도한 형식이다.
 const ajv = new Ajv2020.default({ allErrors: true, strictTypes: false });
@@ -212,6 +212,7 @@ function fusionNameError(at: string, name: string, parameterNames: Set<string>):
 export function specReferenceChecker(bundle: BundleParameters & { parts: { name: string }[] }) {
   const parts = new Set(bundle.parts.map((p) => p.name));
   const swept = new Set(bundle.sweeps.map((s) => s.parameter));
+  const unmixable = unmixableSweeps(bundle);
   const parameterNames = new Set(bundle.parameters.map((p) => p.name));
   const relations = parameterRelations(bundle);
   return (spec: { sliders: { id: string; name: string; children: string[]; affects: { shape: string[]; move: string[] } }[] }): string[] =>
@@ -219,6 +220,7 @@ export function specReferenceChecker(bundle: BundleParameters & { parts: { name:
       const descendants = relations.descendants(id);
       return [
         ...(swept.has(id) ? [] : [`/sliders/${i}/id: ${id}는 스윕한 파라미터가 아닙니다`]),
+        ...(unmixable.has(id) ? [`/sliders/${i}/id: ${unmixable.get(id)}`] : []),
         ...fusionNameError(`/sliders/${i}/name`, name, parameterNames),
         ...children
           .filter((child) => !descendants.includes(child))
@@ -386,6 +388,7 @@ export function chosenCandidateChecker({ front, axes, sliders }: { front: Front;
  */
 export function candidateReferenceChecker(bundle: BundleParameters) {
   const counts = new Set(bundle.parameters.filter((p) => p.is_count).map((p) => p.name));
+  const unmixable = unmixableSweeps(bundle);
   const parameterNames = new Set(bundle.parameters.map((p) => p.name));
   const relations = parameterRelations(bundle);
   /** 후보의 k번째 슬라이더 파라미터가 슬라이더로 쓸 수 없는 까닭. 쓸 수 있으면 빈 목록이다. */
@@ -393,6 +396,8 @@ export function candidateReferenceChecker(bundle: BundleParameters) {
     const { parameter } = sliders[k];
     if (sliders.findIndex((s) => s.parameter === parameter) < k) return [`${parameter}를 이 후보에서 이미 썼습니다`];
     if (counts.has(parameter)) return [`${parameter}는 개수형 파라미터라 슬라이더 후보가 될 수 없습니다`];
+    const reason = unmixable.get(parameter);
+    if (reason) return [reason];
     if (!parameterNames.has(parameter)) return [`${parameter}는 업로드 묶음의 파라미터가 아닙니다`];
     const options = relations.parentOptions(parameter);
     if (options.length === 0) return [`${parameter}는 스윕한 파라미터가 아니고, 수식으로 따르는 스윕한 부모도 없습니다`];

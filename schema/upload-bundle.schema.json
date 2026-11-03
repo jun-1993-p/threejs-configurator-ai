@@ -102,8 +102,21 @@
           "type": "array",
           "items": { "$ref": "#/$defs/sample" }
         },
+        "interpolation_failure": {
+          "description": "보간 실패: 적응형 샘플을 17점까지 늘려도 합격선을 넘은 검증점 중 오차 / 합격선이 가장 큰 것(ADR-0007). 있으면 이 파라미터는 슬라이더 후보가 될 수 없다.",
+          "type": "object",
+          "required": ["at", "kind", "part", "error", "tolerance"],
+          "additionalProperties": false,
+          "properties": {
+            "at": { "description": "검증점 값", "type": "number" },
+            "kind": { "description": "검증 피드백 종류와 같다", "enum": ["shape_error", "dimension_error"] },
+            "part": { "type": "string" },
+            "error": { "description": "이웃 두 샘플의 선형 보간과 검증점 형상의 차이(mm)", "type": "number" },
+            "tolerance": { "description": "합격선(mm)", "type": "number" }
+          }
+        },
         "reductions": {
-          "description": "범위 끝 쪽에서 면 구성(면과 모서리)이 바뀌거나 위상 묶음이 상한을 넘어 범위를 줄인 기록(ADR-0005). 쪽마다 하나까지다.",
+          "description": "범위 끝 쪽에서 재계산이 실패하거나, 면 구성(면과 모서리)이 바뀌거나, 위상 묶음이 상한을 넘어 범위를 줄인 기록(ADR-0005, 0007). 쪽마다 가장 안쪽 까닭 하나다.",
           "type": "array",
           "maxItems": 2,
           "items": { "$ref": "#/$defs/reduction" }
@@ -140,10 +153,10 @@
       "additionalProperties": false,
       "properties": {
         "side": { "description": "줄어든 쪽", "enum": ["min", "max"] },
-        "at": { "description": "기본값에서 그쪽으로 가며 면 구성이 처음 바뀐 값(샘플 또는 검증점). topology_group_limit이면 뺀 묶음에서 기본값에 가장 가까운 점이다.", "type": "number" },
+        "at": { "description": "기본값에서 그쪽으로 가며 면 구성이 처음 바뀌거나 재계산이 처음 실패한 값(샘플 또는 검증점). topology_group_limit이면 뺀 묶음에서 기본값에 가장 가까운 점이다.", "type": "number" },
         "reason": {
-          "description": "검증 피드백 종류와 같다. range_shrunk: 개수형 파라미터 값도 바뀌었다(위상 묶음 안의 단독 스윕). modeling_error_suspected: 개수형 값은 그대로인데 면 구성이 바뀌었다. topology_group_limit: 위상 묶음이 상한을 넘어 그 묶음부터 뺐다.",
-          "enum": ["range_shrunk", "modeling_error_suspected", "topology_group_limit"]
+          "description": "검증 피드백 종류와 같다. range_shrunk: 개수형 파라미터 값도 바뀌었다(위상 묶음 안의 단독 스윕). modeling_error_suspected: 개수형 값은 그대로인데 면 구성이 바뀌었다. topology_group_limit: 위상 묶음이 상한을 넘어 그 묶음부터 뺐다. recompute_failed: 재계산에 실패했다(면 목록은 비어 있다).",
+          "enum": ["range_shrunk", "modeling_error_suspected", "topology_group_limit", "recompute_failed"]
         },
         "removed_faces": { "$ref": "#/$defs/faceRefs" },
         "added_faces": { "$ref": "#/$defs/faceRefs" },

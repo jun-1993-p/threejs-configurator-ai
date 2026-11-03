@@ -54,6 +54,7 @@ import { verifyNumeric } from "./verify-numeric.ts";
 import { rangeIntersection, type DimensionRule } from "./range-intersection.ts";
 import { checkThicknessSamples, verifyThicknessFixed } from "./verify-thickness.ts";
 import { uploadRangeFeedback, verifyRange } from "./verify-range.ts";
+import { uploadSweepFeedback } from "./verify-sweep.ts";
 
 /** 단계 이름. 순서는 runPipeline의 코드가 정한다. */
 export type Stage =
@@ -627,9 +628,10 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
   try {
     const bundleErrors = checkUploadBundle(bundle);
     if (bundleErrors.length > 0) throw new PipelineStop("upload", `업로드 묶음 형식 오류: ${bundleErrors.join("; ")}`);
-    // 애드인이 범위 끝의 위상 변화로 줄인 스윕 범위. 모델링 오류 의심은 운영자가 모델을 확인할 일이라 처리 기록에 남긴다.
-    const rangeFeedback = uploadRangeFeedback(uploaded);
-    await log("upload", rangeFeedback.length > 0 ? { feedback: rangeFeedback } : undefined);
+    // 애드인이 범위 끝의 재계산 실패·위상 변화로 줄인 스윕 범위와 보간 실패·부피 튐. 모델링 오류 의심과 부피 튐은
+    // 운영자가 모델을 확인할 일이라 처리 기록에 남긴다.
+    const uploadFeedback = [...uploadRangeFeedback(uploaded), ...uploadSweepFeedback(uploaded)];
+    await log("upload", uploadFeedback.length > 0 ? { feedback: uploadFeedback } : undefined);
 
     const intakeErrors = checkIntake(intake);
     if (intakeErrors.length > 0) throw new PipelineStop("intake", `정보 입력 형식 오류: ${intakeErrors.join("; ")}`);

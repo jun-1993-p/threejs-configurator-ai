@@ -1019,6 +1019,59 @@ test("후보가 개수형 파라미터나 스윕한 부모를 따르지 않는 �
   ]);
 });
 
+test("업로드 묶음에 보간 실패가 있으면 업로드 단계 처리 기록으로 운영자에게 알린다", async () => {
+  const failed = structuredClone(bundle);
+  failed.sweeps.find((s: { parameter: string }) => s.parameter === "body_h").interpolation_failure = { at: 412.5, kind: "shape_error", part: "Carcass", error: 3.2, tolerance: 1 };
+  const { store, ports } = setup();
+
+  await runPipeline({ bundle: failed, intake, human: approveFirst, ports });
+
+  const upload = store.log.find((e) => e.stage === "upload")!;
+  assert.deepEqual(
+    (upload.detail as { feedback: Feedback[] }).feedback.map((f) => [f.slider, f.kind]),
+    [["body_h", "shape_error"]],
+  );
+});
+
+test("17점으로도 합격선을 못 맞춘 보간 실패 파라미터를 후보가 노출하면 이유를 붙여 후보를 다시 묻는다", async () => {
+  const failed = structuredClone(bundle);
+  failed.sweeps.find((s: { parameter: string }) => s.parameter === "body_h").interpolation_failure = {
+    at: 412.5,
+    kind: "shape_error",
+    part: "Carcass",
+    error: 3.2,
+    tolerance: 1,
+  };
+  const exposed = candidates.map((c) => ({ ...c, sliders: [{ parameter: "body_h", name: "전체 높이" }] }));
+  const { ai, ports } = setup({ candidates: [exposed, candidates] });
+
+  const result = await runPipeline({ bundle: failed, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  const errors = (ai.calls.candidates[1] as { schemaErrors: string[] }).schemaErrors;
+  assert.deepEqual(errors, [
+    "/0/sliders/0/parameter: body_h는 적응형 스윕을 17점까지 늘려도 보간 오차가 합격선을 넘어(보간 실패) 슬라이더 후보가 될 수 없습니다",
+    "/1/sliders/0/parameter: body_h는 적응형 스윕을 17점까지 늘려도 보간 오차가 합격선을 넘어(보간 실패) 슬라이더 후보가 될 수 없습니다",
+  ]);
+});
+
+test("재계산 실패로 스윕 범위가 기본값 하나로 줄어든 파라미터를 후보가 노출하면 이유를 붙여 후보를 다시 묻는다", async () => {
+  // 기본값 바로 양옆 검증점에서 재계산이 실패하면 애드인은 범위를 기본값까지 줄인다. 샘플 하나로는 보간할 수 없다.
+  const collapsed = structuredClone(bundle);
+  const height = collapsed.sweeps.find((s: { parameter: string }) => s.parameter === "body_h");
+  height.samples = height.samples.filter((s: { value: number }) => s.value === 700);
+  height.checks = [];
+  height.range = { min: 700, max: 700 };
+  const exposed = candidates.map((c) => ({ ...c, sliders: [{ parameter: "body_h", name: "전체 높이" }] }));
+  const { ai, ports } = setup({ candidates: [exposed, candidates] });
+
+  const result = await runPipeline({ bundle: collapsed, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  const errors = (ai.calls.candidates[1] as { schemaErrors: string[] }).schemaErrors;
+  assert.equal(errors[0], "/0/sliders/0/parameter: body_h는 재계산에 성공한 스윕 샘플이 2개보다 적어 보간할 수 없으므로 슬라이더 후보가 될 수 없습니다");
+});
+
 test("칸막이 수가 바뀌는 선반도 위상 묶음을 넘나드는 슬라이더로 검증을 통과해 제출된다", async () => {
   const shelfIntake: Intake = { name: "칸막이 선반", kind: "선반", memo: "폭 500~1300, 깊이 200~400", thickness: "ai" };
   const shelfCandidates: Candidate[] = [

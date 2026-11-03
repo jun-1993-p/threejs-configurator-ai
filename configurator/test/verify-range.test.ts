@@ -50,6 +50,20 @@ test("개수형 값과 함께 면 구성이 바뀌어 줄어든 범위는 range_
   assert.match(feedback.hint, /개수형 파라미터가 바뀌며\(shelves 2→1\)/);
 });
 
+test("재계산이 실패해 줄어든 범위는 recompute_failed로 알리고 슬라이더가 넘으면 좁히라고 한다", () => {
+  const bundle = structuredClone(shellPointRecording);
+  const [reduction] = bundle.sweeps.find((s) => s.parameter === "body_d")!.reductions!;
+  Object.assign(reduction, { reason: "recompute_failed", removed_faces: [], removed_edges: [], added_edges: [] });
+
+  const [upload] = uploadRangeFeedback(bundle);
+  const [feedback] = verifyRange(bodyDepth, bundle);
+
+  assert.deepEqual([upload.kind, upload.part], ["recompute_failed", ""]);
+  assert.match(upload.hint, /body_d의 스윕 범위는 225에서 Fusion이 재계산하지 못했습니다\. min가 337\.5까지 줄었습니다/);
+  assert.equal(feedback.path, "sliders[0].min");
+  assert.match(feedback.hint, /body_d의 min 값을 337\.5 이상으로 좁히세요/);
+});
+
 test("면은 그대로이고 모서리만 바뀌어 줄어든 범위는 바뀐 모서리를 힌트에 적는다", () => {
   const bundle = structuredClone(shellPointRecording);
   const [reduction] = bundle.sweeps.find((s) => s.parameter === "body_d")!.reductions!;

@@ -1,4 +1,5 @@
 import json
+import math
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
@@ -94,16 +95,40 @@ def test_같은_면_구성이면_모든_샘플의_꼭짓점_수가_같고_면마
     assert all(len(f["points"]) == grid_n * grid_n for s in samples for f in s["faces"])
 
 
-def test_재계산이_실패한_샘플은_실패로_기록하고_스윕을_이어간다() -> None:
+def test_재계산이_실패하는_값이_있으면_그_안쪽_가장_먼_점까지_스윕_범위를_줄이고_까닭을_담는다() -> None:
+    # 1200에서 실패한다. 그 안쪽 검증점 1100이 범위 끝 샘플이 되고, 1000~1100 사이에 검증점이 새로 생긴다.
     model = FakeModel(failing_values={"W": {1200.0}})
     server = FakeServer()
 
     run_upload(model, server, lambda _: None)
 
-    w_samples = server.uploaded[0]["sweeps"][0]["samples"]
-    assert [s["status"] for s in w_samples] == ["ok", "ok", "ok", "ok", "recompute_failed"]
-    assert w_samples[-1]["faces"] == []
+    w = server.uploaded[0]["sweeps"][0]
+    assert w["range"] == {"min": 400.0, "max": 1100.0}
+    assert [s["value"] for s in w["samples"]] == [400.0, 600.0, 800.0, 1000.0, 1100.0]
+    assert [c["value"] for c in w["checks"]] == [500.0, 700.0, 900.0, 1050.0]
+    assert {s["status"] for s in w["samples"] + w["checks"]} == {"ok"}
+    assert w["reductions"] == [
+        {
+            "side": "max",
+            "at": 1200.0,
+            "reason": "recompute_failed",
+            "removed_faces": [],
+            "added_faces": [],
+            "removed_edges": [],
+            "added_edges": [],
+            "counts": {},
+        }
+    ]
     assert model.values["W"] == 800.0
+
+
+def test_범위를_줄여_새로_뽑은_검증점에서도_재계산이_실패하면_더_안쪽으로_줄인다() -> None:
+    model = FakeModel(failing_values={"W": {1200.0, 1050.0}})
+
+    w = run_upload_bundle(model)["sweeps"][0]
+
+    assert w["range"] == {"min": 400.0, "max": 1000.0}
+    assert [r["at"] for r in w["reductions"]] == [1050.0]
 
 
 def test_업로드_묶음이_업로드_묶음_스키마를_통과한다() -> None:
@@ -392,7 +417,8 @@ def test_범위_안에서_개수형_값과_함께_면_구성이_바뀌면_범위
     assert values[:4] == [400.0, 600.0, 800.0, 1000.0] and values[-2:] == [1100.0, 1200.0]
     [edge] = values[4:-2]
     assert 1099.8 <= edge < 1100.0
-    assert [c["value"] for c in w["checks"]] == [500.0, 700.0, 900.0, 1100.0]
+    # 경계 양쪽 샘플과 이웃 샘플 사이에도 검증점을 뽑아 보간 오차를 잰다(경계를 건너는 구간은 보간하지 않는다)
+    assert [c["value"] for c in w["checks"]] == [500.0, 700.0, 900.0, (1000.0 + edge) / 2, 1100.0, 1150.0]
     [group] = w["groups"]
     assert group["range"] == {"min": 1100.0, "max": 1200.0}
     assert group["counts"] == {"shelves": 3.0}
@@ -553,6 +579,60 @@ def test_위상_경계_바로_뒤에서_모델링_오류가_의심되면_샘플�
     [reduction] = w["reductions"]
     assert (reduction["side"], reduction["at"], reduction["reason"]) == ("max", 1100.0, "range_shrunk")
     assert reduction["counts"] == {"shelves": [2.0, 3.0]}
+
+
+class _Tilt(FakeModel):
+    """등판 기울기 A(도)를 갖는 모델. Body1에 원점을 축으로 기울어지는 등판 면(길이 400)이 하나 더 있다.
+
+    tilt(A)가 등판이 실제로 기울어진 각도다. 각도에 따라 점이 원호를 그리므로 선형 보간이 빗나간다.
+    """
+
+    def __init__(self, tilt: Callable[[float], float], default: float = 40.0) -> None:
+        super().__init__(
+            parameters=[
+                ParameterInfo(name="W", value=800.0, unit="mm", expression="800 mm", is_user=True),
+                ParameterInfo(name="D", value=400.0, unit="mm", expression="400 mm", is_user=True),
+                ParameterInfo(name="A", value=default, unit="deg", expression=f"{default} deg", is_user=True),
+            ]
+        )
+        self._tilt = tilt
+
+    def sample_faces(self, grid_n: int) -> list[FaceSample]:
+        faces = super().sample_faces(grid_n)
+        angle = math.radians(self._tilt(self.values["A"]))
+        back = [
+            (self.values["W"] * i / (grid_n - 1), 400.0 * j / (grid_n - 1) * math.cos(angle), 400.0 * j / (grid_n - 1) * math.sin(angle))
+            for i in range(grid_n)
+            for j in range(grid_n)
+        ]
+        return faces + [replace(faces[0], name="F3:back", points=back, geometry={"type": "plane", "normal": [0.0, 0.0, 1.0]})]
+
+
+def test_선형_파라미터는_5점에서_멈추고_비선형인_구간만_샘플이_늘어난다() -> None:
+    # 등판은 A가 50도를 넘어야 기울어진다. 50~60 구간만 원호다. 10도 구간은 형상 오차 400(1-cos 5°)=1.5 mm로,
+    # 5도 구간은 상판 높이(400 sin A)의 치수 오차 0.30 mm로 합격선을 넘고, 2.5도 구간은 0.08 mm로 통과한다.
+    sweeps = run_upload_bundle(_Tilt(lambda a: max(a, 50.0)))["sweeps"]
+
+    w, a = sweeps[0], sweeps[2]
+    assert [s["value"] for s in w["samples"]] == [400.0, 600.0, 800.0, 1000.0, 1200.0]
+    assert [s["value"] for s in a["samples"]] == [20.0, 30.0, 40.0, 50.0, 52.5, 55.0, 57.5, 60.0]
+    assert [c["value"] for c in a["checks"]] == [25.0, 35.0, 45.0, 51.25, 53.75, 56.25, 58.75]
+    assert "interpolation_failure" not in a
+
+
+def test_17점으로도_합격선을_못_맞추면_그_파라미터를_보간_실패로_보고한다() -> None:
+    # 등판이 47.3도에서 0도에서 30도로 튄다. 그 구간은 아무리 나눠도 합격선을 넘는다.
+    # 합격선에 견준 비율이 가장 큰 것은 상판 높이(0 → 200 mm)의 치수 오차다.
+    bundle = run_upload_bundle(_Tilt(lambda a: 0.0 if a < 47.3 else 30.0))
+    a = bundle["sweeps"][2]
+
+    assert len(a["samples"]) == 17
+    failure = a["interpolation_failure"]
+    assert failure["kind"] == "dimension_error" and failure["part"] == "상판"
+    assert 47.0 < failure["at"] < 47.6
+    assert failure["error"] > failure["tolerance"] == 0.2
+    assert "interpolation_failure" not in bundle["sweeps"][0]
+    jsonschema.validate(bundle, json.loads(SCHEMA_PATH.read_text(encoding="utf-8")))
 
 
 def test_경계를_좁히다_재계산이_실패하면_거기서_멈추고_경계를_안쪽으로_당기지_않는다() -> None:

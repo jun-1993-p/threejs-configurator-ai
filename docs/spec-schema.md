@@ -113,13 +113,16 @@
   | `grid_limit` | 격자 보강이 필요한 쌍이 상품당 2쌍을 넘음 |
   | `topology_group_limit` | 파라미터 하나의 위상 묶음이 4개를 넘어 범위가 줄어듦 |
 
-- `part`: 부품과 무관한 실패(검증점 재계산 실패, 검증점의 `topology_change`)는 빈 문자열이다. 범위 축소(`range_shrunk`·`modeling_error_suspected`·`topology_group_limit`)는 바뀐 면이 속한 부품이고, 기준 형상에 없는 바디(새로 생긴 칸막이 등)면 그 바디 이름이다.
-- `range_shrunk`·`modeling_error_suspected`·`topology_group_limit`: 애드인이 위상 변화(면 또는 모서리 구성)로 스윕 범위를 줄인 기록(업로드 묶음 `sweeps[].reductions`, `reason`이 이 `kind`와 같다)에서 나온다(ADR-0005).
+- `part`: 부품과 무관한 실패(검증점 재계산 실패, 스윕 범위의 재계산 실패 축소, 검증점의 `topology_change`)는 빈 문자열이다. 범위 축소(`range_shrunk`·`modeling_error_suspected`·`topology_group_limit`)는 바뀐 면이 속한 부품이고, 기준 형상에 없는 바디(새로 생긴 칸막이 등)면 그 바디 이름이다.
+- `range_shrunk`·`modeling_error_suspected`·`topology_group_limit`·`recompute_failed`: 애드인이 위상 변화(면 또는 모서리 구성)나 재계산 실패로 스윕 범위를 줄인 기록(업로드 묶음 `sweeps[].reductions`, `reason`이 이 `kind`와 같다)에서 나온다(ADR-0005, 0007). 쪽마다 가장 안쪽 까닭 하나만 남는다.
+  - 재계산 실패: 기본값에서 그쪽으로 가며 처음 실패한 샘플이나 검증점(`at`)부터 바깥을 버리고, 그 안쪽의 가장 먼 점(검증점이면 샘플로 삼는다)이 범위 끝이 된다. 힌트는 "`at`에서 Fusion이 재계산하지 못했습니다"다.
   - 범위 안에서 개수형 파라미터 값과 함께 면 구성이 바뀌면 범위를 줄이지 않고 위상 묶음으로 나눈다(`sweeps[].groups`). 묶음이 파라미터당 4개(기본 묶음 포함)를 넘으면 기본값에서 먼 묶음부터 빼고 `topology_group_limit`으로 줄인다.
   - 개수형 값은 그대로인데 면 구성이 바뀌면 `modeling_error_suspected`로 줄인다.
   - 위상 묶음 안의 단독 스윕(`groups[].sweeps`)은 다시 묶음으로 나누지 않는다. 면 구성이 바뀌면 개수형 값이 바뀌었으면 `range_shrunk`, 그대로면 `modeling_error_suspected`로 줄인다. 힌트 앞에 그 묶음(`shelf_w=1200.04 위상 묶음에서`)이 붙고 `measured.values`에 묶음 기준 값이 들어간다.
   - 업로드 단계: 처리 기록으로 운영자에게 알린다. 명세가 없으므로 `path`는 빈 문자열이고, `slider`에는 그 파라미터 이름(슬라이더가 된다면 그 id)이 들어간다.
   - 검증 단계: 명세 범위가 줄어든 쪽을 넘으면 수치 검증 전에 `sliders[i].min`/`max`에 다시 낸다. `expected`는 줄어든 범위 끝(`{ "min": 337.5 }`)이다. 위상 묶음 안의 단독 스윕은 묶음의 파라미터가 슬라이더이고 그 슬라이더 범위가 묶음에 닿을 때만 본다.
+- 보간 실패(업로드 묶음 `sweeps[].interpolation_failure`, ADR-0007): 업로드 단계 처리 기록에 `kind`가 `shape_error`·`dimension_error`인 피드백으로 남는다. `path`는 빈 문자열, `measured`는 `{ at, error }`, `expected`는 `{ max_error_mm }`이고, 힌트는 그 파라미터를 슬라이더 후보에서 뺀다고 알린다. 후보 검사와 명세 검사는 그 파라미터를 슬라이더로 쓰면 거절한다. 위상 묶음 안의 단독 스윕에서 실패해도 같다. 재계산 실패로 범위가 줄어 재계산에 성공한 샘플이 2개보다 적은 단독 스윕의 파라미터도 같은 검사에서 거절한다(보간할 수 없다).
+- `volume_jump`(경고): 업로드 단계 처리 기록에만 남고 실패로 치지 않는다. `path`는 빈 문자열, `part`는 그 바디가 속한 부품, `measured`는 `{ value, body, volume }`, `expected`는 `{ volume }`(이웃 두 샘플의 선형 보간)이다. 같은 위상 묶음의 이웃 샘플끼리만 견주고, 바디 측정값이 없는 녹화본에서는 나오지 않는다.
 - `slider`: 한 슬라이더의 실패가 아니면(`grid_limit`) 빈 문자열이고, 이때 `path`는 `sliders`다.
 - `hint`: 규칙으로 만든다(AI가 쓰지 않음).
 
