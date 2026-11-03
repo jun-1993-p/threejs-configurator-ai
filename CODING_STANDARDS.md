@@ -12,6 +12,8 @@
 
 리뷰는 바뀐 검사기·타입과 이 문서들을 대조한다.
 
+처리 기록(`runner.ts`의 `log(stage, detail)`)의 `detail` 모양도 계약이다. 최종 확인 판정(`pipeline/final-check.ts`의 `judgeRun`)이 그것을 읽으므로, 모양을 바꾸면 같은 커밋에서 판정도 고친다.
+
 ## 도메인 값 목록
 
 정면, 상품 종류, 두께 선택 노출 여부처럼 정해진 값 목록은 `configurator/pipeline/schemas.ts`에 `as const` 배열 하나와 그 유니온 타입 하나로 둔다(예: `FRONTS`·`Front`, `PRODUCT_KINDS`·`ProductKind`). JSON Schema의 `enum`, TypeScript 타입, 화면의 고를 거리는 모두 그 배열을 가져다 쓰고, 타입은 한 이름으로만 부른다. 값 목록이 생긴 도메인 값은 `string` 대신 그 유니온 타입으로 받는다.

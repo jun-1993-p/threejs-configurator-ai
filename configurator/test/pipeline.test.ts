@@ -14,6 +14,7 @@ import { FUSION_NEEDED, FUSION_RECONNECTED, runPipeline, type Candidate, type Ca
 import { scriptedAi, type Script } from "../pipeline/scripted-ai.ts";
 import { memoryStore } from "../pipeline/memory-store.ts";
 import { recordOf } from "../pipeline/case-store.ts";
+import { judgeRun } from "../pipeline/final-check.ts";
 import { pastCase } from "./cases.ts";
 import { UI_STYLES } from "../pipeline/ui-styles.ts";
 import type { Style } from "../src/style.ts";
@@ -1764,4 +1765,48 @@ test("최종 승인에서 좁힌 범위가 닿지 않는 위상 묶음은 제출
   // 1200 위의 4칸 묶음은 빠지고 800 아래의 2칸 묶음만 남는다
   const ranges = JSON.parse(files["sweeps.json"]).sweeps.find((s: { parameter: string }) => s.parameter === "shelf_w").groups.map((g: { range: { min: number } }) => g.range.min);
   assert.deepEqual(ranges, [450]);
+});
+
+// 최종 확인 판정은 실행기가 남긴 처리 기록의 detail 모양을 읽는다. 실행기의 기록을 그대로 넣어 그 모양이 어긋나지 않는지 본다.
+test("최종 확인 판정이 실행기의 처리 기록에서 후보를 다시 고른 것, 반려 두 경로, 범위 고치기를 사람 개입으로 찾는다", async () => {
+  const reason = "정면을 반대로 보고 싶다";
+  const { human } = deciding(
+    ["c1", "c1", "c2", "c1"],
+    [
+      { decision: "reject", back: "choice" },
+      { decision: "reject", back: "candidates", reason },
+      { decision: "approve", edits: { body_w: { name: "가로 길이", max: 800 } } },
+    ],
+  );
+  const { store, ports } = setup({
+    candidates: [candidates, candidates, candidates],
+    style: Array(4).fill({ style: "natural" }),
+    // 처음 후보는 수치 검증에 4번 실패해 후보 제시로 돌아간다. 정면이 +Y인 c2의 명세는 정면을 따른다.
+    spec: [tooWide, tooWide, tooWide, tooWide, spec, { ...spec, front: "+Y" }, spec],
+    judgment: [judged(), judged(), judged()],
+  });
+
+  const result = await runPipeline({ bundle: nonlinearAt825(), intake, human, ports });
+
+  const outcome = judgeRun(store.log, result);
+  assert.equal(result.status, "submitted");
+  assert.deepEqual(outcome.interventions, [
+    "같은 후보로 검증을 통과하지 못해 후보를 다시 골랐다",
+    "최종 승인에서 반려하고 다른 후보를 골랐다",
+    `최종 승인에서 반려하고 후보를 다시 받았다: ${reason}`,
+    "최종 승인에서 body_w의 범위를 고쳤다",
+  ]);
+  // 후보 제시로 돌아가기 전 마지막 시도가 서랍 치수 오차였다
+  assert.equal(outcome.failure?.class, "engine");
+  assert.ok(outcome.failure.evidence.includes("dimension_error: 슬라이더 body_w, 부품 DrawerBox"), JSON.stringify(outcome.failure.evidence));
+});
+
+test("최종 확인 판정이 실행기의 처리 기록에서 이름만 고친 최종 승인을 통과로 본다", async () => {
+  const { human } = deciding(["c1"], [{ decision: "approve", edits: { body_w: { name: "가로 길이" } } }]);
+  const { store, ports } = setup({ spec: [tooWide, spec], judgment: [judged()] });
+
+  // 같은 후보 안에서 검증 피드백으로 명세를 고친 것은 자동 진행이다
+  const result = await runPipeline({ bundle: nonlinearAt825(), intake, human, ports });
+
+  assert.deepEqual(judgeRun(store.log, result), { passed: true, interventions: [], failure: null });
 });

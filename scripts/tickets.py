@@ -22,6 +22,10 @@ class Ticket:
     boxes: int
     committed: bool
     blocked_by: list[int]
+    # "미룸(티켓 22)": 이 티켓이 다른 티켓으로 미룬 일
+    deferred_to: list[int]
+    # "(티켓 08에서 옮김)": 다른 티켓이 미뤄 이 티켓이 받은 일
+    moved_from: set[int]
 
     @property
     def done(self) -> bool:
@@ -44,7 +48,20 @@ def read_ticket(path: Path, committed: set[int]) -> Ticket:
         committed=number in committed,
         # "09 (격자 보강), 11 (위상 묶음)"에서 괄호 밖의 번호만
         blocked_by=[int(n) for n in re.findall(r"(?:^|,)\s*(\d+)", blocked.group(1))] if blocked else [],
+        deferred_to=[int(n) for n in re.findall(r"미룸\(티켓 (\d+)\)", text)],
+        moved_from={int(n) for n in re.findall(r"티켓 (\d+)에서 옮김", text)},
     )
+
+
+def lost_deferrals(tickets: list[Ticket]) -> list[tuple[int, int]]:
+    """미룬 일 중 받는 티켓에 옮김 표시가 없는 (보낸 티켓, 받는 티켓). 티켓 08이 22로 미룬 일이 22에 없어 사라진 일이 있었다."""
+    by_number = {t.number: t for t in tickets}
+    return [
+        (t.number, to)
+        for t in sorted(tickets, key=lambda t: t.number)
+        for to in t.deferred_to
+        if to not in by_number or t.number not in by_number[to].moved_from
+    ]
 
 
 def committed_numbers(subjects: list[str]) -> set[int]:
@@ -69,6 +86,8 @@ def report(tickets: list[Ticket]) -> str:
         state = "끝남" if t.done else f"막힘({', '.join(f'{b:02d}' for b in waiting)})" if waiting else "열림"
         commit = "커밋 있음" if t.committed else "커밋 없음"
         lines.append(f"{t.number:02d} {state:<10} 체크 {t.checked}/{t.boxes}  {commit}  {t.status:<16} {t.title}")
+    for sender, to in lost_deferrals(tickets):
+        lines.append(f"미룬 일 빠짐: {sender:02d} → {to:02d}, 받는 티켓에 '(티켓 {sender:02d}에서 옮김)' 항목이 없다")
     nxt = next_ticket(tickets)
     lines.append(f"다음: {nxt.number:02d} {nxt.title}" if nxt else "다음: 에이전트가 할 티켓 없음")
     return "\n".join(lines)
