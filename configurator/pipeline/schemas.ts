@@ -101,12 +101,12 @@ export const PARTS_SCHEMA = {
 export const checkParts = checker(PARTS_SCHEMA);
 
 /**
- * 후보 제시 응답. 후보는 2~4개(사용자 스토리 19). 슬라이더마다 고객이 보는 치수의 파라미터(parameter)와 그 뜻의 이름(name)이다.
+ * 후보 제시 응답. 후보는 2~4개(사용자 스토리 19)이고, 서로 다른 구성이 하나뿐이면 1개다(티켓 28). 슬라이더마다 고객이 보는 치수의 파라미터(parameter)와 그 뜻의 이름(name)이다.
  * parameter가 자식 파라미터면 움직일 부모는 후보 선택에서 운영자가 고른다(ADR-0003).
  */
 export const CANDIDATES_SCHEMA = {
   type: "array",
-  minItems: 2,
+  minItems: 1,
   maxItems: 4,
   items: {
     type: "object",
@@ -328,6 +328,8 @@ export function partsReferenceChecker(bundle: { parts: { name: string }[] }) {
  * - 부품 탐색이 정면을 확신했으면(정면 후보 하나) 모든 후보가 그 정면이고, 확신하지 못했으면 정면 후보가 모두 후보에 있어야 한다.
  *   위쪽과 같은 축은 정면이 될 수 없다.
  * - 정보 입력이 두께 선택을 보이기나 숨기기로 정했으면 모든 후보가 따른다. "AI 판단"이면 후보마다 다를 수 있다.
+ * - 후보가 하나여도 된다: 정면을 확신하고 두께 선택 노출이 정해졌으면, 메모가 슬라이더를 하나로 정할 때 서로 다른 구성이 하나뿐이다.
+ *   두께 선택 노출이 "AI 판단"이면 그것으로 다른 후보를 만들 수 있어 하나는 안 된다(티켓 28).
  * JSON Schema 검사를 통과한 후보에 쓴다.
  */
 export function candidateDiversityChecker({ fronts, up }: { fronts: Front[]; up: Front }, thickness: ThicknessExposure) {
@@ -345,6 +347,9 @@ export function candidateDiversityChecker({ fronts, up }: { fronts: Front[]; up:
         .map((other) => `/${i}: 후보 ${other.id}와 정면·부모 파라미터·두께 선택 노출이 모두 같습니다. 하나 이상을 다르게 하세요`),
     ]);
     const missing = fronts.length > 1 ? fronts.filter((f) => !candidates.some((c) => c.front === f)) : [];
+    if (candidates.length === 1 && thickness === "ai") {
+      errors.push(`${ROOT}: 두께 선택 노출을 AI가 정하므로 후보가 하나일 수 없습니다. 두께 선택 노출이 다른 후보를 더하세요`);
+    }
     if (missing.length > 0) {
       errors.push(`${ROOT}: 정면을 확신하지 못해(정면 후보 ${fronts.join("·")}) 후보끼리 정면이 달라야 합니다. 빠진 정면: ${missing.join("·")}`);
     }

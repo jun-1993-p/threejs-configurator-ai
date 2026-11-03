@@ -369,6 +369,30 @@ test("정보 입력이 두께 선택을 숨기기로 정하면 두께 선택을 
   ]);
 });
 
+test("정면을 확신하고 정보 입력이 두께 선택 노출을 정했으면 후보 하나로도 후보 선택으로 간다", async () => {
+  // 메모가 슬라이더를 하나로 정하면 서로 다른 구성은 하나뿐이다(티켓 26 6절 Groq 회차)
+  const { ai, ports } = setup({ parts: [{ ...partsFound, fronts: ["-Y"] }], candidates: [[candidates[0]]] });
+
+  const result = await runPipeline({ bundle, intake: { ...intake, thickness: "hide" }, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  assert.equal(ai.calls.candidates.length, 1);
+});
+
+test("두께 선택 노출이 AI 판단이면 후보 하나는 다시 만든다", async () => {
+  const { ai, ports } = setup({
+    parts: [{ ...partsFound, fronts: ["-Y"] }],
+    candidates: [[candidates[0]], [candidates[0], { ...candidates[0], id: "c2", showThickness: true, diff: "두께 선택 노출" }]],
+  });
+
+  const result = await runPipeline({ bundle, intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "submitted");
+  assert.deepEqual((ai.calls.candidates[1] as { schemaErrors: string[] }).schemaErrors, [
+    "(최상위): 두께 선택 노출을 AI가 정하므로 후보가 하나일 수 없습니다. 두께 선택 노출이 다른 후보를 더하세요",
+  ]);
+});
+
 test("후보 카드마다 다른 후보와의 차이, 정면에 따른 W·D·H 축 대응, 업로드 스윕으로 만든 변형 미리보기가 붙는다", async () => {
   const sideways = [candidates[0], { ...candidates[0], id: "c2", front: "+X", diff: "정면 +X" }];
   const { ports } = setup({ parts: [{ ...partsFound, fronts: ["-Y", "+X"] }], candidates: [sideways] });
