@@ -35,19 +35,19 @@
 
 ### 5. 실제 상품으로 실제 모델 확인 (티켓 15에서 옮김)
 
-- [ ] 실제 상품 하나로 실제 모델을 써서 수치 검증까지 통과하는 수동 확인 기록이 있다. LiteLLM에 Cerebras `gpt-oss-120b`를 걸고 `scripts/run-pipeline.ts`로 돌린다. 기록은 이 티켓 아래에 남긴다
+- [ ] 실제 상품 하나로 실제 모델을 써서 수치 검증까지 통과하는 수동 확인 기록이 있다. LiteLLM에 Groq `gpt-oss-120b`를 걸고 `scripts/run-pipeline.ts`로 돌린다. 기록은 이 티켓 아래에 남긴다
 
 ### 6. 실제 키로 예비 모델 전환 확인 (티켓 22에서 옮김)
 
 Docker 구성(`docs/docker.md`)을 띄우고 `.env`에 실제 키를 넣어 확인한다. 어느 모델이 답했는지는 LiteLLM 응답 헤더 `x-litellm-model-group`으로 본다.
 
-- [ ] Cerebras 키로 `llm`·`vlm`이 실제로 답한다(헤더가 `llm`·`vlm`)
-- [ ] `docker/litellm/config.yaml`의 Cerebras VLM 이름 `qwen3.8-27b`가 실제 모델 이름이다. 아니면 설정을 고친다
-- [ ] Cerebras 키를 비우면 Groq가 답한다(헤더가 `llm-groq`·`vlm-groq`)
-- [ ] Cerebras·Groq 키를 모두 비우면 로컬 모델이 답한다(헤더가 `llm-local`·`vlm-local`). 먼저 `docker compose exec ollama ollama pull gpt-oss:20b`와 `qwen3-vl:8b`를 받는다. 티켓 22에서는 받지 않아 `qwen2.5:3b`로만 확인했다
+- [ ] Groq 키로 `llm`·`vlm`이 실제로 답한다(헤더가 `llm`·`vlm`)
+- [ ] `docker/litellm/config.yaml`의 Groq 모델 이름(`openai/gpt-oss-120b`, `meta-llama/llama-4-scout-17b-16e-instruct`)이 Groq 모델 목록에 있다. 아니면 설정을 고친다
+- [ ] Groq 키를 비우면 로컬 모델이 답한다(헤더가 `llm-local`·`vlm-local`). 먼저 `docker compose exec ollama ollama pull gpt-oss:20b`와 `qwen3-vl:8b`를 받는다. 티켓 22에서는 받지 않아 `qwen2.5:3b`로만 확인했다
 - [ ] 위 확인마다 `scripts/run-pipeline.ts`를 합성 서랍장 녹화본 `fixtures/synthetic/drawer.json`으로 돌려, 모델이 바뀌어도 형식 오류가 다음 단계로 새지 않는지 처리 기록(`log.json`)으로 본다
 
 ## Comments
 
 - 2026-11-02: Fusion에 접근할 수 없는 동안 사람 확인이 티켓 01·15·25에 흩어져 있어, 코드가 끝난 티켓 15가 16·18·19·22를 막고 있었다. 사람 확인을 이 티켓으로 모으고 원래 티켓은 코드 완료로 둔다.
-- 5절 중 Fusion이 필요 없는 부분(큰 모델로 정면·축까지 맞는 명세가 나오는지)은 Cerebras 키만 있으면 합성 서랍장 녹화본 `fixtures/synthetic/drawer.json`으로 먼저 볼 수 있다. 로컬 7b 모델로는 안정적으로 나오지 않았다(티켓 15 수동 확인 기록).
+- 5절 중 Fusion이 필요 없는 부분(큰 모델로 정면·축까지 맞는 명세가 나오는지)은 Groq 키만 있으면 합성 서랍장 녹화본 `fixtures/synthetic/drawer.json`으로 먼저 볼 수 있다. 로컬 7b 모델로는 안정적으로 나오지 않았다(티켓 15 수동 확인 기록).
+- 2026-11-03: Cerebras 가입에 카드 등록이 필요해 Cerebras를 빼고 Groq를 첫 모델로 바꿨다(ADR-0015 바뀐 것). 6절 항목을 Groq → 로컬 순서로 고쳤다. 6절 확인 절차는 `scripts/fallback-check-wizard.sh`가 안내한다.

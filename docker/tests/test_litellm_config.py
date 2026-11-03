@@ -27,16 +27,15 @@ def test_파이프라인이_부르는_모델_이름이_설정에_있다() -> Non
     assert set(PIPELINE_MODELS) <= deployments.keys()
 
 
-def test_외부_모델은_Groq_다음_로컬_예비_모델로_넘어간다() -> None:
+def test_Groq가_먼저_답하고_로컬_예비_모델로_넘어간다() -> None:
     for name in ["llm", "vlm"]:
-        assert deployments[name]["model"].startswith("cerebras/")
+        assert deployments[name]["model"].startswith("groq/")
         chain = fallbacks[name]
-        assert [deployments[t]["model"].split("/")[0] for t in chain[:-1]] == ["groq"]
-        assert is_local(chain[-1]), f"{name}의 마지막 예비 모델은 로컬 모델이어야 한다"
+        assert len(chain) == 1 and is_local(chain[0]), f"{name}의 예비 모델은 로컬 모델 하나여야 한다"
 
 
 def test_임베딩은_예비_모델_없이_로컬에서_돈다() -> None:
-    # Cerebras·Groq에 임베딩 API가 없다
+    # Groq에 임베딩 API가 없다
     assert is_local("embedding")
     assert "embedding" not in fallbacks
 

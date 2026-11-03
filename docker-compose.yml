@@ -23,7 +23,6 @@ services:
     # 값은 docker compose가 저장소 루트의 .env에서 읽어 넣는다
     environment:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?.env에 LITELLM_MASTER_KEY를 정하세요(.env.example 참고)}
-      CEREBRAS_API_KEY: ${CEREBRAS_API_KEY:-}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       LOCAL_MODEL_URL: ${LOCAL_MODEL_URL:-http://ollama:11434/v1}
       EMBEDDING_MODEL_URL: ${EMBEDDING_MODEL_URL:-http://ollama:11434/v1}

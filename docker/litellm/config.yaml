@@ -1,14 +1,10 @@
 # LiteLLM 프록시 설정(ADR-0015). 파이프라인은 model_name(llm·vlm·embedding)만 부르므로 모델 전환은 이 파일만 고친다.
 # 예비 모델 순서와 로컬 모델 주소 바꾸는 법은 docs/docker.md.
 # 로컬 모델은 운영체제·기종을 가리지 않도록 Ollama 전용 공급자 대신 OpenAI 호환 API(openai/…)로 부른다.
-# 임베딩은 Cerebras·Groq에 임베딩 API가 없어 예비 모델 없이 늘 로컬에서 돈다.
+# 임베딩은 Groq에 임베딩 API가 없어 예비 모델 없이 늘 로컬에서 돈다.
 
 model_list:
   - model_name: llm
-    litellm_params:
-      model: cerebras/gpt-oss-120b
-      api_key: os.environ/CEREBRAS_API_KEY
-  - model_name: llm-groq
     litellm_params:
       model: groq/openai/gpt-oss-120b
       api_key: os.environ/GROQ_API_KEY
@@ -22,10 +18,6 @@ model_list:
       timeout: 900
 
   - model_name: vlm
-    litellm_params:
-      model: cerebras/qwen3.8-27b
-      api_key: os.environ/CEREBRAS_API_KEY
-  - model_name: vlm-groq
     litellm_params:
       model: groq/meta-llama/llama-4-scout-17b-16e-instruct
       api_key: os.environ/GROQ_API_KEY
@@ -43,13 +35,13 @@ model_list:
       api_key: local
 
 router_settings:
-  # 외부 API가 이 시간(초) 안에 답하지 않으면 응답하지 않는 것으로 보고 예비로 넘어간다
+  # Groq가 이 시간(초) 안에 답하지 않으면 응답하지 않는 것으로 보고 예비로 넘어간다
   timeout: 120
-  # 다시 묻지 않고 바로 예비 모델로 넘어간다. 다시 물으면 응답하지 않는 API를 제한 시간만큼 한 번 더 기다린다
+  # 다시 묻지 않고 바로 예비 모델로 넘어간다. 다시 물으면 응답하지 않는 Groq를 제한 시간만큼 한 번 더 기다린다
   num_retries: 0
   fallbacks:
-    - llm: [llm-groq, llm-local]
-    - vlm: [vlm-groq, vlm-local]
+    - llm: [llm-local]
+    - vlm: [vlm-local]
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
