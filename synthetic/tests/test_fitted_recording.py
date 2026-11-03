@@ -15,7 +15,10 @@ from synthetic.solidcraft_model import DEFAULT_CLI, edge_faces
 
 ROOT = Path(__file__).resolve().parents[2]
 CLI = os.environ.get("SOLIDCRAFT_CLI", DEFAULT_CLI)
-pytestmark = pytest.mark.skipif(not Path(CLI).is_file(), reason="solidcraft-cli가 없음")
+pytestmark = [
+    pytest.mark.solidcraft,
+    pytest.mark.skipif(not Path(CLI).is_file(), reason="solidcraft-cli가 없음"),
+]
 
 # 바뀌는 파라미터와 그 파라미터가 움직이는 축(서랍장: report.md 6절)
 MOVE_AXIS = {"body_d": 1, "d6": 2}

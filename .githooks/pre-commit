@@ -20,7 +20,8 @@ if echo "$staged" | grep -qE '^(configurator/|schema/|fixtures/)'; then
 fi
 
 if echo "$staged" | grep -qE '^(addin/|server/|synthetic/|docker/|scripts/|schema/|fixtures/|pyproject\.toml)'; then
-  echo "[pre-commit] Python: pytest"
+  echo "[pre-commit] Python: mypy와 pytest(solidcraft-cli로 다시 녹화하는 시험 포함)"
   if [ -x .venv/Scripts/python ]; then py=.venv/Scripts/python; else py=.venv/bin/python; fi
+  "$py" -m mypy
   "$py" -m pytest -q
 fi

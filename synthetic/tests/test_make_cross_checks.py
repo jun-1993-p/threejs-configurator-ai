@@ -20,6 +20,7 @@ def test_파라미터_값_문자열을_이름과_값으로_나눈다() -> None:
         parse_values("body_w")
 
 
+@pytest.mark.solidcraft
 @pytest.mark.skipif(not Path(CLI).is_file(), reason="solidcraft-cli가 없음")
 def test_교차_검증_샘플은_합성_녹화본과_같은_면_순서로_두_파라미터가_함께_바뀐다(tmp_path: Path) -> None:
     out = make_cross_checks(DRAWER, tmp_path / "cross-checks.json", [{"body_w": 525.0, "body_h": 612.5}])

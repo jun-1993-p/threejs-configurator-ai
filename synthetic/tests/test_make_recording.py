@@ -15,7 +15,10 @@ ROOT = Path(__file__).resolve().parents[2]
 DRAWER = ROOT / "solidcraft-test" / "drawer.sc"
 CLI = os.environ.get("SOLIDCRAFT_CLI", DEFAULT_CLI)
 
-pytestmark = pytest.mark.skipif(not Path(CLI).is_file(), reason="solidcraft-cli가 없음")
+pytestmark = [
+    pytest.mark.solidcraft,
+    pytest.mark.skipif(not Path(CLI).is_file(), reason="solidcraft-cli가 없음"),
+]
 
 
 def test_등판_기울기가_있는_벤치는_기울기만_비선형_구간에서_샘플이_늘어난다(tmp_path: Path) -> None:

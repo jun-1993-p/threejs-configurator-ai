@@ -29,9 +29,14 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["addin/tests", "server/tests", "synthetic/tests", "docker/tests", "scripts/tests"]
 pythonpath = ["addin/ConfiguratorUploader", "."]
+# 작업 중에는 -m "not solidcraft"로 몇 초 안에 돌리고, 전체(약 3분)는 커밋 전 검사가 돌린다
+markers = ["solidcraft: 실제 solidcraft-cli로 합성 녹화본을 다시 만드는 느린 시험"]
+addopts = "--strict-markers"
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
 mypy_path = "addin/ConfiguratorUploader"
+# 인자 없이 `mypy`로 돌린다(커밋 전 검사도 그렇게 부른다)
+files = ["addin/ConfiguratorUploader/uploader", "addin/tests", "synthetic", "server", "scripts", "docker/tests"]
 exclude = ["addin/ConfiguratorUploader/ConfiguratorUploader\\.py", "addin/ConfiguratorUploader/uploader/fusion_model\\.py"]

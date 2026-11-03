@@ -150,3 +150,14 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:8000/uploads/<업로드 ID
 교차 검증(티켓 08)부터는 업로드 뒤에도 애드인이 서버에 연결된 채로 추가 샘플에 답한다(ADR-0013). 업로드를 마친 뒤 최종 승인까지 Fusion과 그 디자인 문서를 열어 두어야 한다. 애드인은 3초마다 서버에서 요청을 찾고, 서버는 15초 넘게 소식이 없으면 "Fusion 연결 필요"로 본다.
 
 추가 샘플 응답의 녹화는 아직 서버에 저장하지 않는다. 지금 시험용 교차 검증 샘플은 SolidCraft 합성 녹화본(`python -m synthetic.make_cross_checks`)으로 만든다(`fixtures/synthetic/drawer.cross-corners.json`, `drawer.cross-depth.json`).
+
+## 9. 합성 녹화본 만들기 (SolidCraft, 에이전트용)
+
+Fusion 없이 시험할 모델은 SolidCraft로 만든다(용어집의 합성 녹화본). 평면·원기둥 면만 다룬다.
+
+1. **모델**: SolidCraft MCP로 만든다. 슬라이더가 될 치수는 사용자 파라미터(mm 또는 deg)로 두고 피처 식에서 그 이름을 쓴다. 예: `solidcraft-test/bench-tilt.sc`는 `solid.box` 두 개와 `solid.move {axis, angle: "back_angle"}`.
+2. **저장**: MCP는 허용 폴더 밖에 저장하지 못한다. 거부 메시지에 나온 Temp 폴더(`...\Temp\solidcraft-mcp-<번호>-<해시>\`)에 저장한 뒤 `solidcraft-test/`로 복사한다.
+3. **녹화**: 저장소 루트에서 `python -m synthetic.make_recording solidcraft-test/<모델>.sc --out fixtures/synthetic/<모델>.json`(사용자 파라미터가 아닌 치수는 `--extra 이름`). 업로드 묶음 검사를 통과해야 파일이 써진다.
+4. **시험**: 실제 solidcraft-cli로 다시 녹화하는 시험은 `synthetic/tests/test_make_recording.py`에 두고 `solidcraft` 표시를 붙인다.
+
+SolidCraft의 알려진 동작(면 이름 규칙, 속 비우기 면 지정점, `inspect.parameter_sweep`가 형상 오류를 ok로 보고하는 것 등)은 `solidcraft-test/handoff.md`에 있다.
