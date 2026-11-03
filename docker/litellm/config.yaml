@@ -19,7 +19,7 @@ model_list:
 
   - model_name: vlm
     litellm_params:
-      model: groq/meta-llama/llama-4-scout-17b-16e-instruct
+      model: groq/qwen/qwen3.8-27b
       api_key: os.environ/GROQ_API_KEY
   - model_name: vlm-local
     litellm_params:

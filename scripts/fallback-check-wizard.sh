@@ -199,8 +199,6 @@ finish() {
 # ──────────────────────────────────────────────────────────────────────────
 
 # 티켓 26 6절: 실제 키로 예비 모델 전환 확인(docs/docker.md). 저장소 루트에서 .env를 읽고 쓴다.
-# Git Bash가 /app/… 인자를 Windows 경로로 바꾸지 않게 한다
-export MSYS_NO_PATHCONV=1
 cd "$(dirname "$0")/.."
 CHECK_DIR=data/runs/fallback-check
 SUMMARY="$CHECK_DIR/summary.md"
@@ -241,10 +239,14 @@ run_round() {
 
   step "합성 서랍장 녹화본으로 파이프라인을 돌린다. 몇 분 걸리고, 로컬 모델이면 더 오래 걸린다."
   # 사례 저장소는 회차마다 따로 둔다. 앞 회차의 사례가 예시로 끼지 않고, 실제 사례 저장소(data/cases)도 건드리지 않는다.
-  docker compose run --rm -T -e CASES_DIR="/app/$out/cases" pipeline scripts/run-pipeline.ts \
+  # 컨테이너 안 경로(/app/…)는 Git Bash가 Windows 경로로 바꾸지 않게 이 명령에서만 변환을 끈다.
+  # 끄는 범위를 넓히면 Windows용 curl이 mktemp의 /tmp/… 경로를 찾지 못한다.
+  MSYS_NO_PATHCONV=1 docker compose run --rm -T -e CASES_DIR="/app/$out/cases" pipeline scripts/run-pipeline.ts \
     /app/fixtures/synthetic/drawer.json "/app/$CHECK_DIR/intake.json" "/app/$CHECK_DIR/rules.json" "/app/$out" \
-    | tee "$out.out" || true
-  result=$(tail -n1 "$out.out" 2>/dev/null || true)
+    2>&1 | tee "$out.out" || true
+  # 끝까지 돌면 마지막 줄이 실행 결과({"status":…})이고, 파이프라인 밖 오류로 끊기면 그 오류 줄을 남긴다
+  result=$(grep -E '^\{"status"' "$out.out" | tail -n1 || true)
+  [[ -n "$result" ]] || result="끊김: $(grep -m1 -E '^Error' "$out.out" | cut -c1-300 || true)"
   formats=$(node -e '
     const log = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
     const count = {};

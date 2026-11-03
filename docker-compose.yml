@@ -37,6 +37,9 @@ services:
   # 로컬 모델(예비 LLM·VLM과 임베딩). 호스트에서 도는 Ollama와 겹치지 않게 포트를 열지 않고 litellm만 붙는다.
   ollama:
     image: ollama/ollama:0.40.13
+    environment:
+      # 기본 4096 토큰으로는 그림과 사례 예시가 든 VLM 요청이 넘친다(티켓 26 6절 실행 기록)
+      OLLAMA_CONTEXT_LENGTH: 16384
     volumes:
       - ollama:/root/.ollama
     restart: unless-stopped

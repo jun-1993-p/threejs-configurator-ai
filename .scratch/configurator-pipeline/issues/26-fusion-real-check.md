@@ -41,8 +41,8 @@
 
 Docker 구성(`docs/docker.md`)을 띄우고 `.env`에 실제 키를 넣어 확인한다. 어느 모델이 답했는지는 LiteLLM 응답 헤더 `x-litellm-model-group`으로 본다.
 
-- [ ] Groq 키로 `llm`·`vlm`이 실제로 답한다(헤더가 `llm`·`vlm`)
-- [ ] `docker/litellm/config.yaml`의 Groq 모델 이름(`openai/gpt-oss-120b`, `meta-llama/llama-4-scout-17b-16e-instruct`)이 Groq 모델 목록에 있다. 아니면 설정을 고친다
+- [x] Groq 키로 `llm`·`vlm`이 실제로 답한다(헤더가 `llm`·`vlm`)
+- [x] `docker/litellm/config.yaml`의 Groq 모델 이름(`openai/gpt-oss-120b`, `meta-llama/llama-4-scout-17b-16e-instruct`)이 Groq 모델 목록에 있다. 아니면 설정을 고친다
 - [ ] Groq 키를 비우면 로컬 모델이 답한다(헤더가 `llm-local`·`vlm-local`). 먼저 `docker compose exec ollama ollama pull gpt-oss:20b`와 `qwen3-vl:8b`를 받는다. 티켓 22에서는 받지 않아 `qwen2.5:3b`로만 확인했다
 - [ ] 위 확인마다 `scripts/run-pipeline.ts`를 합성 서랍장 녹화본 `fixtures/synthetic/drawer.json`으로 돌려, 모델이 바뀌어도 형식 오류가 다음 단계로 새지 않는지 처리 기록(`log.json`)으로 본다
 
@@ -51,3 +51,12 @@ Docker 구성(`docs/docker.md`)을 띄우고 `.env`에 실제 키를 넣어 확�
 - 2026-11-02: Fusion에 접근할 수 없는 동안 사람 확인이 티켓 01·15·25에 흩어져 있어, 코드가 끝난 티켓 15가 16·18·19·22를 막고 있었다. 사람 확인을 이 티켓으로 모으고 원래 티켓은 코드 완료로 둔다.
 - 5절 중 Fusion이 필요 없는 부분(큰 모델로 정면·축까지 맞는 명세가 나오는지)은 Groq 키만 있으면 합성 서랍장 녹화본 `fixtures/synthetic/drawer.json`으로 먼저 볼 수 있다. 로컬 7b 모델로는 안정적으로 나오지 않았다(티켓 15 수동 확인 기록).
 - 2026-11-03: Cerebras 가입에 카드 등록이 필요해 Cerebras를 빼고 Groq를 첫 모델로 바꿨다(ADR-0015 바뀐 것). 6절 항목을 Groq → 로컬 순서로 고쳤다. 6절 확인 절차는 `scripts/fallback-check-wizard.sh`가 안내한다.
+
+### 2026-11-03 6절 첫 실행
+
+- 모델 이름: Groq 모델 목록에 `meta-llama/llama-4-scout-17b-16e-instruct`가 없어 `vlm`을 `groq/qwen/qwen3.8-27b`로 바꿨다. `openai/gpt-oss-120b`는 목록에 있다.
+- 헤더: 위저드가 두 회차 모두 "답 없음"을 찍었다. 위저드가 Git Bash 경로 변환을 대본 전체에서 꺼서 Windows용 curl이 임시 파일을 찾지 못한 탓이다. 변환은 컨테이너 명령에서만 끄게 고쳤다. 고친 함수로 실제 Groq에 물어 `llm` → `llm`, `vlm` → `vlm`을 받았다.
+- 파이프라인: 두 회차 모두 부품 탐색에서 끊겼다. 위저드가 오류 출력을 남기지 않아 다시 돌려 봤다(위저드가 이제 오류 줄도 남긴다).
+  - Groq VLM은 요청 하나에 그림을 3장까지만 받는다. 부품 탐색은 6장을 보낸다. 모음 그림으로 묶는 일을 티켓 27로 만들었다.
+  - 예비 `vlm-local`은 Ollama 기본 문맥 길이 4096 토큰을 넘었다(4662). 구성의 `ollama`에 `OLLAMA_CONTEXT_LENGTH: 16384`를 두었다.
+- 남은 일: 티켓 27 뒤에 위저드를 다시 돌려 로컬 예비와 파이프라인 항목을 본다.
