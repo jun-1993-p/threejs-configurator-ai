@@ -9,6 +9,8 @@ import type { AddressInfo } from "node:net";
 import type { Spec } from "../src/engine.ts";
 import { liteLlmAi, liteLlmEmbed } from "../pipeline/litellm-ai.ts";
 import { memoryCaseStore } from "../pipeline/case-store.ts";
+import { decodePng } from "../pipeline/image-sheet.ts";
+import { encodePng } from "../pipeline/render.ts";
 import { pastCase } from "./cases.ts";
 import { memoryStore } from "../pipeline/memory-store.ts";
 import { UI_STYLES } from "../pipeline/ui-styles.ts";
@@ -48,6 +50,16 @@ interface ChatRequest {
 
 /** 문장 하나, 또는 VLM에 보내는 문장·그림 조각 목록(OpenAI 호환 형식) */
 type Content = string | ({ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } })[];
+
+/** 사용자 메시지에 붙은 그림(data URI) */
+const imagesOf = (content: Content) => (typeof content === "string" ? [] : content.flatMap((p) => (p.type === "image_url" ? [p.image_url.url] : [])));
+
+/** PNG data URI의 너비·높이(IHDR) */
+function pngSize(url: string): [number, number] {
+  assert.ok(url.startsWith("data:image/png;base64,iVBORw0KGgo"));
+  const png = Buffer.from(url.slice(url.indexOf(",") + 1), "base64");
+  return [png.readUInt32BE(16), png.readUInt32BE(20)];
+}
 
 /** 사용자 메시지의 문장 부분 */
 const textOf = (content: Content) => (typeof content === "string" ? content : content.flatMap((p) => (p.type === "text" ? [p.text] : [])).join(""));
@@ -171,40 +183,136 @@ test("명세 작성 요청에는 정보 입력·고른 후보·치수 규칙과,
   assert.doesNotMatch(system, /\$ref|\$defs/);
 });
 
-test("부품 탐색은 VLM 모델에 여섯 방향 그림을 PNG로 싣고, 그 결과가 후보 제시 요청에 담긴다", async () => {
+test("부품 탐색은 VLM 모델에 여섯 방향 그림을 모음 그림 한 장으로 싣고, 그 결과가 후보 제시 요청에 담긴다", async () => {
   const { llm } = await run({});
 
   const [request] = llm.requests.filter((r) => r.body.model === MODELS.parts);
   const content = request.body.messages.find((m) => m.role === "user")!.content as Exclude<Content, string>;
-  const images = content.flatMap((p) => (p.type === "image_url" ? [p.image_url.url] : []));
-  assert.equal(images.length, 6);
-  assert.ok(images.every((url) => url.startsWith("data:image/png;base64,iVBORw0KGgo")));
-  // 문장에는 그림 순서대로 어느 쪽에서 본 그림인지와 부품 색이 담기고, 그림 데이터는 다시 싣지 않는다
+  const images = imagesOf(content);
+  // 320×240 칸 여섯을 세 칸씩 두 줄로, 칸 사이에 4픽셀 경계를 두고 잇는다
+  assert.deepEqual(images.map(pngSize), [[3 * 320 + 2 * 4, 2 * 240 + 4]]);
+  // 문장에는 칸마다 어느 쪽에서 본 그림인지와 부품 색이 담기고, 그림 데이터는 다시 싣지 않는다
   const [input] = llm.inputs(MODELS.parts);
-  assert.deepEqual(input.views, ["+X", "-X", "+Y", "-Y", "+Z", "-Z"]);
+  assert.deepEqual(input.views, [
+    { from: "+X", sheet: 1, row: 1, column: 1 },
+    { from: "-X", sheet: 1, row: 1, column: 2 },
+    { from: "+Y", sheet: 1, row: 1, column: 3 },
+    { from: "-Y", sheet: 1, row: 2, column: 1 },
+    { from: "+Z", sheet: 1, row: 2, column: 2 },
+    { from: "-Z", sheet: 1, row: 2, column: 3 },
+  ]);
   assert.deepEqual(input.colors.map((c: { name: string }) => c.name), ["Carcass", "DrawerBox"]);
   assert.ok(textOf(content).length < 5_000);
   assert.match(request.body.messages.find((m) => m.role === "system")!.content as string, /"fronts"/);
   assert.deepEqual(llm.inputs(MODELS.candidates)[0].parts, parts);
 });
 
-test("AI 판정은 VLM 모델에 슬라이더 끝값 렌더링을 PNG로 싣고, 문장에는 그림 순서대로 이름과 슬라이더 값만 담는다", async () => {
+test("AI 판정은 VLM 모델에 슬라이더 끝값 렌더링을 모음 그림으로 싣고, 문장에는 칸마다 렌더링 이름과 슬라이더 값만 담는다", async () => {
   const { llm } = await run({});
 
   const [request] = llm.requests.filter((r) => r.body.model === MODELS.judgment);
   const content = request.body.messages.find((m) => m.role === "user")!.content as Exclude<Content, string>;
-  const images = content.flatMap((p) => (p.type === "image_url" ? [p.image_url.url] : []));
-  assert.equal(images.length, 2);
-  assert.ok(images.every((url) => url.startsWith("data:image/png;base64,iVBORw0KGgo")));
+  assert.deepEqual(imagesOf(content).map(pngSize), [[2 * 320 + 4, 240]]);
   const [input] = llm.inputs(MODELS.judgment);
   assert.deepEqual(input.renders, [
-    { name: "body_w=400", values: { body_w: 400 } },
-    { name: "body_w=800", values: { body_w: 800 } },
+    { name: "body_w=400", values: { body_w: 400 }, sheet: 1, row: 1, column: 1 },
+    { name: "body_w=800", values: { body_w: 800 }, sheet: 1, row: 1, column: 2 },
   ]);
   assert.deepEqual(input.spec, spec);
   assert.ok(textOf(content).length < 5_000);
   // 출력 형식의 그림 이름은 보낸 렌더링 이름만 고를 수 있다
   assert.match(request.body.messages.find((m) => m.role === "system")!.content as string, /"enum":\["body_w=400","body_w=800"\]/);
+});
+
+/**
+ * 슬라이더 넷이면 렌더링이 2·4 + 4·C(4,2) = 32장이다. 렌더링 i는 바탕에 폭 10·(i+1)픽셀짜리 판을 그린 320×240 그림으로,
+ * 판 폭이 다 달라 칸을 줄이거나 늘리면 픽셀이 어긋난다.
+ */
+const manyRenders = Array.from({ length: 32 }, (_, i) => {
+  const rgb = new Uint8Array(320 * 240 * 3).fill(244);
+  for (let y = 60; y < 180; y++) for (let x = 20; x < 20 + 10 * (i + 1) && x < 320; x++) rgb.set([200, 80, i * 7], (y * 320 + x) * 3);
+  return { name: `r${i + 1}`, values: { w: i }, image: encodePng(rgb, 320, 240).toString("base64"), rgb };
+});
+
+async function judgeMany(answers: Answer[], options: { maxImages?: number } = {}) {
+  const llm = await fakeLiteLlm({ [MODELS.judgment]: answers });
+  try {
+    const ai = liteLlmAi({ baseUrl: llm.baseUrl, models: MODELS, ...options });
+    const renders = manyRenders.map(({ name, values, image }) => ({ name, values, image }));
+    const answer = await ai.judge({ intake, spec, renders, colors: [], examples: [], rejected: null, schemaErrors: [] });
+    return { answer, llm };
+  } finally {
+    await llm.close();
+  }
+}
+
+test("모음 그림이 VLM 그림 수 제한(기본 3장)보다 많으면 AI 판정을 나눠 묻고 문제 목록을 합친다", async () => {
+  const { answer, llm } = await judgeMany([
+    JSON.stringify({ problems: [{ image: "r2", reason: "판이 몸통 밖으로 나갔다" }] }),
+    JSON.stringify({ problems: [{ image: "r30", reason: "판이 너무 얇다" }] }),
+  ]);
+
+  assert.deepEqual(answer, {
+    problems: [
+      { image: "r2", reason: "판이 몸통 밖으로 나갔다" },
+      { image: "r30", reason: "판이 너무 얇다" },
+    ],
+  });
+  // 한 장에 아홉 칸이라 첫 요청이 27장을 모음 그림 석 장으로, 둘째 요청이 남은 다섯 장을 한 장으로 보낸다
+  const sizes = llm.requests.map((r) => imagesOf(r.body.messages[1].content).map(pngSize));
+  assert.deepEqual(sizes, [
+    [[968, 728], [968, 728], [968, 728]],
+    [[968, 484]],
+  ]);
+  const [first, second] = llm.inputs(MODELS.judgment);
+  assert.deepEqual(first.renders[13], { name: "r14", values: { w: 13 }, sheet: 2, row: 2, column: 2 });
+  assert.deepEqual(second.renders.map((r: { name: string; sheet: number }) => [r.name, r.sheet]), [["r28", 1], ["r29", 1], ["r30", 1], ["r31", 1], ["r32", 1]]);
+  // 요청마다 출력 형식의 그림 이름은 그 요청에 보낸 렌더링 이름만 고를 수 있다
+  assert.match(llm.requests[1].body.messages[0].content as string, /"enum":\["r28","r29","r30","r31","r32"\]/);
+
+  // 같은 축척: r14의 칸은 줄이거나 늘리지 않고 원래 픽셀 그대로 둘째 모음 그림 가운데 칸에 있다
+  const sheet = decodePng(Buffer.from(imagesOf(llm.requests[0].body.messages[1].content)[1].split(",")[1], "base64"));
+  const [left, top] = [324, 244];
+  for (let y = 0; y < 240; y++) {
+    const row = sheet.rgb.subarray(((top + y) * sheet.width + left) * 3, ((top + y) * sheet.width + left + 320) * 3);
+    assert.deepEqual(row, manyRenders[13].rgb.subarray(y * 320 * 3, (y + 1) * 320 * 3), `${y}째 줄`);
+  }
+});
+
+test("VLM 그림 수 제한은 설정값이다", async () => {
+  const { llm } = await judgeMany(Array(2).fill(JSON.stringify({ problems: [] })), { maxImages: 2 });
+
+  // 한 요청에 모음 그림 두 장(18칸)까지다
+  assert.deepEqual(llm.requests.map((r) => imagesOf(r.body.messages[1].content).length), [2, 2]);
+});
+
+test("나눠 물은 AI 판정 중 하나라도 형식이 틀린 답이면 그 답을 돌려줘 실행기가 다시 묻게 한다", async () => {
+  const { answer } = await judgeMany([JSON.stringify({ problems: [] }), "문제 없음"]);
+
+  assert.equal(answer, "문제 없음");
+});
+
+test("나눠 물은 AI 판정이 그 요청에 보내지 않은 렌더링을 짚으면 버리고, 모르는 이름과 출력 형식 밖의 필드는 남겨 형식 검사에 걸리게 한다", async () => {
+  const { answer } = await judgeMany([
+    JSON.stringify({ problems: [{ image: "r2", reason: "뚫렸다" }] }),
+    // 둘째 요청은 r28~r32만 보냈다. r3은 보지 못한 그림이고 r99는 없는 렌더링이다
+    JSON.stringify({ problems: [{ image: "r3", reason: "겹쳤다" }, { image: "r99", reason: "얇다" }], note: "덧붙임" }),
+  ]);
+
+  assert.deepEqual(answer, {
+    note: "덧붙임",
+    problems: [
+      { image: "r2", reason: "뚫렸다" },
+      { image: "r99", reason: "얇다" },
+    ],
+  });
+});
+
+test("VLM 그림 수 제한이 1 이상의 정수가 아니면 AI 모델 포트를 만들지 않는다", () => {
+  // 0이면 판정이 끝나지 않고, NaN(환경 변수 오타)이면 그림 없이 통과한다
+  for (const maxImages of [0, Number.NaN, 1.5]) {
+    assert.throws(() => liteLlmAi({ baseUrl: "http://127.0.0.1:1", models: MODELS, maxImages }), /VLM 그림 수 제한은 1 이상의 정수/);
+  }
 });
 
 test("이름이 뜻을 말하지 않는 파라미터는 단독 스윕의 축 반응을 후보 제시 요청에 실어 슬라이더 이름을 짓게 한다", async () => {

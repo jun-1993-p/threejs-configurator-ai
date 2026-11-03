@@ -2,7 +2,8 @@
 // 추가 샘플을 받을 애드인 연결이 없으므로, 교차 검증이 필요 없는 슬라이더 하나짜리 후보 중 첫 번째를 고른다. 자식 치수면 첫 부모 후보다.
 // 실행: node scripts/run-pipeline.ts <업로드 묶음.json> <정보 입력.json> <치수 규칙.json> <출력 폴더>
 // 환경 변수: LITELLM_URL(기본 http://localhost:4000), LITELLM_API_KEY, LITELLM_MODEL(LLM 단계 공통 model_name, 기본 llm),
-// LITELLM_VLM_MODEL(부품 탐색·AI 판정 model_name, 기본 vlm), LITELLM_EMBED_MODEL(사례 저장소 임베딩 model_name, 기본 embedding),
+// LITELLM_VLM_MODEL(부품 탐색·AI 판정 model_name, 기본 vlm), LITELLM_VLM_MAX_IMAGES(VLM 요청 하나에 붙일 그림 수, 기본 3),
+// LITELLM_EMBED_MODEL(사례 저장소 임베딩 model_name, 기본 embedding),
 // CASES_DIR(사례 저장소 폴더, 기본 저장소 루트의 data/cases). 승인된 사례가 쌓여 다음 실행의 예시가 된다.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -73,7 +74,8 @@ export async function runWithLiteLlm(
 ): Promise<{ result: PipelineResult; log: LogEntry[] }> {
   const model = process.env.LITELLM_MODEL ?? "llm";
   const vlm = process.env.LITELLM_VLM_MODEL ?? "vlm";
-  const ai = liteLlmAi({ ...liteLlm(), models: { parts: vlm, candidates: model, style: model, spec: model, judgment: vlm } });
+  const maxImages = process.env.LITELLM_VLM_MAX_IMAGES ? Number(process.env.LITELLM_VLM_MAX_IMAGES) : undefined;
+  const ai = liteLlmAi({ ...liteLlm(), models: { parts: vlm, candidates: model, style: model, spec: model, judgment: vlm }, maxImages });
   const result = await runPipeline({ bundle, intake, human, ports: { fusion, ai, store } });
   mkdirSync(outDir, { recursive: true });
   writeFileSync(join(outDir, "log.json"), JSON.stringify(store.log, null, 2));

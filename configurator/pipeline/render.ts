@@ -132,7 +132,7 @@ export function renderPngs(shapes: MorphShape[], view: View, size: { width: numb
 }
 
 /** 8비트 RGB PNG. 줄마다 필터 없음(0)으로 둔다. */
-function encodePng(rgb: Uint8Array, width: number, height: number): Buffer {
+export function encodePng(rgb: Uint8Array, width: number, height: number): Buffer {
   const raw = Buffer.alloc((width * 3 + 1) * height);
   for (let y = 0; y < height; y++) raw.set(rgb.subarray(y * width * 3, (y + 1) * width * 3), y * (width * 3 + 1) + 1);
   const chunk = (type: string, data: Buffer) => {

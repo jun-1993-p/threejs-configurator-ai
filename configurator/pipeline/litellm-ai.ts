@@ -4,6 +4,7 @@
 import { Agent, fetch } from "undici";
 
 import type { Embed } from "./case-store.ts";
+import { imageSheets, SHEET_CELLS } from "./image-sheet.ts";
 import { boundsOf, round } from "./measure.ts";
 import { sweepResponse } from "./parameter-relations.ts";
 import type { AiPort, AiStage } from "./runner.ts";
@@ -18,7 +19,12 @@ export interface LiteLlmOptions {
   models: Record<AiStage, string>;
   /** 한 번 묻고 답을 기다리는 시간(ms). 기본은 LiteLLM이 예비 모델을 차례로 기다리는 시간보다 길다. */
   timeoutMs?: number;
+  /** VLM 요청 하나에 붙일 수 있는 그림(모음 그림) 수. 기본은 Groq VLM의 제한이다. */
+  maxImages?: number;
 }
+
+/** Groq VLM(qwen/qwen3.8-27b)은 요청 하나에 그림을 3장까지만 받는다(티켓 26 6절) */
+const DEFAULT_MAX_IMAGES = 3;
 
 /**
  * docker/litellm/config.yaml에서 외부 API 둘(120초씩)이 답하지 않아 로컬 모델(900초)까지 가는 시간보다 길게 둔다.
@@ -76,8 +82,12 @@ const OUTPUT_RULES = (schema: object) =>
     JSON.stringify(inlineRefs(schema)),
   ].join("\n");
 
-const PARTS_PROMPT = `너는 가구 쇼핑몰 구성기를 만들기 전에 가구 그림에서 부품을 찾는다.
-입력: intake(정보 입력), views(붙인 그림의 순서대로, 각 그림을 어느 쪽에서 봤는지: Fusion 좌표 방향), colors(그림에서 부품마다 칠한 색).
+/** 부품 탐색과 AI 판정이 같이 쓰는 모음 그림 설명 */
+const SHEET_RULE = "- 모음 그림은 칸을 회색 경계로 나눠 격자로 이어 붙인 것이다. 칸 하나가 그림 하나다.";
+
+const PARTS_PROMPT =`너는 가구 쇼핑몰 구성기를 만들기 전에 가구 그림에서 부품을 찾는다.
+입력: intake(정보 입력), views(붙인 모음 그림의 칸마다 어느 쪽에서 본 그림인지: from은 Fusion 좌표 방향, sheet째 모음 그림의 row째 줄 column째 칸), colors(그림에서 부품마다 칠한 색).
+${SHEET_RULE}
 - 그림은 기본 형상을 그 방향에서 본 직교 투영이다. X·Y 쪽에서 본 그림은 Z가 위, Z 쪽에서 본 그림은 Y가 위다.
 - parts는 colors의 부품마다 name(colors의 name 그대로)과 role(서랍·몸통·상판·문 같은 역할, 한국어)이다.
 - up은 가구가 바닥에 놓였을 때 위쪽 방향이다.
@@ -114,7 +124,8 @@ const SPEC_PROMPT = `너는 가구 쇼핑몰 구성기의 명세(JSON)를 쓴다
 - examples(같은 상품 종류의 비슷한 사례의 최종 명세 spec과, 운영자가 최종 승인 때 고친 슬라이더 이름·범위 edits)는 운영자가 받아들인 명세다. 이름 짓는 방식과 범위·step 고르는 방식을 따르고, edits가 고친 쪽으로 처음부터 쓴다. 파라미터 이름과 범위의 근거는 이 상품의 bundle·rules·intake다.`;
 
 const JUDGMENT_PROMPT = `너는 가구 쇼핑몰 구성기가 고객에게 보일 형상을 그림으로 보고 이상을 찾는다.
-입력: intake(정보 입력), spec(구성기 명세), renders(붙인 그림의 순서대로, 각 그림의 name과 슬라이더 값 values), colors(그림에서 부품마다 칠한 색), examples(같은 상품 종류의 비슷한 사례).
+입력: intake(정보 입력), spec(구성기 명세), renders(붙인 모음 그림의 칸마다 그 그림의 name과 슬라이더 값 values, sheet째 모음 그림의 row째 줄 column째 칸), colors(그림에서 부품마다 칠한 색), examples(같은 상품 종류의 비슷한 사례).
+${SHEET_RULE}
 - 그림은 슬라이더 끝값과 두 슬라이더의 모서리 조합에서 그린 형상이다. 모두 같은 축척이고, 정면에서 오른쪽 위로 비켜 본 직교 투영이다. name에 없는 슬라이더는 기본값이다.
 - 판 사이가 벌어져 뚫린 곳, 부품끼리 파고든 겹침, 상품 종류로 보아 비례가 깨진 모양(너무 얇거나 길쭉한 판, 몸통 밖으로 나간 서랍 등)만 찾는다. 치수 값이 맞는지는 이미 검증했으니 보지 않는다.
 - examples의 최종 명세 spec은 운영자가 승인한 상품이다. 그 범위 안의 비례는 운영자가 받아들인 것이니 비교 기준으로 삼는다.
@@ -160,7 +171,9 @@ export function liteLlmEmbed({ baseUrl, apiKey, model }: { baseUrl: string; apiK
   };
 }
 
-export function liteLlmAi({ baseUrl, apiKey, models, timeoutMs = DEFAULT_TIMEOUT_MS }: LiteLlmOptions): AiPort {
+export function liteLlmAi({ baseUrl, apiKey, models, timeoutMs = DEFAULT_TIMEOUT_MS, maxImages = DEFAULT_MAX_IMAGES }: LiteLlmOptions): AiPort {
+  // 0이나 NaN이면 AI 판정을 묻지 않고 통과시키거나 끝나지 않으므로 처음에 막는다
+  if (!Number.isInteger(maxImages) || maxImages < 1) throw new Error(`VLM 그림 수 제한은 1 이상의 정수여야 합니다: ${maxImages}`);
   const chat = apiUrl(baseUrl, "v1/chat/completions");
   // 기다리는 시간은 signal 하나로 정하고, undici 자체 제한(헤더·본문 300초)은 끈다
   const dispatcher = new Agent({ headersTimeout: 0, bodyTimeout: 0 });
@@ -194,26 +207,39 @@ export function liteLlmAi({ baseUrl, apiKey, models, timeoutMs = DEFAULT_TIMEOUT
   // 실행기가 업로드 단계에서 형식을 검사한 뒤에만 AI 단계를 부른다
   const summary = (bundle: unknown) => bundleForPrompt(bundle as UploadBundle);
   return {
-    // 그림은 조각으로 붙이고, 문장에는 그림 순서대로 어느 쪽에서 본 것인지만 남긴다
-    findParts: ({ views, ...input }) =>
-      ask(
-        "parts",
-        `${PARTS_PROMPT}
-${OUTPUT_RULES(PARTS_SCHEMA)}`,
-        { ...input, views: views.map((v) => v.from) },
-        views.map((v) => v.image),
-      ),
+    // 여섯 방향 그림은 모음 그림 한 장(SHEET_CELLS칸 안)으로 붙이고, 문장에는 칸마다 어느 쪽에서 본 것인지만 남긴다
+    findParts: ({ views, ...input }) => {
+      const { sheets, cells } = imageSheets(views.map((v) => v.image));
+      return ask("parts", `${PARTS_PROMPT}\n${OUTPUT_RULES(PARTS_SCHEMA)}`, { ...input, views: views.map((v, i) => ({ from: v.from, ...cells[i] })) }, sheets);
+    },
     proposeCandidates: (input) =>
       ask("candidates", `${CANDIDATES_PROMPT}\n${OUTPUT_RULES(CANDIDATES_SCHEMA)}`, { ...input, bundle: summary(input.bundle) }),
     chooseStyle: (input) => ask("style", `${STYLE_PROMPT}\n${OUTPUT_RULES(styleChoiceSchema(input.styles.map((s) => s.id)))}`, input),
     writeSpec: (input) => ask("spec", `${SPEC_PROMPT}\n${OUTPUT_RULES(SPEC_SCHEMA)}`, { ...input, bundle: summary(input.bundle) }),
-    // 부품 탐색처럼 그림은 조각으로 붙이고, 문장에는 그림 순서대로 이름과 슬라이더 값만 남긴다
-    judge: ({ renders, ...input }) =>
-      ask(
-        "judgment",
-        `${JUDGMENT_PROMPT}\n${OUTPUT_RULES(judgmentSchema(renders.map((r) => r.name)))}`,
-        { ...input, renders: renders.map(({ name, values }) => ({ name, values })) },
-        renders.map((r) => r.image),
-      ),
+    // 부품 탐색처럼 렌더링은 모음 그림으로 붙이고, 문장에는 칸마다 렌더링 이름과 슬라이더 값만 남긴다.
+    // 모음 그림이 그림 수 제한보다 많으면 요청마다 maxImages장씩 차례로 나눠 묻고 문제 목록을 합친다(티켓 27).
+    judge: async ({ renders, ...input }) => {
+      const problems: unknown[] = [];
+      let merged = {};
+      for (let start = 0; start < renders.length; start += maxImages * SHEET_CELLS) {
+        const part = renders.slice(start, start + maxImages * SHEET_CELLS);
+        const { sheets, cells } = imageSheets(part.map((r) => r.image));
+        const answer = await ask(
+          "judgment",
+          `${JUDGMENT_PROMPT}\n${OUTPUT_RULES(judgmentSchema(part.map((r) => r.name)))}`,
+          { ...input, renders: part.map(({ name, values }, i) => ({ name, values, ...cells[i] })) },
+          sheets,
+        );
+        // 형식이 틀린 답은 그대로 돌려줘 실행기의 형식 검사에 걸리게 한다. 다시 물을 때는 나눈 요청을 모두 다시 묻는다.
+        const found = (answer as { problems?: unknown } | null)?.problems;
+        if (!Array.isArray(found)) return answer;
+        // 이 요청에 보내지 않은 렌더링은 모델이 보지 못한 그림이라 짚은 문제를 버린다. 모르는 이름은 남겨 형식 검사에 걸리게 한다.
+        const elsewhere = new Set(renders.filter((r) => !part.includes(r)).map((r) => r.name));
+        problems.push(...found.filter((p) => !elsewhere.has((p as { image?: string } | null)?.image as string)));
+        // problems 밖의 필드도 남겨, 출력 형식에 없는 필드는 실행기의 형식 검사에 걸리게 한다
+        merged = { ...merged, ...(answer as object) };
+      }
+      return { ...merged, problems };
+    },
   };
 }
