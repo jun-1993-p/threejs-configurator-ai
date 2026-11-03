@@ -27,6 +27,7 @@
 - 도구(`configurator/scripts/final-check.ts`, 안내 `docs/final-check.md`): `start`(개발이 끝난 커밋과 `configurator/src` 트리를 기록, 커밋하지 않은 변경이 있으면 거부), `run`(상품 하나), `report`(`report.md`). 이미 돌린 상품, 바뀐 고정 코어·변형 엔진, 개발 중 녹화본과 겹치는 상품은 돌리지 않는다. 파이프라인 밖 오류로 끊긴 실행은 판정에 넣지 않고 `interrupted.json`에 남겨 보고서에 보인다. git이 필요해 Docker 밖에서 돈다.
 - `scripts/run-pipeline.ts`의 `runWithLiteLlm`이 사람 결정·Fusion 연결·저장소를 바꿔 끼우게 했고 처리 기록을 돌려준다. 저장소 만들기는 `liteLlmStore`로 나눴다.
 - 시험: `final-check.test.ts` 12개, `http-fusion.test.ts` 4개, `browser-human.test.ts` 4개.
+- 회고 뒤 더한 시험: `final-check-cli.test.ts` 4개. 임시 git 저장소, 가짜 업로드 서버·LiteLLM, 양식을 보내는 손으로 도구를 돌린다. 통과 기록과 다시 돌리기 거부, 개발 중 녹화본 거부, 바뀐 고정 코어·커밋하지 않은 변경 거부, 끊긴 실행 기록을 본다. 이를 위해 도구의 거부는 `CheckRefused` 예외로 던지고(명령줄에서는 찍고 1로 끝냄), 저장소 루트·서버 주소·운영자 화면 주소를 `CheckEnv`로 받는다. `run-pipeline.ts`는 LiteLLM 환경 변수를 부를 때 읽는다.
 - 수동 확인: 임시 데이터 폴더로 띄운 업로드 서버, 가짜 LiteLLM, 양식을 보내는 스크립트로 합성 서랍장(슬라이더로 쓰지 않는 파라미터 하나를 더해 지문을 바꿈)을 돌렸다. `start → run`이 통과로 기록됐고, 다시 `run`은 거부됐고, `report`가 표를 썼다. 지문을 바꾸지 않은 합성 서랍장은 `fixtures/synthetic/drawer.json`·`drawer-shell-point.json`과 겹쳐 거부됐다.
 - 남은 일(사람): 실제 최종 확인은 Fusion과 실물 상품 약 10개가 필요하다. 티켓 26의 Fusion 실물 확인 뒤에 `docs/final-check.md`대로 돌린다.
   - 붙인 것: 파이프라인 쪽 HTTP Fusion 연결 포트(티켓 08에서 옮김), 운영자 화면 호스트(티켓 16에서 옮김).

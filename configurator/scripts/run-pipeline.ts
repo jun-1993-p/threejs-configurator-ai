@@ -42,12 +42,12 @@ function singleSliderAndApprove(product: string, outDir: string): HumanPort {
   };
 }
 
-const LITELLM_URL = process.env.LITELLM_URL ?? "http://localhost:4000";
-const LITELLM_API_KEY = process.env.LITELLM_API_KEY;
+/** LiteLLM 주소와 키. 부를 때 환경 변수를 읽는다(시험이 가짜 프록시 주소를 넣는다). */
+const liteLlm = () => ({ baseUrl: process.env.LITELLM_URL ?? "http://localhost:4000", apiKey: process.env.LITELLM_API_KEY });
 
 /** 처리 기록을 찍으며 쌓고, 사례 저장소는 CASES_DIR의 LanceDB인 저장소 */
 export function liteLlmStore(rules: DimensionRule[]): MemoryStore {
-  const embed = liteLlmEmbed({ baseUrl: LITELLM_URL, apiKey: LITELLM_API_KEY, model: process.env.LITELLM_EMBED_MODEL ?? "embedding" });
+  const embed = liteLlmEmbed({ ...liteLlm(), model: process.env.LITELLM_EMBED_MODEL ?? "embedding" });
   return memoryStore({
     styles: UI_STYLES,
     rules,
@@ -73,7 +73,7 @@ export async function runWithLiteLlm(
 ): Promise<{ result: PipelineResult; log: LogEntry[] }> {
   const model = process.env.LITELLM_MODEL ?? "llm";
   const vlm = process.env.LITELLM_VLM_MODEL ?? "vlm";
-  const ai = liteLlmAi({ baseUrl: LITELLM_URL, apiKey: LITELLM_API_KEY, models: { parts: vlm, candidates: model, style: model, spec: model, judgment: vlm } });
+  const ai = liteLlmAi({ ...liteLlm(), models: { parts: vlm, candidates: model, style: model, spec: model, judgment: vlm } });
   const result = await runPipeline({ bundle, intake, human, ports: { fusion, ai, store } });
   mkdirSync(outDir, { recursive: true });
   writeFileSync(join(outDir, "log.json"), JSON.stringify(store.log, null, 2));
