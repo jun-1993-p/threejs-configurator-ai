@@ -43,8 +43,8 @@ Docker 구성(`docs/docker.md`)을 띄우고 `.env`에 실제 키를 넣어 확�
 
 - [x] Groq 키로 `llm`·`vlm`이 실제로 답한다(헤더가 `llm`·`vlm`)
 - [x] `docker/litellm/config.yaml`의 Groq 모델 이름(`openai/gpt-oss-120b`, `meta-llama/llama-4-scout-17b-16e-instruct`)이 Groq 모델 목록에 있다. 아니면 설정을 고친다
-- [ ] Groq 키를 비우면 로컬 모델이 답한다(헤더가 `llm-local`·`vlm-local`). 먼저 `docker compose exec ollama ollama pull gpt-oss:20b`와 `qwen3-vl:4b`를 받는다. 티켓 22에서는 받지 않아 `qwen2.5:3b`로만 확인했다
-- [ ] 위 확인마다 `scripts/run-pipeline.ts`를 합성 서랍장 녹화본 `fixtures/synthetic/drawer.json`으로 돌려, 모델이 바뀌어도 형식 오류가 다음 단계로 새지 않는지 처리 기록(`log.json`)으로 본다
+- [ ] Groq 키를 비우면 로컬 모델이 답한다(헤더가 `llm-local`·`vlm-local`). 먼저 `docker compose exec ollama ollama pull gpt-oss:20b`와 `qwen3-vl:4b`를 받는다. 티켓 22에서는 받지 않아 `qwen2.5:3b`로만 확인했다. 개발 PC(메모리 16GB 중 Docker 7.7GB, CPU만)에서는 확인하지 않는다: `gpt-oss:20b`(13GB)가 메모리에 들지 않고, 더 작은 `qwen3-vl:8b`도 그림을 읽다 죽었다(아래 두 번째 실행 기록). 메모리 32GB 이상이나 VRAM 12GB 이상 GPU가 있는 기계에서 본다
+- [ ] 위 확인마다(개발 PC에서는 Groq 회차만) `scripts/run-pipeline.ts`를 합성 서랍장 녹화본 `fixtures/synthetic/drawer.json`으로 돌려, 모델이 바뀌어도 형식 오류가 다음 단계로 새지 않는지 처리 기록(`log.json`)으로 본다
 
 ## Comments
 

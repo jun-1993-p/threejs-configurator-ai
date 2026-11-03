@@ -15,7 +15,7 @@
    - `LITELLM_MASTER_KEY`는 반드시 정한다. 없으면 `docker compose`가 시작하지 않는다.
    - `GROQ_API_KEY`를 비우면 Groq 호출이 실패하고 로컬 모델이 답한다.
 2. `docker compose up -d --build`
-3. 로컬 모델을 받는다. 임베딩은 늘 로컬이라 `embeddinggemma`는 꼭 필요하다.
+3. 로컬 모델을 받는다. 임베딩은 늘 로컬이라 `embeddinggemma`는 꼭 필요하다. 예비 LLM·VLM은 메모리 32GB 이상이나 VRAM 12GB 이상 GPU가 있어야 돈다. 개발 PC(메모리 16GB, CPU만)에서는 `gpt-oss:20b`가 메모리에 들지 않아 받지 않는다(티켓 26 6절). 그런 기계는 아래 `LOCAL_MODEL_URL`로 다른 머신의 모델을 쓴다.
 
    ```
    docker compose exec ollama ollama pull embeddinggemma
@@ -32,7 +32,7 @@
 파이프라인은 `llm`·`vlm`·`embedding`이라는 이름만 부른다. 실제 모델은 `docker/litellm/config.yaml`만 고쳐 바꾸고 `docker compose restart litellm`으로 반영한다.
 
 - 예비 순서: `llm`(Groq) → `llm-local`, `vlm`(Groq) → `vlm-local`(`router_settings.fallbacks`).
-- Groq가 120초 안에 답하지 않거나 오류(키 없음, 사용량 초과 등)를 내면 다시 묻지 않고 로컬 모델로 넘어간다. 파이프라인은 LiteLLM 답을 20분까지 기다린다(Groq가 답하지 않아 로컬 모델 900초까지 가는 시간보다 길게, `configurator/pipeline/litellm-ai.ts`). 제한 시간을 늘리면 그 값도 함께 늘린다.
+- Groq가 120초 안에 답하지 않거나 오류(키 없음 등)를 내면 다시 묻지 않고 로컬 모델로 넘어간다. 속도 제한(429)만 Groq가 알려 준 대기 시간(60초 이하)을 기다려 3번까지 다시 묻는다(`retry_policy`). 파이프라인은 LiteLLM 답을 20분까지 기다린다(Groq가 답하지 않아 로컬 모델 900초까지 가는 시간보다 길게, `configurator/pipeline/litellm-ai.ts`). 제한 시간을 늘리면 그 값도 함께 늘린다.
 - 로컬 모델은 OpenAI 호환 API만 기대한다. 다른 머신(예: GPU가 있는 PC, Mac의 LM Studio)에서 돌리려면 `.env`의 `LOCAL_MODEL_URL`을 그 주소(`http://<주소>:<포트>/v1`)로 바꾼다.
 - 어느 모델이 답했는지는 LiteLLM 응답 헤더 `x-litellm-model-group`으로 보인다.
 

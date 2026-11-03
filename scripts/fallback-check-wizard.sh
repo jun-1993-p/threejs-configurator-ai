@@ -237,7 +237,7 @@ run_round() {
   vlm=$(model_group vlm)
   if [[ "$vlm" == "$3" ]]; then say "${GREEN}✓${RESET} vlm → $vlm"; else warn "vlm → ${vlm:-답 없음} (기대 $3)"; fi
 
-  step "합성 서랍장 녹화본으로 파이프라인을 돌린다. 몇 분 걸리고, 로컬 모델이면 더 오래 걸린다."
+  step "합성 서랍장 녹화본으로 파이프라인을 돌린다. 몇 분 걸린다."
   # 사례 저장소는 회차마다 따로 둔다. 앞 회차의 사례가 예시로 끼지 않고, 실제 사례 저장소(data/cases)도 건드리지 않는다.
   # 컨테이너 안 경로(/app/…)는 Git Bash가 Windows 경로로 바꾸지 않게 이 명령에서만 변환을 끈다.
   # 끄는 범위를 넓히면 Windows용 curl이 mktemp의 /tmp/… 경로를 찾지 못한다.
@@ -270,7 +270,7 @@ run_round() {
 
 run_wizard() {
 
-TOTAL_STAGES=8
+TOTAL_STAGES=5
 
 banner "티켓 26 6절: 실제 키로 예비 모델 전환 확인"
 
@@ -346,34 +346,13 @@ if [[ -f "$SUMMARY.pending" ]]; then cat "$SUMMARY.pending" >> "$SUMMARY"; rm -f
 note "정보 입력과 치수 규칙을 $CHECK_DIR 에 썼다."
 pause "Enter"
 
-stage "로컬 모델 받기"
-say "마지막 예비인 로컬 모델 gpt-oss:20b(약 13GB)와 qwen3-vl:4b(약 3.3GB)를 받는다."
-if confirm "약 16GB를 받을까?"; then
-  docker compose exec ollama ollama pull gpt-oss:20b
-  docker compose exec ollama ollama pull qwen3-vl:4b
-  say "${GREEN}✓${RESET} 받았다."
-else
-  warn "받지 않았다. 7단계(로컬 모델 회차)는 실패한다."
-  SKIPPED+=("로컬 모델 받기: docker compose exec ollama ollama pull gpt-oss:20b / qwen3-vl:4b")
-fi
-pause "Enter"
-
-stage "1회차: Groq가 답한다"
-say "Groq 키를 넣은 채로 llm·vlm이 Groq에서 답하는지 본다."
+# 로컬 예비 회차는 돌리지 않는다. 개발 PC(메모리 16GB, CPU만)에는 로컬 예비 모델이 메모리에 들지 않는다(티켓 26 6절).
+stage "Groq가 답한다"
+say "Groq 키를 넣은 채로 llm·vlm이 Groq에서 답하는지 보고, 합성 서랍장으로 파이프라인을 돌린다."
+note "Groq 속도 제한에 걸리면 LiteLLM이 1분 가까이 기다렸다 다시 묻는다. 조용해도 멈춘 것이 아니다."
 litellm_with_key "$GROQ_API_KEY"
 run_round 1-groq llm vlm
-
-stage "2회차: Groq 키를 비우면 로컬 모델이 답한다"
-say ".env는 그대로 두고 litellm만 Groq 키 없이 다시 띄운다. 로컬 모델은 CPU에서 느려 한 번 묻는 데 몇 분이 걸릴 수 있다."
-litellm_with_key ""
-run_round 2-local llm-local vlm-local
-
-stage "원래대로 돌리기"
-docker compose up -d --force-recreate --no-deps litellm
-until curl -sf "$LITELLM/health/liveliness" >/dev/null; do sleep 2; done
-say "${GREEN}✓${RESET} litellm이 .env의 키로 다시 떴다."
 say "확인 결과는 $SUMMARY 에 있다. Claude에게 이 파일을 티켓 26에 기록해 달라고 한다."
-pause "Enter"
 
 finish
 }
