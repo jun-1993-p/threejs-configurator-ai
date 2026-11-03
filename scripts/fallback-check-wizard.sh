@@ -341,7 +341,7 @@ mkdir -p "$CHECK_DIR"
 # 티켓 15 수동 확인과 같은 정보 입력과 치수 규칙
 printf '%s\n' '{"name":"1단 서랍장","kind":"서랍장","memo":"슬라이더는 전체 폭 하나만. 폭 400~800","thickness":"hide"}' > "$CHECK_DIR/intake.json"
 printf '%s\n' '[{"id":"치수규칙/서랍장/폭","kind":"서랍장","part":"폭","axis":"W","min":300,"max":1200,"origin":"티켓 15 수동 확인"},{"id":"치수규칙/서랍장/깊이","kind":"서랍장","part":"깊이","axis":"D","min":250,"max":700,"origin":"티켓 15 수동 확인"},{"id":"치수규칙/서랍장/높이","kind":"서랍장","part":"높이","axis":"H","min":300,"max":1200,"origin":"티켓 15 수동 확인"}]' > "$CHECK_DIR/rules.json"
-printf '# 예비 모델 전환 확인 (티켓 26 6절)\n\n' > "$SUMMARY"
+printf '# 예비 모델 전환 확인 (티켓 26 6절)\n\n- 커밋: `%s`\n\n' "$(git log -1 --format='%h %s')" > "$SUMMARY"
 if [[ -f "$SUMMARY.pending" ]]; then cat "$SUMMARY.pending" >> "$SUMMARY"; rm -f "$SUMMARY.pending"; fi
 note "정보 입력과 치수 규칙을 $CHECK_DIR 에 썼다."
 pause "Enter"
