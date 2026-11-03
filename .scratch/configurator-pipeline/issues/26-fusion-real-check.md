@@ -36,7 +36,16 @@
 ### 5. 실제 상품으로 실제 모델 확인 (티켓 15에서 옮김)
 
 - [ ] 실제 상품 하나로 실제 모델을 써서 수치 검증까지 통과하는 수동 확인 기록이 있다. LiteLLM에 Cerebras `gpt-oss-120b`를 걸고 `scripts/run-pipeline.ts`로 돌린다. 기록은 이 티켓 아래에 남긴다
-- [ ] Docker 구성(`docs/docker.md`)에 Cerebras·Groq 실제 키를 넣고 `llm`·`vlm`이 실제로 답하는지, Cerebras 키를 비우면 Groq로 넘어가는지 확인한다. `docker/litellm/config.yaml`의 Cerebras VLM 이름 `qwen3.8-27b`가 실제 모델 이름인지도 본다(티켓 22에서 옮김)
+
+### 6. 실제 키로 예비 모델 전환 확인 (티켓 22에서 옮김)
+
+Docker 구성(`docs/docker.md`)을 띄우고 `.env`에 실제 키를 넣어 확인한다. 어느 모델이 답했는지는 LiteLLM 응답 헤더 `x-litellm-model-group`으로 본다.
+
+- [ ] Cerebras 키로 `llm`·`vlm`이 실제로 답한다(헤더가 `llm`·`vlm`)
+- [ ] `docker/litellm/config.yaml`의 Cerebras VLM 이름 `qwen3.8-27b`가 실제 모델 이름이다. 아니면 설정을 고친다
+- [ ] Cerebras 키를 비우면 Groq가 답한다(헤더가 `llm-groq`·`vlm-groq`)
+- [ ] Cerebras·Groq 키를 모두 비우면 로컬 모델이 답한다(헤더가 `llm-local`·`vlm-local`). 먼저 `docker compose exec ollama ollama pull gpt-oss:20b`와 `qwen3-vl:8b`를 받는다. 티켓 22에서는 받지 않아 `qwen2.5:3b`로만 확인했다
+- [ ] 위 확인마다 `scripts/run-pipeline.ts`를 합성 서랍장 녹화본 `fixtures/synthetic/drawer.json`으로 돌려, 모델이 바뀌어도 형식 오류가 다음 단계로 새지 않는지 처리 기록(`log.json`)으로 본다
 
 ## Comments
 
