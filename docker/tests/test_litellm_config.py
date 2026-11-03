@@ -34,6 +34,14 @@ def test_Groq가_먼저_답하고_로컬_예비_모델로_넘어간다() -> None
         assert len(chain) == 1 and is_local(chain[0]), f"{name}의 예비 모델은 로컬 모델 하나여야 한다"
 
 
+def test_속도_제한만_기다려_다시_묻고_다른_오류는_바로_예비_모델로_넘어간다() -> None:
+    router = config["router_settings"]
+    # num_retries가 0이면 LiteLLM이 retry_policy를 보지 않는다
+    assert router["num_retries"] > 0
+    assert router["retry_policy"]["DefaultRetries"] == 0
+    assert router["retry_policy"]["RateLimitErrorRetries"] > 0
+
+
 def test_임베딩은_예비_모델_없이_로컬에서_돈다() -> None:
     # Groq에 임베딩 API가 없다
     assert is_local("embedding")

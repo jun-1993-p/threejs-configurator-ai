@@ -20,7 +20,7 @@
    ```
    docker compose exec ollama ollama pull embeddinggemma
    docker compose exec ollama ollama pull gpt-oss:20b
-   docker compose exec ollama ollama pull qwen3-vl:8b
+   docker compose exec ollama ollama pull qwen3-vl:4b
    ```
 
 4. 애드인의 서버 주소를 `http://<이 머신의 LAN 주소>:8000`으로 둔다. Windows 방화벽에서 8000번 포트를 연다.

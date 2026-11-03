@@ -347,14 +347,14 @@ note "정보 입력과 치수 규칙을 $CHECK_DIR 에 썼다."
 pause "Enter"
 
 stage "로컬 모델 받기"
-say "마지막 예비인 로컬 모델 gpt-oss:20b(약 13GB)와 qwen3-vl:8b(약 6GB)를 받는다."
-if confirm "약 19GB를 받을까?"; then
+say "마지막 예비인 로컬 모델 gpt-oss:20b(약 13GB)와 qwen3-vl:4b(약 3.3GB)를 받는다."
+if confirm "약 16GB를 받을까?"; then
   docker compose exec ollama ollama pull gpt-oss:20b
-  docker compose exec ollama ollama pull qwen3-vl:8b
+  docker compose exec ollama ollama pull qwen3-vl:4b
   say "${GREEN}✓${RESET} 받았다."
 else
   warn "받지 않았다. 7단계(로컬 모델 회차)는 실패한다."
-  SKIPPED+=("로컬 모델 받기: docker compose exec ollama ollama pull gpt-oss:20b / qwen3-vl:8b")
+  SKIPPED+=("로컬 모델 받기: docker compose exec ollama ollama pull gpt-oss:20b / qwen3-vl:4b")
 fi
 pause "Enter"
 

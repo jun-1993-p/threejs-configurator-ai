@@ -43,7 +43,7 @@ Docker 구성(`docs/docker.md`)을 띄우고 `.env`에 실제 키를 넣어 확�
 
 - [x] Groq 키로 `llm`·`vlm`이 실제로 답한다(헤더가 `llm`·`vlm`)
 - [x] `docker/litellm/config.yaml`의 Groq 모델 이름(`openai/gpt-oss-120b`, `meta-llama/llama-4-scout-17b-16e-instruct`)이 Groq 모델 목록에 있다. 아니면 설정을 고친다
-- [ ] Groq 키를 비우면 로컬 모델이 답한다(헤더가 `llm-local`·`vlm-local`). 먼저 `docker compose exec ollama ollama pull gpt-oss:20b`와 `qwen3-vl:8b`를 받는다. 티켓 22에서는 받지 않아 `qwen2.5:3b`로만 확인했다
+- [ ] Groq 키를 비우면 로컬 모델이 답한다(헤더가 `llm-local`·`vlm-local`). 먼저 `docker compose exec ollama ollama pull gpt-oss:20b`와 `qwen3-vl:4b`를 받는다. 티켓 22에서는 받지 않아 `qwen2.5:3b`로만 확인했다
 - [ ] 위 확인마다 `scripts/run-pipeline.ts`를 합성 서랍장 녹화본 `fixtures/synthetic/drawer.json`으로 돌려, 모델이 바뀌어도 형식 오류가 다음 단계로 새지 않는지 처리 기록(`log.json`)으로 본다
 
 ## Comments
@@ -60,3 +60,14 @@ Docker 구성(`docs/docker.md`)을 띄우고 `.env`에 실제 키를 넣어 확�
   - Groq VLM은 요청 하나에 그림을 3장까지만 받는다. 부품 탐색은 6장을 보낸다. 모음 그림으로 묶는 일을 티켓 27로 만들었다.
   - 예비 `vlm-local`은 Ollama 기본 문맥 길이 4096 토큰을 넘었다(4662). 구성의 `ollama`에 `OLLAMA_CONTEXT_LENGTH: 16384`를 두었다.
 - 남은 일: 티켓 27 뒤에 위저드를 다시 돌려 로컬 예비와 파이프라인 항목을 본다.
+
+### 2026-11-03 6절 두 번째 실행(티켓 27 뒤)
+
+- 1회차(Groq): 모음 그림으로 부품 탐색이 Groq VLM의 그림 수 제한을 넘었다. 형식 오류로 두 번 다시 물었다(정면 후보에 위쪽과 같은 축 `-Z`를 냄, 다음 답은 필드가 빠짐).
+  - 세 번째 물음에서 Groq 무료 등급 VLM의 분당 입력 토큰 제한(7,000)에 걸렸다. 부품 탐색 요청 하나가 약 2,750토큰이다. 설정이 다시 묻지 않고(`num_retries: 0`) 바로 `vlm-local`로 넘어갔다.
+  - `vlm-local`(`qwen3-vl:8b`)은 CPU에서 프롬프트를 초당 1.8토큰으로 읽다가 9분 40초 만에 그림을 읽는 중 죽었다(Docker 메모리 7.7GB). 같은 때 `docker compose run`도 연결을 잃어("unexpected EOF") 위저드가 회차 결과를 남기지 못했다.
+- 고친 것:
+  - LiteLLM이 속도 제한(429)만 Groq가 알려 준 대기 시간을 기다려 3번까지 다시 묻는다(`retry_policy`). 다른 오류는 지금처럼 바로 예비로 넘어간다. `num_retries`가 0이면 LiteLLM이 `retry_policy`를 보지 않아 3으로 두었다. 컨테이너 안 Router에 같은 설정과 가짜 응답을 넣어, 속도 제한은 앞 모델을 4번 부른 뒤 예비로 넘어가고 서버 오류는 1번 부르고 넘어가는 것을 봤다.
+  - 로컬 예비 VLM을 `qwen3-vl:4b`로 낮췄다(운영자 결정). 위저드·`docs/docker.md`·`docs/plan.md`도 고쳤다.
+- 걱정: 로컬 예비 LLM `gpt-oss:20b`(약 13GB)도 Docker 메모리 7.7GB에 들지 않는다. 2회차 후보 제시에서 같은 식으로 죽을 수 있다.
+- 남은 일: 위저드를 다시 돌린다.
