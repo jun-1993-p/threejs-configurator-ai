@@ -1,9 +1,16 @@
 #!/bin/sh
-# 커밋 전 검사. 스테이지된 파일에 따라 TS(구성기·파이프라인)와 Python(애드인·서버·합성 녹화본·LiteLLM 설정) 검사를 돌린다.
+# 커밋 전 검사. 스테이지된 파일에 따라 TS(구성기·파이프라인)와 Python(애드인·서버·합성 녹화본·LiteLLM 설정·도구) 검사를 돌린다.
 # 켜기: git config core.hooksPath .githooks
 set -e
 
 staged=$(git diff --cached --name-only --diff-filter=ACMRD)
+
+# 시험 이름은 GLOSSARY 용어(한국어)로 쓴다(CODING_STANDARDS.md 「주석과 이름」). 한글이 하나도 없는 이름을 찾는다.
+if grep -rnE '^def test_[A-Za-z0-9_]+\(' addin/tests server/tests synthetic/tests docker/tests scripts/tests \
+  || grep -rnE '^\s*test\(["`][^가-힣"`]*["`]' configurator/test; then
+  echo "[pre-commit] 위 시험 이름을 GLOSSARY 용어(한국어)로 고친다"
+  exit 1
+fi
 
 # schema/는 서버와 파이프라인이 같이 읽으므로 양쪽을 다 돌린다
 if echo "$staged" | grep -qE '^(configurator/|schema/|fixtures/)'; then
@@ -12,7 +19,7 @@ if echo "$staged" | grep -qE '^(configurator/|schema/|fixtures/)'; then
   (cd configurator && npm run --silent typecheck && npm test --silent -- --test-reporter=dot)
 fi
 
-if echo "$staged" | grep -qE '^(addin/|server/|synthetic/|docker/|schema/|fixtures/|pyproject\.toml)'; then
+if echo "$staged" | grep -qE '^(addin/|server/|synthetic/|docker/|scripts/|schema/|fixtures/|pyproject\.toml)'; then
   echo "[pre-commit] Python: pytest"
   if [ -x .venv/Scripts/python ]; then py=.venv/Scripts/python; else py=.venv/bin/python; fi
   "$py" -m pytest -q

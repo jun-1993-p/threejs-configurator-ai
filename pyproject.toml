@@ -27,7 +27,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["addin/tests", "server/tests", "synthetic/tests", "docker/tests"]
+testpaths = ["addin/tests", "server/tests", "synthetic/tests", "docker/tests", "scripts/tests"]
 pythonpath = ["addin/ConfiguratorUploader", "."]
 
 [tool.mypy]
