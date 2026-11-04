@@ -13,7 +13,9 @@ python -m venv .venv
 
 ## 애드인 설치
 
-> 지금은 Fusion 애드인으로 업로드할 수 없다. 업로드 묶음이 면 이름·모서리·연결 정보를 요구하게 바뀌었는데(ADR-0016, 티켓 25), Fusion 쪽 추출은 사람 확인 전이라(티켓 26) `sample_edges`가 오류를 낸다. 그동안 시험 데이터는 SolidCraft 합성 녹화본(`python -m synthetic.make_recording`, 티켓 24)으로 만든다.
+> Fusion 업로드는 아직 사람이 끝까지 확인하지 않았다(티켓 26 2절). 면은 평면과 원기둥만 다룬다. 원뿔·구·자유곡면이나, 원 두 개로 둘러싸이지 않은 이음선 없는 원기둥이 있으면 업로드가 "다루지 않습니다" 오류로 멈춘다. 그동안 시험 데이터는 SolidCraft 합성 녹화본(`python -m synthetic.make_recording`, 티켓 24)으로도 만든다.
+>
+> 면 이름은 기본 형상(업로드를 누를 때의 파라미터 값)에서 피처와 역할로 짓고(`돌출1:start`, `돌출1:side:2`), 면 표시로 붙여 둔다. 표시는 다음 업로드 때 지운다. 그때까지 문서에 남지만 형상에는 영향이 없다. 구멍 안쪽·둥근 다리처럼 이음선 없는 원기둥은 반쪽 둘(`:half1`, `:half2`)로 나눠 올린다.
 
 1. Fusion → 유틸리티 → 추가 기능 → 스크립트 및 추가 기능 → 추가 기능 탭 → `+` 로 `addin/ConfiguratorUploader` 폴더를 연결한다.
 2. 서버 주소는 `addin/ConfiguratorUploader/config.py`의 `SERVER_URL`에서 바꾼다.

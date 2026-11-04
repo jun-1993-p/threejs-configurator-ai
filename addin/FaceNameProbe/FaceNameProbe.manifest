@@ -1,0 +1,11 @@
+{
+	"autodeskProduct": "Fusion360",
+	"type": "script",
+	"id": "3f1b8a52-9c4d-4e27-b6a1-7d0e5c2f8b13",
+	"author": "jun-1993-p",
+	"description": {
+		"": "면·모서리 이름과 점 추출 탐색(티켓 26 1절)"
+	},
+	"version": "0.1.0",
+	"supportedOS": "windows|mac"
+}

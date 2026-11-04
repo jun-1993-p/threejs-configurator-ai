@@ -19,15 +19,12 @@ from typing import Any
 
 from uploader.core import BodyInfo, BodyMeasure, EdgeSample, FaceSample, ParameterInfo, Point
 
-from synthetic.fitted import Cylinder, Edge, FaceLayout, Plane, Surface, build_layout, place
+from uploader.face_sampling import FaceSampler, FaceSurface, UnsupportedFaceError, spacing_for
+from uploader.fitted import Cylinder, Edge, Plane
 
 Runner = Callable[[list[dict[str, Any]]], list[Any]]
 
 DEFAULT_CLI = r"C:\Program Files\SolidCraft\solidcraft-cli.exe"
-
-
-class UnsupportedFaceError(Exception):
-    """평면과 원기둥이 아닌 면. 이 면은 격자 점을 계산할 수 없다."""
 
 
 def cli_runner(design: Path, cli: str | None = None) -> Runner:
@@ -57,18 +54,6 @@ def _point(p: list[float]) -> Point:
     return (float(p[0]), float(p[1]), float(p[2]))
 
 
-def edge_faces(edge_name: str, face_names: set[str]) -> tuple[str, str]:
-    """모서리 이름 "면A|면B" 또는 "면A|면B~순번"을 두 면 이름으로 나눈다.
-
-    필렛 면 이름(F3:blend:F1:-x|F1:-y)에도 세로선이 있으므로, 나눈 두 쪽이 모두 면 이름인 자리를 찾는다.
-    """
-    base = edge_name.rsplit("~", 1)[0] if "~" in edge_name else edge_name
-    for i, ch in enumerate(base):
-        if ch == "|" and base[:i] in face_names and base[i + 1 :] in face_names:
-            return base[:i], base[i + 1 :]
-    raise ValueError(f"모서리 {edge_name}: 두 면 이름으로 나눌 수 없습니다")
-
-
 def _edge(e: dict[str, Any]) -> Edge:
     return Edge(start=_point(e["start"]), mid=_point(e["mid"]), end=_point(e["end"]))
 
@@ -92,7 +77,7 @@ class SolidCraftModel:
             for p in listed["parameters"]
         ]
         self._diagonal = {b["name"]: math.dist(b["bbox"]["min"], b["bbox"]["max"]) for b in measured["bodies"]}
-        self._layouts: dict[tuple[str, str, frozenset[str]], FaceLayout] = {}
+        self._sampler = FaceSampler()
 
     def parameters(self) -> list[ParameterInfo]:
         return list(self._parameters)
@@ -169,44 +154,20 @@ class SolidCraftModel:
         state = self._state()
         samples = []
         for body in state["body_names"]:
-            # 점 간격: 바디 대각선 / (2(n-1)). 바디를 처음 본 형상(보통 기본 형상)의 크기로 정해 모든 샘플에 같게 쓴다.
-            spacing = self._diagonal[body] / (2 * (grid_n - 1))
-            names = {f["name"] for f in state["faces"][body]}
-            edge_pairs = [(edge_faces(e["name"], names), e) for e in state["edges"][body]]
+            # 바디를 처음 본 형상(보통 기본 형상)의 크기로 정해 모든 샘플에 같게 쓴다
+            spacing = spacing_for(self._diagonal[body], grid_n)
+            faces: list[FaceSurface] = []
             for face in state["faces"][body]:
-                name = face["name"]
-                bound = {e["name"]: _edge(e) for pair, e in edge_pairs if name in pair}
-                surface: Surface
                 if face.get("cylinder"):
                     c = face["cylinder"]
-                    surface = Cylinder(origin=_point(c["origin"]), axis=_point(c["axis"]), radius=float(c["radius"]))
-                    geometry = {
-                        "type": "cylinder",
-                        "origin": list(surface.origin),
-                        "axis": list(surface.axis),
-                        "radius": surface.radius,
-                    }
+                    cylinder = Cylinder(origin=_point(c["origin"]), axis=_point(c["axis"]), radius=float(c["radius"]))
+                    faces.append(FaceSurface(face["name"], cylinder))
                 elif face.get("plane_normal"):
-                    surface = Plane(normal=_point(face["plane_normal"]))
-                    geometry = {"type": "plane", "normal": list(surface.normal)}
+                    faces.append(FaceSurface(face["name"], Plane(normal=_point(face["plane_normal"]))))
                 else:
-                    raise UnsupportedFaceError(f"{body} 면 {name}: 평면과 원기둥만 다룹니다")
-                # 배치는 (바디, 면 이름, 경계 모서리)마다 처음 본 형상에서 만든다. 기본 형상에 없던 면이나
-                # 경계 모서리가 달라진 면(위상 변화)도 같은 위상 묶음의 샘플끼리는 같은 배치로 놓인다(ADR-0005).
-                key = (body, name, frozenset(bound))
-                if key not in self._layouts:
-                    self._layouts[key] = build_layout(surface, bound, spacing)
-                layout = self._layouts[key]
-                samples.append(
-                    FaceSample(
-                        body=body,
-                        surface="cylinder" if isinstance(surface, Cylinder) else "plane",
-                        points=place(layout, surface, bound),
-                        name=name,
-                        geometry=geometry,
-                        triangles=layout.triangles,
-                    )
-                )
+                    raise UnsupportedFaceError.surface(body, face["name"])
+            edges = {e["name"]: _edge(e) for e in state["edges"][body]}
+            samples += self._sampler.sample(body, spacing, faces, edges)
         return samples
 
     def sample_edges(self) -> list[EdgeSample]:

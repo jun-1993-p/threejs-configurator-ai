@@ -37,6 +37,10 @@ class _Serving:
         self.stop = threading.Event()
         self.thread: threading.Thread | None = None
 
+    def forget(self) -> None:
+        """앞 업로드에 답하기를 멈춘다. 새 어댑터가 면 표시를 다시 붙이면 앞 어댑터의 이름·배치와 어긋난다."""
+        self.model, self.upload_id = None, None
+
     def start(self, model: FusionDesignModel, upload_id: str) -> None:
         self.model, self.upload_id = model, upload_id
         if self.thread is None:
@@ -89,6 +93,7 @@ class _ExecuteHandler(adsk.core.CommandEventHandler):
             if not design:
                 ui.messageBox("디자인 문서를 연 뒤 실행하세요.")
                 return
+            _serving.forget()
             model = FusionDesignModel(design)
             upload_id = run_upload(model, HttpServerClient(config.SERVER_URL), ui.messageBox)
             if upload_id:

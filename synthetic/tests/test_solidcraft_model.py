@@ -2,8 +2,9 @@ from typing import Any
 
 import pytest
 from uploader.core import ParameterInfo, MeasuringModel
+from uploader.face_sampling import UnsupportedFaceError
 
-from synthetic.solidcraft_model import SolidCraftModel, UnsupportedFaceError, edge_faces
+from synthetic.solidcraft_model import SolidCraftModel
 
 
 # 폭 w × 100 × 20 상자의 면. 이름은 SolidCraft 상자처럼 F1:+z 꼴이다.
@@ -168,14 +169,6 @@ def test_mm와_도가_아닌_단위의_파라미터는_바꾸지_않는다() -> 
 
     with pytest.raises(ValueError, match="in"):
         model.set_parameter("k", 2.0)
-
-
-def test_면_이름에_세로선이_있어도_모서리를_두_면으로_나눈다() -> None:
-    names = {"F1:-z", "F1:-x", "F3:blend:F1:-x|F1:-y", "F2:bore:side:0", "F2:bore:side:1"}
-
-    assert edge_faces("F1:-z|F3:blend:F1:-x|F1:-y", names) == ("F1:-z", "F3:blend:F1:-x|F1:-y")
-    assert edge_faces("F3:blend:F1:-x|F1:-y|F1:-x", names) == ("F3:blend:F1:-x|F1:-y", "F1:-x")
-    assert edge_faces("F2:bore:side:0|F2:bore:side:1~2", names) == ("F2:bore:side:0", "F2:bore:side:1")
 
 
 def test_파라미터_값은_바꾼_파라미터를_적용한_뒤에_묻는다() -> None:

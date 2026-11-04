@@ -47,7 +47,7 @@ def _unit(a: Vec) -> Vec:
     return _mul(a, 1.0 / math.sqrt(_dot(a, a)))
 
 
-def _frame(normal: Vec) -> tuple[Vec, Vec]:
+def frame(normal: Vec) -> tuple[Vec, Vec]:
     """법선에 수직인 두 축. 법선과 가장 덜 평행한 월드 축을 첫 축으로 삼아 샘플마다 같게 한다."""
     n = _unit(normal)
     world = [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)]
@@ -160,11 +160,11 @@ class _Chart:
         self.surface = surface
         if isinstance(surface, Plane):
             n = _unit(surface.normal)
-            self.u, self.v = _frame(n)
+            self.u, self.v = frame(n)
             self.origin = _mul(n, _dot(anchor, n))
         else:
             self.k = _unit(surface.axis)
-            self.e1, self.e2 = _frame(self.k)
+            self.e1, self.e2 = frame(self.k)
             self.cut = cut
 
     def to2d(self, p: Vec) -> Vec2:
@@ -187,7 +187,7 @@ class _Chart:
 def _cylinder_cut(surface: Cylinder, points: list[Vec]) -> float:
     """원기둥 면의 경계 각도들 사이 가장 큰 빈틈의 한가운데. 여기서 각도를 잘라 펼친다."""
     k = _unit(surface.axis)
-    e1, e2 = _frame(k)
+    e1, e2 = frame(k)
     angles = sorted(
         math.atan2(_dot(_sub(p, surface.origin), e2), _dot(_sub(p, surface.origin), e1)) % (2 * math.pi)
         for p in points
@@ -435,3 +435,4 @@ def place(layout: FaceLayout, surface: Surface, edges: dict[str, Edge]) -> list[
         q = (wa * flat[a][0] + wb * flat[b][0] + wc * flat[c][0], wa * flat[a][1] + wb * flat[b][1] + wc * flat[c][1])
         out.append(chart.to3d(q))
     return out
+

@@ -11,7 +11,8 @@ import pytest
 
 from server.bundle import bundle_errors, sample_topology
 from synthetic.make_recording import make_recording
-from synthetic.solidcraft_model import DEFAULT_CLI, edge_faces
+from synthetic.solidcraft_model import DEFAULT_CLI
+from uploader.face_names import edge_faces
 
 ROOT = Path(__file__).resolve().parents[2]
 CLI = os.environ.get("SOLIDCRAFT_CLI", DEFAULT_CLI)

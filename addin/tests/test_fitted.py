@@ -2,8 +2,9 @@ import math
 
 import pytest
 
-from synthetic.fitted import Cylinder, Plane, build_layout, place
-from synthetic.fitted import Edge
+from uploader.fitted import Cylinder, Plane, build_layout, place
+from uploader.face_names import edge_faces
+from uploader.fitted import Edge
 
 Vec = tuple[float, float, float]
 
@@ -129,3 +130,11 @@ def test_원기둥_면의_점은_모두_원기둥_위에_있고_반지름이_바
             assert math.hypot(p[0], p[1]) == pytest.approx(radius)
             assert -1e-9 <= p[2] <= 50.0 + 1e-9
     assert any(s.kind == "interior" for s in layout.specs)
+
+
+def test_면_이름에_세로선이_있어도_모서리를_두_면으로_나눈다() -> None:
+    names = {"F1:-z", "F1:-x", "F3:blend:F1:-x|F1:-y", "F2:bore:side:0", "F2:bore:side:1"}
+
+    assert edge_faces("F1:-z|F3:blend:F1:-x|F1:-y", names) == ("F1:-z", "F3:blend:F1:-x|F1:-y")
+    assert edge_faces("F3:blend:F1:-x|F1:-y|F1:-x", names) == ("F3:blend:F1:-x|F1:-y", "F1:-x")
+    assert edge_faces("F2:bore:side:0|F2:bore:side:1~2", names) == ("F2:bore:side:0", "F2:bore:side:1")
