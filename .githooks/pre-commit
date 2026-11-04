@@ -45,7 +45,7 @@ if echo "$staged" | grep -qE '^(configurator/|schema/|fixtures/)'; then
   (cd configurator && npm run --silent typecheck && npm test --silent -- --test-reporter=dot)
 fi
 
-if echo "$staged" | grep -qE '^(addin/|server/|synthetic/|docker/|scripts/|schema/|fixtures/|pyproject\.toml)'; then
+if echo "$staged" | grep -qE '^(addin/|server/|synthetic/|docker/|scripts/|schema/|fixtures/|\.claude/hooks/|pyproject\.toml)'; then
   echo "[pre-commit] Python: mypy와 pytest(solidcraft-cli로 다시 녹화하는 시험 포함)"
   "$py" -m mypy
   "$py" -m pytest -q
