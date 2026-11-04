@@ -211,3 +211,24 @@ Docker 구성(`docs/docker.md`)을 띄우고 `.env`에 실제 키를 넣어 확�
 - 리뷰 반영: 표준·명세 리뷰 지적을 모두 반영했다. 남긴 것은 하나다.
   - 탐색 스크립트(`addin/FaceNameProbe`)는 건식 업로드와 별개로 둔다. 어댑터가 감추는 Fusion API의 날것 동작(entityToken, tempId, 면 표시가 남는지, 피처 역할 순서)을 기록하는 도구라 어댑터를 거치면 그 값을 볼 수 없어서다. 업로드 경로의 결함을 미리 잡는 일은 건식 업로드가 맡는다.
 
+### 2026-11-04 회고 반영 2 (5·6·7번)
+
+- `docs/fusion-api.md`: 이번에 본 Fusion API 함정(문서와 다른 동작, 재계산 사이의 면 정체성, 원기둥, 어셈블리, 애드인 다시 실행)을 확인·추정으로 나눠 모았다. 애드인 README와 `fusion_model.py` 머리말에서 가리킨다.
+- 실패 기록 파일:
+  - 애드인은 실패 traceback을 `data/addin-checks/last-error.txt`에, 탐색 스크립트는 `data/probes/last-error.txt`에 남긴다.
+  - 두 위저드가 그 파일을 읽어, 사람이 창의 문장을 붙여 넣지 않는다.
+  - 탐색 위저드의 사람 비교(매개변수 창 확인)도 탐색 결과로 재는 자동 점검(`scripts.probe_summary --restored`)으로 바꿨다. 새 「위저드」 규칙에 맞춘 것이다.
+- 커밋 전 검사:
+  - 셸 스크립트의 여러 줄 `python -c`를 막는다. 위저드의 인라인 파이썬은 `scripts/probe_summary.py`·`scripts/addin_checks.py`로 옮겼다(시험 있음).
+  - 셸 스크립트를 바꾸면 shellcheck(`shellcheck-py`, dev 의존성)를 돌린다. 끈 경고와 까닭은 `.shellcheckrc`에 있다. 따옴표가 깨진 인라인 코드(SC2026)는 잡는다.
+- 리뷰 반영: 표준·명세 리뷰 지적을 모두 반영했다. 남긴 것은 하나다.
+  - 회고 때 5번 예로 든 `uvicorn.exe` 실행기(끄면 python.exe가 남음)는 `docs/fusion-api.md`에 넣지 않았다. Fusion API가 아니라 서버 실행의 일이고, 그 동작에 맞춘 코드(`scripts/fusion-recording-wizard.sh`의 `stop_server`) 바로 위 주석에 있다.
+- 리뷰에서 고친 것:
+  - 녹화 위저드가 점검 실패와 애드인 재실행 중의 "종료 실패"를 업로드 실패로 읽던 것. 실패 기록은 `scripts/last_error.py`가 기준 시각과 제목으로 가려 읽는다.
+  - 탐색 위저드가 다시 기다린 뒤에도 앞 실패를 보고하던 것.
+  - 위저드가 사람용 문장을 비교해 판정하던 것. 이제 읽기 도구의 종료 코드(3)로 판정한다.
+  - 커밋 전 검사가 `"$py" -c`·큰따옴표 꼴을 놓치던 것.
+  - shellcheck가 없을 때의 안내.
+  - SC2016·SC2012를 저장소 전체 대신 그 줄에서만 끈 것.
+  - `docs/fusion-api.md`에서 ADR-0016·ADR-0013·녹화 안내서와 겹치던 내용을 가리킴으로 줄였다.
+

@@ -24,6 +24,8 @@ dev = [
     "types-jsonschema",
     "pyyaml",
     "types-PyYAML",
+    # 커밋 전 검사가 셸 스크립트(위저드, .githooks)를 검사한다. bash -n은 따옴표가 깨진 인라인 코드를 못 잡는다.
+    "shellcheck-py",
 ]
 
 [tool.pytest.ini_options]

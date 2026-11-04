@@ -13,7 +13,25 @@ fi
 # 저장소는 공개다. 비공개 녹화본·탐색 결과의 상품 이름이 추적 파일로 새지 않게 모든 커밋에서 본다
 PYTHONUTF8=1 "$py" -m scripts.private_names
 
+# 셸 스크립트의 여러 줄 python -c는 따옴표가 깨져도 bash -n을 통과하고 mypy·시험도 거치지 않는다(티켓 26 회고).
+# 그런 코드는 scripts/ 모듈로 옮기고 위저드는 python -m으로 부른다.
+# 인터프리터 이름은 보지 않는다("$py" -c, python3 -c 모두). 줄 끝의 -c ' 나 -c " 가 여러 줄 인라인 코드의 시작이다.
+if grep -nE -- "-c ['\"]\s*$" scripts/*.sh .githooks/pre-commit; then
+  echo "[pre-commit] 위 여러 줄 -c 코드를 scripts/ 모듈로 옮긴다(.venv/Scripts/python -m scripts.<모듈>)"
+  exit 1
+fi
+if echo "$staged" | grep -qE '(\.sh$|^\.githooks/|^\.shellcheckrc$)'; then
+  echo "[pre-commit] shellcheck: 셸 스크립트(끈 경고와 까닭은 .shellcheckrc와 그 줄 위의 주석)"
+  if [ -x .venv/Scripts/shellcheck ]; then sc=.venv/Scripts/shellcheck; else sc=.venv/bin/shellcheck; fi
+  if [ ! -x "$sc" ]; then
+    echo "[pre-commit] shellcheck가 없다. .venv에 dev 의존성을 다시 설치한다: \"$py\" -m pip install -e \".[dev]\""
+    exit 1
+  fi
+  "$sc" -f gcc scripts/*.sh .githooks/pre-commit
+fi
+
 # 시험 이름은 GLOSSARY 용어(한국어)로 쓴다(CODING_STANDARDS.md 「주석과 이름」). 한글이 하나도 없는 이름을 찾는다.
+# shellcheck disable=SC2016  # 작은따옴표 안의 $·`는 일부러 펼치지 않는다(메모의 마크다운 코드, node 코드, 정규식)
 if grep -rnE '^def test_[A-Za-z0-9_]+\(' addin/tests server/tests synthetic/tests docker/tests scripts/tests \
   || grep -rnE '^\s*test\(["`][^가-힣"`]*["`]' configurator/test; then
   echo "[pre-commit] 위 시험 이름을 GLOSSARY 용어(한국어)로 고친다"

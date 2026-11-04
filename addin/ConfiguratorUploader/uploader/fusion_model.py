@@ -1,4 +1,5 @@
 """FusionModel 포트의 실제 Fusion 구현. Fusion 안에서만 동작하며 자동 시험하지 않는다.
+Fusion API 호출을 고치기 전에 docs/fusion-api.md(문서와 다른 동작)를 읽는다.
 
 Fusion API의 길이는 내부 단위(cm)이므로 묶음에는 mm로 바꿔 담는다.
 

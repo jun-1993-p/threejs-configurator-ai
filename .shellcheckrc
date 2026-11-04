@@ -1,0 +1,7 @@
+# 커밋 전 검사(.githooks/pre-commit)가 쓰는 shellcheck 설정. 끄는 경고마다 까닭을 적는다.
+# 위저드 라이브러리(템플릿, 손으로 고치지 않음) 때문에 저장소 전체에서 끄는 것만 여기 둔다. 손으로 쓴 줄의 예외는
+# 그 줄 바로 위에 `# shellcheck disable=…`로 단다.
+#
+# SC1087: 라이브러리의 "$e[Enter keeps current]"는 색 코드 뒤의 글자다. 배열이 아니다.
+# SC2329: 라이브러리의 함수(ask_secret, set_secret 등)는 위저드마다 쓰는 것만 쓴다.
+disable=SC1087,SC2329

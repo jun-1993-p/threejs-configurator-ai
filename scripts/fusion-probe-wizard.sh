@@ -210,30 +210,13 @@ finish() {
 cd "$(dirname "$0")/.."
 PROBE_DIR=data/probes
 PROBE_OUT="$PROBE_DIR/fusion-probe.json"
+# 탐색 스크립트가 실패하면 창과 함께 이 파일에 남긴다. 사람이 창의 문장을 옮겨 적지 않아도 된다.
+PROBE_ERROR="$PROBE_DIR/last-error.txt"
 mkdir -p "$PROBE_DIR"
 
-# probe_summary 파일: 탐색 결과의 요점을 찍는다
+# probe_summary 파일: 탐색 결과의 요점을 찍는다(scripts/probe_summary.py)
 probe_summary() {
-  PYTHONUTF8=1 .venv/Scripts/python -c '
-import json, sys
-r = json.load(open(sys.argv[1], encoding="utf-8"))
-bodies = r["base"]["bodies"]
-faces = sum(len(b.get("faces", [])) for b in bodies)
-edges = sum(len(b.get("edges", [])) for b in bodies)
-print("Fusion", r["fusion_version"], "·", r["design_type"], "· 문서", r["document"])
-print("보이는 바디", len(bodies), "· 면", faces, "· 모서리", edges, "· 오커런스", len(r["occurrences"]), "· 피처", len(r["base"]["features"]))
-for v in r["variants"]:
-    c = v.get("compare")
-    if c:
-        print(" ", v["parameter"], "=", round(v["value_mm"], 1), "mm: 면", c["faces_variant"], "/", c["faces_base"],
-              "· 표시 유지", c["tags_kept"], "· tempId 같음", c["same_tempId"], "· 토큰 같음", c["same_token"],
-              "· 역할 같음", c["same_roles"], "· 타임라인 오류", c["errors_in_timeline"])
-    else:
-        print(" ", v["parameter"], ": 바꿔 보지 못함")
-print("되돌린 뒤 타임라인 오류", r["errors_after_restore"], "· 탐색 중 오류", len(r["probe_errors"]), "건")
-for e in r["probe_errors"][:5]:
-    print(" ", e)
-' "$1"
+  PYTHONUTF8=1 .venv/Scripts/python -m scripts.probe_summary "$1"
 }
 
 run_wizard() {
@@ -270,7 +253,9 @@ stage "탐색 실행"
 before=$(stat -c %Y "$PROBE_OUT" 2>/dev/null || echo 0)
 step "\"스크립트 및 추가 기능\" 창에서 FaceNameProbe를 골라 실행한다."
 say "재계산을 사용자 파라미터당 2번(최대 6개) 하는 동안 Fusion 화면이 멈춘다. \"탐색을 마쳤습니다\" 창이 뜰 때까지 기다린다."
-note "\"탐색 실패\" 창이 뜨면 창의 문장을 전부 복사해 둔다. 다음 단계에서 붙여 넣는다."
+note "\"탐색 실패\" 창이 떠도 그 문장은 탐색 스크립트가 $PROBE_ERROR 에 남긴다."
+MARK=$(mktemp)
+FAILURE=""
 while true; do
   pause "창이 뜨면 Enter"
   after=$(stat -c %Y "$PROBE_OUT" 2>/dev/null || echo 0)
@@ -283,36 +268,47 @@ while true; do
     break
   fi
   warn "새 결과 파일($PROBE_OUT)이 아직 없다."
+  FAILURE=$(PYTHONUTF8=1 .venv/Scripts/python -m scripts.last_error "$PROBE_ERROR" "$MARK" "탐색 실패" || true)
+  [[ -n "$FAILURE" ]] && warn "탐색이 실패했다: $FAILURE"
   if ! confirm "다시 기다릴까? (아니오면 실패로 적고 넘어간다)"; then
     RESULT=""
-    SKIPPED+=("탐색 결과 파일(실패 문장은 메모에 적음)")
+    SKIPPED+=("탐색 결과 파일")
     break
   fi
+  # 다시 돌리면 앞 실패는 지난 일이다
+  touch "$MARK"
+  FAILURE=""
 done
+rm -f "$MARK"
 pause "Enter"
 
-stage "되돌려졌는지 확인"
+stage "되돌림 점검과 메모"
 NOTES="$PROBE_DIR/$MODEL_NAME-notes.md"
-step "Fusion에서 수정 → 매개변수 변경을 열어, 사용자 파라미터의 값과 수식이 탐색 전과 같은지 본다."
-step "타임라인에 새 오류(빨간 표시)가 생기지 않았는지 본다."
+# 사람에게 매개변수 창과 비교시키지 않는다. 탐색 결과의 원래 수식·되돌린 수식·타임라인 오류 수로 잰다.
+RESTORED="결과 파일 없음"
 if [[ -n "$RESULT" ]]; then
-  note "탐색이 되돌린 뒤 읽은 수식:"
-  PYTHONUTF8=1 .venv/Scripts/python -c '
-import json, sys
-for name, expr in json.load(open(sys.argv[1], encoding="utf-8"))["restored_expressions"].items():
-    print(f"  {name} = {expr}")
-' "$RESULT" | while IFS= read -r line; do note "$line"; done
+  # 종료 코드: 0 원래대로, 3 원래대로가 아님(scripts/probe_summary.py NOT_RESTORED), 그 밖은 점검 실패
+  restore_status=0
+  RESTORED=$(PYTHONUTF8=1 .venv/Scripts/python -m scripts.probe_summary --restored "$RESULT" 2>&1) || restore_status=$?
+  RESTORED=$(tail -n1 <<< "$RESTORED")
+  note "되돌림 점검: $RESTORED"
+  if (( restore_status == 3 )); then
+    warn "원래대로가 아니다. 저장하지 말고 Fusion에서 문서를 닫았다가 저장해 둔 판으로 다시 연다."
+  elif (( restore_status != 0 )); then
+    RESTORED="점검하지 못함: $RESTORED"
+    warn "되돌림을 점검하지 못했다. 저장하기 전에 Claude에게 알린다."
+  fi
 fi
-if confirm "값·수식이 원래대로이고 새 오류가 없나?"; then RESTORED="예"; else RESTORED="아니오"; fi
-ask ODDITIES "이상했던 점이나 실패 창의 문장(없으면 Enter):"
+ask ODDITIES "그 밖에 이상했던 점(없으면 Enter):"
 {
   printf '# %s 탐색 메모 (%s)\n\n' "$MODEL_NAME" "$(date '+%Y-%m-%d %H:%M')"
+  # shellcheck disable=SC2016  # 작은따옴표 안의 $·`는 일부러 펼치지 않는다(메모의 마크다운 코드, node 코드, 정규식)
   printf -- '- 결과 파일: `%s`\n' "${RESULT:-없음}"
-  printf -- '- 파라미터가 원래대로이고 새 오류 없음: %s\n' "$RESTORED"
+  [[ -n "$FAILURE" ]] && printf -- '- 탐색 실패: %s\n' "$FAILURE"
+  printf -- '- 되돌림 점검: %s\n' "$RESTORED"
   printf -- '- 이상했던 점: %s\n' "${ODDITIES:-없음}"
 } > "$NOTES"
 say "${GREEN}✓${RESET} 메모를 $NOTES 에 썼다."
-[[ "$RESTORED" == "아니오" ]] && warn "원래대로가 아니면 저장하지 말고 Fusion에서 문서를 닫았다가 저장해 둔 판으로 다시 연다."
 say "Claude에게 \"탐색 끝, $NOTES\"라고 알리면 결과를 읽고 티켓 26에 기록한다."
 pause "Enter"
 

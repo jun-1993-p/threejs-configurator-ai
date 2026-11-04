@@ -9,6 +9,7 @@
 import dataclasses
 import json
 import threading
+import time
 import traceback
 from typing import NamedTuple
 from pathlib import Path
@@ -131,7 +132,7 @@ class _ExecuteHandler(adsk.core.CommandEventHandler):
                 checks = _write_checks(upload_id, restore_changed_parameters(model, before), model.checks)
                 self._finish(ui, model, upload_id, checks)
         except Exception:
-            ui.messageBox(f"{self.label} 실패:\n{traceback.format_exc()}")
+            _report(ui, f"{self.label} 실패", traceback.format_exc())
         finally:
             self._cleanup(model)
 
@@ -162,6 +163,18 @@ class _DryRunHandler(_ExecuteHandler):
     def _cleanup(self, model: FusionDesignModel | None) -> None:
         if model is not None:
             model.clear_tags()
+
+
+def _report(ui: adsk.core.UserInterface, title: str, detail: str) -> None:
+    """실패를 창에 보이고 data/addin-checks/last-error.txt에도 남긴다. 위저드와 에이전트가 그 파일을 읽어,
+    사람이 창의 문장을 옮겨 적지 않아도 되게 한다(티켓 26 2절 회고). 첫 줄은 시각과 제목이다."""
+    try:
+        path = _DATA / "addin-checks" / "last-error.txt"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {title}\n{detail.rstrip()}\n", encoding="utf-8")
+    except OSError:
+        pass
+    ui.messageBox(f"{title}:\n{detail}")
 
 
 def _confirm(ui: adsk.core.UserInterface, text: str) -> bool:
@@ -237,7 +250,7 @@ def run(context: object) -> None:
             if not panel.controls.itemById(command.id):
                 panel.controls.addCommand(definition)
     except Exception:
-        ui.messageBox(f"애드인 시작 실패:\n{traceback.format_exc()}")
+        _report(ui, "애드인 시작 실패", traceback.format_exc())
 
 
 def stop(context: object) -> None:
@@ -256,4 +269,4 @@ def stop(context: object) -> None:
                 definition.deleteMe()
         _handlers.clear()
     except Exception:
-        ui.messageBox(f"애드인 종료 실패:\n{traceback.format_exc()}")
+        _report(ui, "애드인 종료 실패", traceback.format_exc())

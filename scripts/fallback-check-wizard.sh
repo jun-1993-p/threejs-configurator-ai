@@ -268,6 +268,7 @@ run_round() {
       printf '\n--- LiteLLM 오류 줄 (%s부터) ---\n%s\n' "$started" "$(printf '%s\n' "$logs" | grep -iE 'error|exception' | tail -n 20 || true)" >> "$out.out"
     fi
   fi
+  # shellcheck disable=SC2016  # 작은따옴표 안의 $·`는 일부러 펼치지 않는다(메모의 마크다운 코드, node 코드, 정규식)
   formats=$(node -e '
     const log = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
     const count = {};
@@ -281,8 +282,10 @@ run_round() {
     printf '## %s (%s)\n\n' "$name" "$(date '+%Y-%m-%d %H:%M')"
     printf -- '- llm: %s (기대 %s)\n' "${llm:-답 없음}" "$2"
     printf -- '- vlm: %s (기대 %s)\n' "${vlm:-답 없음}" "$3"
+    # shellcheck disable=SC2016  # 작은따옴표 안의 $·`는 일부러 펼치지 않는다(메모의 마크다운 코드, node 코드, 정규식)
     printf -- '- 파이프라인 결과: `%s`\n' "$result"
     printf -- '- 형식 검사에 걸려 다시 물은 횟수: %s\n' "$formats"
+    # shellcheck disable=SC2016  # 작은따옴표 안의 $·`는 일부러 펼치지 않는다(메모의 마크다운 코드, node 코드, 정규식)
     printf -- '- 처리 기록: `%s/log.json`, 실행 출력: `%s.out`\n\n' "$out" "$out"
   } >> "$SUMMARY"
   note "결과를 $SUMMARY 에 덧붙였다. 형식 오류가 다음 단계로 샜는지는 $out/log.json 에서 볼 수 있다."
@@ -362,6 +365,7 @@ mkdir -p "$CHECK_DIR"
 # 티켓 15 수동 확인과 같은 정보 입력과 치수 규칙
 printf '%s\n' '{"name":"1단 서랍장","kind":"서랍장","memo":"슬라이더는 전체 폭 하나만. 폭 400~800","thickness":"hide"}' > "$CHECK_DIR/intake.json"
 printf '%s\n' '[{"id":"치수규칙/서랍장/폭","kind":"서랍장","part":"폭","axis":"W","min":300,"max":1200,"origin":"티켓 15 수동 확인"},{"id":"치수규칙/서랍장/깊이","kind":"서랍장","part":"깊이","axis":"D","min":250,"max":700,"origin":"티켓 15 수동 확인"},{"id":"치수규칙/서랍장/높이","kind":"서랍장","part":"높이","axis":"H","min":300,"max":1200,"origin":"티켓 15 수동 확인"}]' > "$CHECK_DIR/rules.json"
+# shellcheck disable=SC2016  # 작은따옴표 안의 $·`는 일부러 펼치지 않는다(메모의 마크다운 코드, node 코드, 정규식)
 printf '# 실제 Groq 키로 확인 (티켓 26 6절)\n\n- 커밋: `%s`\n\n' "$(git log -1 --format='%h %s')" > "$SUMMARY"
 if [[ -f "$SUMMARY.pending" ]]; then cat "$SUMMARY.pending" >> "$SUMMARY"; rm -f "$SUMMARY.pending"; fi
 note "정보 입력과 치수 규칙을 $CHECK_DIR 에 썼다."

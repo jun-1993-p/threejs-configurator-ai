@@ -236,6 +236,13 @@ wait_health() {
   done
 }
 
+# addin_error 기준파일 제목: 애드인이 기준파일보다 뒤에 남긴 그 제목의 실패 기록(scripts/last_error.py). 사람이 창의
+# 문장을 옮겨 적지 않아도 되게 애드인이 data/addin-checks/last-error.txt에 쓴다(ConfiguratorUploader._report).
+ADDIN_ERROR=data/addin-checks/last-error.txt
+addin_error() {
+  PYTHONUTF8=1 .venv/Scripts/python -m scripts.last_error "$ADDIN_ERROR" "$1" "$2" || true
+}
+
 run_wizard() {
 
 TOTAL_STAGES=6
@@ -308,11 +315,13 @@ pause "버튼이 보이면 Enter"
 stage "업로드"
 # 파일 시각 대신 목록 차이로 찾는다. Docker 쪽 시계가 Windows와 어긋나도 놓치지 않는다.
 before=$(ls data/uploads)
+MARK=$(mktemp)
 DRY_RESULT="돌리지 않음"
 if confirm "처음 올리는 모델이면 먼저 \"구성기 업로드 점검\"(서버에 올리지 않음)을 돌릴까?"; then
   dry_before=$(ls data/dry-runs 2>/dev/null || true)
   step "\"구성기 업로드 점검\"을 누르고 메시지 창이 뜰 때까지 기다린다. 업로드와 같은 시간이 걸린다."
   pause "창이 뜨면 Enter"
+  # shellcheck disable=SC2012  # ls는 위저드가 만드는 폴더의 파일 이름(공백·줄바꿈 없음)만 다룬다
   dry=$(comm -13 <(printf '%s\n' "$dry_before" | sort) <(ls data/dry-runs 2>/dev/null | sort) | grep '\.json$' | tail -n1 || true)
   if [[ -n "$dry" ]]; then
     dry_summary=$(PYTHONUTF8=1 .venv/Scripts/python -m scripts.recording_summary "data/dry-runs/$dry" 2>&1) || true
@@ -326,24 +335,43 @@ if confirm "처음 올리는 모델이면 먼저 \"구성기 업로드 점검\"(
       confirm "그래도 진짜 업로드를 할까?" || { SKIPPED+=("업로드(점검 실패)"); finish; exit 0; }
     fi
   else
-    ask DRY_ERROR "점검 묶음이 없다. 메시지 창이 \"업로드 점검 실패\"면 그 문장(첫 줄과 마지막 줄):"
+    DRY_ERROR=$(addin_error "$MARK" "업로드 점검 실패")
+    if [[ -n "$DRY_ERROR" ]]; then
+      warn "점검이 실패했다: $DRY_ERROR"
+    else
+      ask DRY_ERROR "점검 묶음도 애드인의 실패 기록도 없다. 메시지 창의 문장(첫 줄과 마지막 줄, 없으면 Enter):"
+    fi
     DRY_RESULT="실패: ${DRY_ERROR:-문장 없음}"
     confirm "그래도 진짜 업로드를 할까?" || { SKIPPED+=("업로드(점검 실패)"); finish; exit 0; }
   fi
 fi
+# 점검 단계의 실패를 업로드 실패로 읽지 않게 기준을 새로 잡는다
+touch "$MARK"
 step "\"구성기 업로드\"를 누른다."
 say "사용자 파라미터 하나당 재계산이 9번 이상이라 Fusion 화면이 한동안 멈춘다. 메시지 창이 뜰 때까지 기다린다."
-note "\"업로드했습니다: <ID>\"가 뜨면 성공이다. \"업로드 실패\" 창이면 창의 문장을 전부 복사해 둔다."
+note "\"업로드했습니다: <ID>\"가 뜨면 성공이다. \"업로드 실패\" 창이면 그 문장은 애드인이 $ADDIN_ERROR 에도 남긴다."
 UPLOAD_ID=""
 UPLOAD_ERROR=""
 while [[ -z "$UPLOAD_ID" ]]; do
   pause "메시지 창이 뜨면 Enter"
+  # shellcheck disable=SC2012  # ls는 위저드가 만드는 폴더의 파일 이름(공백·줄바꿈 없음)만 다룬다
   added=$(comm -13 <(printf '%s\n' "$before" | sort) <(ls data/uploads | sort) | grep '\.json$' | tail -n1 || true)
   if [[ -n "$added" ]]; then
     UPLOAD_ID=${added%.json}
     break
   fi
   warn "data/uploads/ 에 새 업로드가 없다."
+  failed=$(addin_error "$MARK" "업로드 실패")
+  if [[ -n "$failed" ]]; then
+    warn "애드인이 업로드 실패를 남겼다: $failed"
+    UPLOAD_ERROR="$failed"
+    if confirm "고친 뒤 다시 누를까? (아니오면 실패로 적고 넘어간다)"; then
+      touch "$MARK"
+      continue
+    fi
+    SKIPPED+=("녹화(업로드 실패)")
+    break
+  fi
   if confirm "업로드는 성공했나? (메시지 창에 ID가 있으면 예)"; then
     ask UPLOAD_ID "메시지 창의 업로드 ID(32자리):"
     if ! curl -sf -m 10 -o /dev/null "$SERVER/uploads/$UPLOAD_ID"; then
@@ -357,6 +385,7 @@ while [[ -z "$UPLOAD_ID" ]]; do
   fi
 done
 [[ -n "$UPLOAD_ID" ]] && say "${GREEN}✓${RESET} 업로드를 받았다: $UPLOAD_ID"
+rm -f "$MARK"
 pause "Enter"
 
 stage "녹화와 확인"
@@ -400,17 +429,9 @@ RECOMPUTE="점검 파일 없음"
 if [[ -f "$CHECKS" ]]; then
   # 파일이 깨졌거나 예전 형식이면 python이 실패한다. 그때도 위저드는 멈추지 않고 그 사실을 메모에 남긴다.
   read_status=0
-  lines=$(PYTHONUTF8=1 .venv/Scripts/python -c '
-import json, sys
-c = json.load(open(sys.argv[1], encoding="utf-8"))
-print("업로드 뒤 다시 되돌림: " + ", ".join(c["restored"]) if c["restored"] else "모두 원래대로")
-bad, edges, moved = c["proxy_mismatches"], c["proxy_edges"], c["moved_occurrences"]
-detail = ": " + "; ".join(bad[:3]) if bad else ""
-print(f"모서리 {edges}개(옮긴 오커런스 {moved}개) 중 어긋남 {len(bad)}개{detail}")
-failures = c["recompute_failures"]
-print(f"{len(failures)}개" + (": " + "; ".join(failures[:3]) if failures else ""))
-' "$CHECKS" 2>&1) || read_status=$?
-  if (( read_status == 0 )); then
+  # 종료 코드: 0 그대로, 3 업로드 뒤 다시 되돌림(scripts/addin_checks.py RESTORED_AGAIN), 그 밖은 읽지 못함
+  lines=$(PYTHONUTF8=1 .venv/Scripts/python -m scripts.addin_checks "$CHECKS" 2>&1) || read_status=$?
+  if (( read_status == 0 || read_status == 3 )); then
     { read -r RESTORED; read -r PROXIES; read -r RECOMPUTE; } <<< "$lines"
   else
     RESTORED="점검 파일을 읽지 못함: $(tail -n1 <<< "$lines")"
@@ -421,7 +442,7 @@ print(f"{len(failures)}개" + (": " + "; ".join(failures[:3]) if failures else "
   note "  파라미터: $RESTORED"
   note "  어셈블리 좌표: $PROXIES"
   note "  재계산 실패 샘플(오류 피처): $RECOMPUTE"
-  if [[ "$RESTORED" == "업로드 뒤 다시 되돌림"* ]]; then
+  if (( read_status == 3 )); then
     warn "업로드가 끝난 뒤에도 달라진 파라미터가 있어 애드인이 되돌렸다. 모델은 원래대로다. 어댑터 결함이니 Claude에게 알린다."
   fi
 elif [[ -n "$UPLOAD_ID" ]]; then
@@ -439,10 +460,12 @@ ask FUSION_VERSION "Fusion 버전(도움말 → Fusion 정보, 모르면 Enter):
 ask ODDITIES "그 밖에 이상했던 점(없으면 Enter):"
 {
   printf '# %s 녹화 메모 (%s)\n\n' "$REC_NAME" "$(date '+%Y-%m-%d %H:%M')"
+  # shellcheck disable=SC2016  # 작은따옴표 안의 $·`는 일부러 펼치지 않는다(메모의 마크다운 코드, node 코드, 정규식)
   printf -- '- 커밋: `%s`\n' "$(git log -1 --format='%h %s')"
   printf -- '- 업로드 점검: %s\n' "$DRY_RESULT"
   printf -- '- 업로드 ID: %s\n' "${UPLOAD_ID:-없음}"
   [[ -n "$UPLOAD_ERROR" ]] && printf -- '- 업로드 실패: %s\n' "$UPLOAD_ERROR"
+  # shellcheck disable=SC2016  # 작은따옴표 안의 $·`는 일부러 펼치지 않는다(메모의 마크다운 코드, node 코드, 정규식)
   printf -- '- 녹화본: `%s`, 요점: `%s`\n' "$REC_DIR/$REC_NAME.json" "$SUMMARY"
   printf -- '- 애드인 점검, 파라미터: %s\n' "$RESTORED"
   printf -- '- 애드인 점검, 어셈블리 좌표: %s\n' "$PROXIES"

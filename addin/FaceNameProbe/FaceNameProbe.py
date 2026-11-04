@@ -7,6 +7,7 @@
 """
 
 import json
+import time
 import traceback
 from pathlib import Path
 
@@ -335,4 +336,13 @@ def run(context):
     except Exception:
         # 중간에 끊겨도 면 표시가 디자인에 남지 않게 한다. 파라미터는 회차마다 되돌린다.
         _untag(design)
-        ui.messageBox(f"탐색 실패:\n{traceback.format_exc()}")
+        detail = traceback.format_exc()
+        # 위저드가 읽는다. 사람이 창의 문장을 옮겨 적지 않아도 되게 한다.
+        try:
+            OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+            # 첫 줄은 애드인과 같은 꼴(<날짜> <시각> <제목>)이다(scripts/last_error.py)
+            stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+            (OUTPUT.parent / "last-error.txt").write_text(f"{stamp} 탐색 실패\n{detail.rstrip()}\n", encoding="utf-8")
+        except OSError:
+            pass
+        ui.messageBox(f"탐색 실패:\n{detail}")
