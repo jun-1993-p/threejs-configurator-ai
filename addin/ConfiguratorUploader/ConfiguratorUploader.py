@@ -8,6 +8,7 @@
 
 import dataclasses
 import json
+import sys
 import threading
 import time
 import traceback
@@ -16,6 +17,11 @@ from pathlib import Path
 
 import adsk.core
 import adsk.fusion
+
+# 다시 실행할 때 하위 모듈도 새 코드를 읽게, 앞 실행이 남긴 하위 모듈을 지운다. Fusion이 sys.modules를 비우는지
+# 확인하지 못해서다(docs/fusion-api.md 「애드인 실행」). 그래야 실행 기록(loaded.txt)이 모든 코드가 새것이라는 뜻이 된다.
+for _name in [n for n in sys.modules if __package__ and n.startswith(f"{__package__}.") and n != __name__]:
+    del sys.modules[_name]
 
 # Fusion은 애드인을 패키지로 불러온다. 다른 애드인과 모듈 이름이 겹치지 않게 상대 import를 쓴다.
 from . import config
@@ -249,8 +255,20 @@ def run(context: object) -> None:
             _handlers.append(handler)
             if not panel.controls.itemById(command.id):
                 panel.controls.addCommand(definition)
+        _mark_loaded()
     except Exception:
         _report(ui, "애드인 시작 실패", traceback.format_exc())
+
+
+def _mark_loaded() -> None:
+    """애드인을 실행한 시각을 data/addin-checks/loaded.txt에 남긴다. 위저드가 이 파일보다 새로 고친 애드인 코드가
+    있으면, 사람이 다시 실행하지 않아 예전 코드로 업로드하려는 것으로 본다(티켓 26 2절, 두 번째 녹화)."""
+    try:
+        path = _DATA / "addin-checks" / "loaded.txt"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"{time.strftime('%Y-%m-%d %H:%M:%S')}\n", encoding="utf-8")
+    except OSError:
+        pass
 
 
 def stop(context: object) -> None:

@@ -15,7 +15,10 @@ from pathlib import Path
 from typing import Any
 
 from server.bundle import bundle_errors, pair_faces, placed_shapes
-from uploader.core import ADDIN_EXPRESSION
+
+# 애드인 패키지는 저장소 루트에 없다. 시험은 pyproject의 pythonpath로 찾지만, 위저드가 `python -m`으로 부를 때는 여기서 넣는다.
+sys.path.append(str(Path(__file__).resolve().parents[1] / "addin" / "ConfiguratorUploader"))
+from uploader.core import ADDIN_EXPRESSION  # noqa: E402
 
 _HALVES = (":half1", ":half2")
 

@@ -243,6 +243,12 @@ addin_error() {
   PYTHONUTF8=1 .venv/Scripts/python -m scripts.last_error "$ADDIN_ERROR" "$1" "$2" || true
 }
 
+# addin_fresh: 애드인이 마지막으로 실행된 뒤 고친 애드인 코드가 없으면 성공. Fusion은 다시 실행해야 새 코드를 읽는다.
+ADDIN_LOADED=data/addin-checks/loaded.txt
+addin_fresh() {
+  [[ -f "$ADDIN_LOADED" ]] && [[ -z $(find addin/ConfiguratorUploader -name '*.py' -newer "$ADDIN_LOADED" -print -quit) ]]
+}
+
 run_wizard() {
 
 TOTAL_STAGES=6
@@ -311,6 +317,25 @@ step "이미 실행 중이면 \"중지\"한 뒤 다시 \"실행\"한다. 그래�
 step "디자인 작업공간 → 유틸리티 탭 → 추가 기능 패널에 \"구성기 업로드\" 버튼이 보이면 된다."
 note "서버 주소는 addin/ConfiguratorUploader/config.py 의 SERVER_URL($(grep -o 'http[^"]*' addin/ConfiguratorUploader/config.py))이다."
 pause "버튼이 보이면 Enter"
+# 사람이 다시 실행했는지 묻지 않고, 애드인이 실행할 때 남기는 기록(ConfiguratorUploader._mark_loaded)과 코드 시각을 견준다
+RELOAD_MARK=$(mktemp)
+while ! addin_fresh; do
+  if [[ -f "$ADDIN_LOADED" ]]; then
+    warn "애드인을 마지막으로 실행한 뒤($(cat "$ADDIN_LOADED")) 애드인 코드가 바뀌었다. 이대로면 예전 코드로 업로드한다."
+  else
+    warn "애드인 실행 기록($ADDIN_LOADED)이 없다. 예전 코드가 실행 중이거나 애드인이 기록을 쓰지 못했다."
+  fi
+  # 이번에 다시 실행하다 난 시작 실패만 읽는다(지난 실패를 이번 것으로 읽지 않게)
+  touch "$RELOAD_MARK"
+  step "\"스크립트 및 추가 기능\" 창에서 ConfiguratorUploader를 \"중지\"한 뒤 \"실행\"한다."
+  if ! confirm "다시 실행했나? (아니오면 확인 없이 넘어간다)"; then
+    SKIPPED+=("애드인 새 코드 실행 확인")
+    break
+  fi
+  failed=$(addin_error "$RELOAD_MARK" "애드인 시작 실패")
+  [[ -n "$failed" ]] && warn "애드인이 시작하다 실패했다: $failed"
+done
+rm -f "$RELOAD_MARK"
 
 stage "업로드"
 # 파일 시각 대신 목록 차이로 찾는다. Docker 쪽 시계가 Windows와 어긋나도 놓치지 않는다.

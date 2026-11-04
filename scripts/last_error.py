@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 def failure(record: Path, since: Path, title: str) -> str | None:
-    if not record.is_file() or record.stat().st_mtime <= since.stat().st_mtime:
+    if not record.is_file() or not since.is_file() or record.stat().st_mtime <= since.stat().st_mtime:
         return None
     lines = record.read_text(encoding="utf-8", errors="replace").splitlines()
     if not lines or lines[0].split(" ", 2)[-1] != title:

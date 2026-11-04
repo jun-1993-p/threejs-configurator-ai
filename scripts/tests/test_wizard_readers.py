@@ -1,11 +1,32 @@
 """위저드가 부르는 읽기 도구(탐색 결과 요점, 애드인 점검 파일)가 위저드가 기대하는 줄을 내는지 본다."""
 
 import os
+import re
+import subprocess
+import sys
 from pathlib import Path
+
+import pytest
 
 from scripts.addin_checks import RESTORED_ALL, describe
 from scripts.last_error import failure
 from scripts.probe_summary import restored, summarize
+
+_ROOT = Path(__file__).resolve().parents[2]
+_WIZARD_MODULES = sorted(
+    {m for sh in (_ROOT / "scripts").glob("*.sh") for m in re.findall(r"-m scripts\.(\w+)", sh.read_text(encoding="utf-8"))}
+)
+
+
+@pytest.mark.parametrize("module", _WIZARD_MODULES)
+def test_위저드가_부르는_스크립트는_시험의_pythonpath_없이도_불러진다(module: str) -> None:
+    """위저드는 저장소 루트에서 `python -m scripts.<이름>`으로 부른다. pyproject의 pythonpath는 시험에만 있어
+    애드인 패키지를 import하던 요점 스크립트가 위저드에서만 실패했다(티켓 26 2절, 두 번째 녹화)."""
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    done = subprocess.run(
+        [sys.executable, "-c", f"import scripts.{module}"], cwd=_ROOT, env=env, capture_output=True, text=True, check=False
+    )
+    assert done.returncode == 0, done.stderr
 
 
 def test_기준보다_뒤에_쓴_같은_제목의_실패_기록만_읽는다(tmp_path: Path) -> None:
@@ -24,6 +45,8 @@ def test_기준보다_뒤에_쓴_같은_제목의_실패_기록만_읽는다(tmp
     # 기준보다 앞선 기록은 지난 실패다
     os.utime(record, (500, 500))
     assert failure(record, since, "애드인 종료 실패") is None
+    # 기준 파일이 없으면 이번 실패인지 알 수 없다. 위저드가 오류로 멈추지 않게 없음으로 본다
+    assert failure(record, tmp_path / "missing", "애드인 종료 실패") is None
 
 
 def test_애드인_점검_파일은_파라미터_좌표_재계산_실패의_세_줄이다() -> None:
