@@ -91,11 +91,11 @@ ${SHEET_RULE}
 - 그림은 기본 형상을 그 방향에서 본 직교 투영이다. X·Y 쪽에서 본 그림은 Z가 위, Z 쪽에서 본 그림은 Y가 위다.
 - parts는 colors의 부품마다 name(colors의 name 그대로)과 role(서랍·몸통·상판·문 같은 역할, 한국어)이다.
 - up은 가구가 바닥에 놓였을 때 위쪽 방향이다.
-- fronts는 고객이 가구를 마주하는 정면 방향(서랍 손잡이·문이 보이는 쪽)이다. 확신하면 하나만, 확신하지 못하면 가능성 높은 순서로 2~4개 낸다. up과 같은 축은 정면이 될 수 없다.`;
+- fronts는 고객이 가구를 마주하는 정면 방향(서랍 손잡이·문이 보이는 쪽)이다. 확신하면 하나만, 확신하지 못하면 가능성 높은 순서로 2~${PARTS_SCHEMA.properties.fronts.maxItems}개 낸다. up과 같은 축은 정면이 될 수 없다.`;
 
 const CANDIDATES_PROMPT = `너는 가구 쇼핑몰 구성기의 슬라이더 구성 후보를 제시한다.
 입력: bundle(Fusion 업로드 묶음 요약: 파라미터 이름·값·수식, 부품과 바운딩 박스, 스윕한 파라미터와 범위·단독 스윕의 축 반응), intake(정보 입력), parts(그림으로 찾은 부품 역할·정면 후보·위쪽), failures(앞서 검증을 통과하지 못한 후보와 마지막 검증 피드백), rejections(운영자가 최종 승인에서 반려한 후보와 거절 이유).
-- 답은 후보 객체 1~4개를 담은 JSON 배열 하나([ … ])다. 보통 2~4개이고, 후보끼리 정면(front)·노출할 치수의 파라미터(sliders의 parameter)·두께 선택 노출(showThickness) 중 하나 이상이 다르다.
+- 답은 후보 객체 ${CANDIDATES_SCHEMA.minItems}~${CANDIDATES_SCHEMA.maxItems}개를 담은 JSON 배열 하나([ … ])다. 보통 2~${CANDIDATES_SCHEMA.maxItems}개이고, 후보끼리 정면(front)·노출할 치수의 파라미터(sliders의 parameter)·두께 선택 노출(showThickness) 중 하나 이상이 다르다.
 - parts.fronts가 하나이고 intake.thickness가 "ai"가 아니며 intake.memo가 노출할 치수를 하나의 구성으로 정했으면, 서로 다른 후보를 만들 수 없으니 후보 하나만 낸다. 그 후보의 diff는 "다른 구성 없음"이다.
 - sliders는 고객이 바꿀 치수마다 하나다. parameter는 그 치수의 파라미터로, bundle.sweeps에 있는 부모 파라미터이거나, 고객이 원하는 치수가 수식으로 부모를 따르는 자식 파라미터면 그 자식이다(움직일 부모는 운영자가 고른다). 개수형(is_count) 파라미터와 보간 실패(sweeps의 interpolation_failure)한 파라미터는 쓰지 않는다.
 - sliders의 name은 Fusion 파라미터 이름이 아니라 고객이 보는 치수의 뜻을 따른 한국어 슬라이더 이름이다(예: d12 → "서랍 폭"). 파라미터 이름이 뜻을 말하지 않으면 bundle.sweeps의 response(단독 스윕에서 상품 전체 overall과 부품 parts가 Fusion 축 X·Y·Z로 바뀐 치수 size·위치 move, mm)와 parts의 역할을 보고 짓는다.

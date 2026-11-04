@@ -13,6 +13,7 @@ import { decodePng } from "../pipeline/image-sheet.ts";
 import { encodePng } from "../pipeline/render.ts";
 import { pastCase } from "./cases.ts";
 import { memoryStore } from "../pipeline/memory-store.ts";
+import { CANDIDATES_SCHEMA, PARTS_SCHEMA } from "../pipeline/schemas.ts";
 import { UI_STYLES } from "../pipeline/ui-styles.ts";
 import type { DimensionRule } from "../pipeline/range-intersection.ts";
 import { runPipeline, type Candidate, type FusionPort, type HumanPort, type Intake, type PartsFound } from "../pipeline/runner.ts";
@@ -459,6 +460,23 @@ test("사례 예시는 후보 제시·명세 작성·AI 판정 요청에 담기�
     const [request] = llm.requests.filter((r) => r.body.model === model);
     assert.match(textOf(request.body.messages[0].content), /examples\(/, model);
   }
+});
+
+test("후보 제시·부품 탐색 지시문이 알리는 개수는 응답 스키마의 개수를 넘지 않는다", async () => {
+  // 지시문과 스키마에 후보 수를 따로 적었다가 어긋났다(티켓 28 리뷰)
+  const { llm } = await run({});
+  const promptOf = (model: string) => textOf(llm.requests.find((r) => r.body.model === model)!.body.messages[0].content);
+  const ranges = (prompt: string) => [...prompt.matchAll(/(\d+)~(\d+)개/g)].map(([, low, high]) => [Number(low), Number(high)]);
+
+  const { minItems, maxItems } = CANDIDATES_SCHEMA;
+  const candidateRanges = ranges(promptOf(MODELS.candidates));
+  assert.deepEqual(candidateRanges[0], [minItems, maxItems]);
+  for (const [low, high] of candidateRanges) assert.ok(low >= minItems && high === maxItems, `후보 제시 ${low}~${high}개`);
+
+  const fronts = PARTS_SCHEMA.properties.fronts;
+  const frontRanges = ranges(promptOf(MODELS.parts));
+  assert.ok(frontRanges.length > 0);
+  for (const [low, high] of frontRanges) assert.ok(low >= fronts.minItems && high === fronts.maxItems, `부품 탐색 ${low}~${high}개`);
 });
 
 test("임베딩은 LiteLLM 임베딩 API로 문장마다 벡터 하나를 받는다", async () => {

@@ -101,7 +101,7 @@ export const PARTS_SCHEMA = {
 export const checkParts = checker(PARTS_SCHEMA);
 
 /**
- * 후보 제시 응답. 후보는 2~4개(사용자 스토리 19)이고, 서로 다른 구성이 하나뿐이면 1개다(티켓 28). 슬라이더마다 고객이 보는 치수의 파라미터(parameter)와 그 뜻의 이름(name)이다.
+ * 후보 제시 응답. 후보는 보통 둘 이상(사용자 스토리 19)이고, 서로 다른 구성이 하나뿐이면 1개다(티켓 28). 개수 범위는 minItems·maxItems가 정하고 지시문도 그 값을 쓴다. 슬라이더마다 고객이 보는 치수의 파라미터(parameter)와 그 뜻의 이름(name)이다.
  * parameter가 자식 파라미터면 움직일 부모는 후보 선택에서 운영자가 고른다(ADR-0003).
  */
 export const CANDIDATES_SCHEMA = {
