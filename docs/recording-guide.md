@@ -44,6 +44,8 @@
 
 ## 4. 절차
 
+4-1부터 4-5까지와 6장의 전달 항목은 위저드가 차례로 안내한다. Git Bash 창에서 저장소 최상위 폴더로 가서 `bash scripts/fusion-recording-wizard.sh`로 실행한다. 4-1의 설치(`.venv`)가 안 돼 있으면 위저드가 먼저 설치를 묻는다. 서버가 떠 있지 않으면 위저드가 띄웠다가 끝날 때 끄고, 녹화본 요점(`.venv/Scripts/python -m scripts.recording_summary <녹화본>`)과 메모를 `fixtures/private/recordings/`에 남긴다.
+
 ### 4-1. 서버 띄우기 (처음 한 번 설치)
 
 PowerShell에서 저장소 최상위 폴더로 이동한 뒤 실행한다.

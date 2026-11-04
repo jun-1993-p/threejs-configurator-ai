@@ -63,15 +63,21 @@ def _baseline_of(bundle: dict[str, Any], sweep: dict[str, Any], value: float) ->
     return baseline
 
 
-def _shapes(bundle: dict[str, Any], key: Literal["samples", "checks"]) -> list[Shape]:
-    """(파라미터, 샘플, 짝지을 기준 형상 면). 위상 묶음 안의 단독 스윕은 그 묶음의 기준 형상과 짝짓는다."""
-    out: list[Shape] = []
+def placed_shapes(bundle: dict[str, Any], key: Literal["samples", "checks"]) -> list[tuple[str, Shape]]:
+    """(어느 스윕, (파라미터, 샘플, 짝지을 기준 형상 면)). 어느 스윕은 최상위면 빈 문자열, 위상 묶음 안의 단독
+    스윕이면 "묶음 파라미터 최소~최대"다. 위상 묶음 안의 단독 스윕은 그 묶음의 기준 형상과 짝짓는다."""
+    out: list[tuple[str, Shape]] = []
     for sweep in bundle["sweeps"]:
-        out += [(sweep["parameter"], s, _baseline_of(bundle, sweep, s["value"])) for s in sweep[key]]
+        out += [("", (sweep["parameter"], s, _baseline_of(bundle, sweep, s["value"]))) for s in sweep[key]]
         for group in sweep.get("groups", []):
             faces = group["baseline"]["faces"]
-            out += [(inner["parameter"], s, faces) for inner in group["sweeps"] for s in inner[key]]
+            where = f"묶음 {sweep['parameter']} {group['range']['min']:g}~{group['range']['max']:g}"
+            out += [(where, (inner["parameter"], s, faces)) for inner in group["sweeps"] for s in inner[key]]
     return out
+
+
+def _shapes(bundle: dict[str, Any], key: Literal["samples", "checks"]) -> list[Shape]:
+    return [shape for _, shape in placed_shapes(bundle, key)]
 
 
 def _samples_and_checks(bundle: dict[str, Any]) -> list[Shape]:
