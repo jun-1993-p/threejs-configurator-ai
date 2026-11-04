@@ -70,10 +70,12 @@ python -m venv .venv
 1. Fusion에서 `Shift+S`를 눌러 "스크립트 및 추가 기능" 창을 연다.
 2. "추가 기능" 탭에서 `+`를 누르고, 저장소의 `addin/ConfiguratorUploader` 폴더를 고른다.
 3. 목록에서 `ConfiguratorUploader`를 골라 "실행"을 누른다.
-4. 디자인 작업공간 → 유틸리티 탭 → 추가 기능 패널에 **"구성기 업로드"** 버튼이 생긴다.
+4. 디자인 작업공간 → 유틸리티 탭 → 추가 기능 패널에 **"구성기 업로드"**와 **"구성기 업로드 점검"** 버튼이 생긴다.
 5. 서버가 이 PC가 아니면 `addin/ConfiguratorUploader/config.py`의 `SERVER_URL`을 고치고 애드인을 다시 실행한다.
 
 ### 4-3. 업로드
+
+처음 올리는 모델은 먼저 **"구성기 업로드 점검"**을 누른다. 서버 없이 같은 업로드를 돌려 묶음을 `data/dry-runs/`에 쓰고, 점검 결과도 4-3의 6처럼 남긴다. 어댑터가 그 모델에서 멈추는지, 묶음 형식이 맞는지를 서버와 녹화본 없이 본다. 묶음은 `.venv/Scripts/python -m scripts.recording_summary data/dry-runs/<ID>.json`으로 읽는다(서버 묶음 검사 포함).
 
 1. 3장 조건을 확인한 모델을 연다.
 2. **모델을 먼저 저장한다**: 업로드 중에 파라미터를 바꿨다가 되돌리지만, 혹시 모를 문제에 대비한다.
@@ -111,6 +113,7 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:8000/uploads/<업로드 ID
 ## 5. 보안
 
 - 저장소는 Public이다. `fixtures/private/`와 `data/`는 `.gitignore` 대상이므로 커밋되지 않는다. 다른 곳으로 옮기거나 이름을 바꾸지 않는다.
+- 커밋 전 검사(`scripts/private_names.py`)가 녹화본·탐색 결과·건식 업로드 묶음의 사용자 파라미터·부품·바디·모델 이름이 추적 파일에 새로 들어가는 것을 막는다. 메모(`.md`)의 내용과 이름이 아닌 서술은 보지 못한다.
 - `.f3d`·`.step`·`.stl`·`.obj` 파일도 커밋되지 않는다. 그래도 저장소 폴더 안에는 두지 않는 것이 안전하다.
 - 녹화본 백업은 저장소 밖(개인 드라이브 등)에 둔다.
 

@@ -1,13 +1,36 @@
-"""ServerClient 포트의 HTTP 구현. Fusion에 외부 패키지를 설치할 수 없으므로 표준 라이브러리만 쓴다."""
+"""ServerClient 포트의 HTTP 구현과 파일 구현. Fusion에 외부 패키지를 설치할 수 없으므로 표준 라이브러리만 쓴다."""
 
 import json
+import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Any, cast
 
 _PING_TIMEOUT_S = 5
 _UPLOAD_TIMEOUT_S = 120
 _REQUEST_TIMEOUT_S = 30
+
+
+class FileServerClient:
+    """서버 없이 업로드 묶음을 폴더에 쓰는 ServerClient. 건식 업로드(업로드 점검)에 쓴다.
+
+    실제 Fusion 어댑터와 run_upload를 그대로 거치므로, 새 모델의 어댑터 결함이 진짜 업로드 전에 드러난다
+    (티켓 26 2절: 탐색 스크립트는 어댑터를 따로 베껴 써서 어댑터 결함 둘을 놓쳤다).
+    """
+
+    def __init__(self, folder: Path) -> None:
+        self._folder = folder
+
+    def ping(self) -> bool:
+        return True
+
+    def upload(self, bundle: dict[str, Any]) -> str:
+        # 1초 안에 두 번 눌러도 앞 묶음을 덮지 않게 밀리초까지 쓴다
+        upload_id = time.strftime("dry-%Y%m%d-%H%M%S") + f"-{int(time.time() * 1000) % 1000:03d}"
+        self._folder.mkdir(parents=True, exist_ok=True)
+        (self._folder / f"{upload_id}.json").write_text(json.dumps(bundle, ensure_ascii=False), encoding="utf-8")
+        return upload_id
 
 
 class HttpServerClient:

@@ -4,6 +4,14 @@
 set -e
 
 staged=$(git diff --cached --name-only --diff-filter=ACMRD)
+if [ -x .venv/Scripts/python ]; then py=.venv/Scripts/python; else py=.venv/bin/python; fi
+if [ ! -x "$py" ]; then
+  echo "[pre-commit] .venv가 없다. 모든 커밋이 비공개 이름 검사에 .venv를 쓴다. docs/recording-guide.md 4-1대로 설치한다"
+  exit 1
+fi
+
+# 저장소는 공개다. 비공개 녹화본·탐색 결과의 상품 이름이 추적 파일로 새지 않게 모든 커밋에서 본다
+PYTHONUTF8=1 "$py" -m scripts.private_names
 
 # 시험 이름은 GLOSSARY 용어(한국어)로 쓴다(CODING_STANDARDS.md 「주석과 이름」). 한글이 하나도 없는 이름을 찾는다.
 if grep -rnE '^def test_[A-Za-z0-9_]+\(' addin/tests server/tests synthetic/tests docker/tests scripts/tests \
@@ -21,7 +29,6 @@ fi
 
 if echo "$staged" | grep -qE '^(addin/|server/|synthetic/|docker/|scripts/|schema/|fixtures/|pyproject\.toml)'; then
   echo "[pre-commit] Python: mypy와 pytest(solidcraft-cli로 다시 녹화하는 시험 포함)"
-  if [ -x .venv/Scripts/python ]; then py=.venv/Scripts/python; else py=.venv/bin/python; fi
   "$py" -m mypy
   "$py" -m pytest -q
 fi

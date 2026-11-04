@@ -19,7 +19,7 @@ python -m venv .venv
 
 1. Fusion → 유틸리티 → 추가 기능 → 스크립트 및 추가 기능 → 추가 기능 탭 → `+` 로 `addin/ConfiguratorUploader` 폴더를 연결한다.
 2. 서버 주소는 `addin/ConfiguratorUploader/config.py`의 `SERVER_URL`에서 바꾼다.
-3. 추가 기능을 실행하면 스크립트·추가 기능 패널에 "구성기 업로드" 버튼이 생긴다.
+3. 추가 기능을 실행하면 스크립트·추가 기능 패널에 "구성기 업로드"와 "구성기 업로드 점검" 버튼이 생긴다. 점검은 서버 없이 같은 업로드를 돌려 묶음을 `data/dry-runs/`에 쓴다(녹화 안내서 4-3).
 
 ## 녹화본 만들기
 

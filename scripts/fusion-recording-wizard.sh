@@ -308,6 +308,29 @@ pause "버튼이 보이면 Enter"
 stage "업로드"
 # 파일 시각 대신 목록 차이로 찾는다. Docker 쪽 시계가 Windows와 어긋나도 놓치지 않는다.
 before=$(ls data/uploads)
+DRY_RESULT="돌리지 않음"
+if confirm "처음 올리는 모델이면 먼저 \"구성기 업로드 점검\"(서버에 올리지 않음)을 돌릴까?"; then
+  dry_before=$(ls data/dry-runs 2>/dev/null || true)
+  step "\"구성기 업로드 점검\"을 누르고 메시지 창이 뜰 때까지 기다린다. 업로드와 같은 시간이 걸린다."
+  pause "창이 뜨면 Enter"
+  dry=$(comm -13 <(printf '%s\n' "$dry_before" | sort) <(ls data/dry-runs 2>/dev/null | sort) | grep '\.json$' | tail -n1 || true)
+  if [[ -n "$dry" ]]; then
+    dry_summary=$(PYTHONUTF8=1 .venv/Scripts/python -m scripts.recording_summary "data/dry-runs/$dry" 2>&1) || true
+    while IFS= read -r line; do note "$line"; done <<< "$dry_summary"
+    if grep -qx "서버 묶음 검사: 통과" <<< "$dry_summary"; then
+      DRY_RESULT="통과(data/dry-runs/$dry)"
+      say "${GREEN}✓${RESET} 점검 묶음이 서버 묶음 검사를 통과했다. 애드인 점검은 data/addin-checks/${dry%.json}.json 에 있다."
+    else
+      DRY_RESULT="묶음 검사 실패(data/dry-runs/$dry)"
+      warn "점검 묶음이 서버 묶음 검사를 통과하지 못했다. 진짜 업로드도 서버가 거절한다."
+      confirm "그래도 진짜 업로드를 할까?" || { SKIPPED+=("업로드(점검 실패)"); finish; exit 0; }
+    fi
+  else
+    ask DRY_ERROR "점검 묶음이 없다. 메시지 창이 \"업로드 점검 실패\"면 그 문장(첫 줄과 마지막 줄):"
+    DRY_RESULT="실패: ${DRY_ERROR:-문장 없음}"
+    confirm "그래도 진짜 업로드를 할까?" || { SKIPPED+=("업로드(점검 실패)"); finish; exit 0; }
+  fi
+fi
 step "\"구성기 업로드\"를 누른다."
 say "사용자 파라미터 하나당 재계산이 9번 이상이라 Fusion 화면이 한동안 멈춘다. 메시지 창이 뜰 때까지 기다린다."
 note "\"업로드했습니다: <ID>\"가 뜨면 성공이다. \"업로드 실패\" 창이면 창의 문장을 전부 복사해 둔다."
@@ -417,6 +440,7 @@ ask ODDITIES "그 밖에 이상했던 점(없으면 Enter):"
 {
   printf '# %s 녹화 메모 (%s)\n\n' "$REC_NAME" "$(date '+%Y-%m-%d %H:%M')"
   printf -- '- 커밋: `%s`\n' "$(git log -1 --format='%h %s')"
+  printf -- '- 업로드 점검: %s\n' "$DRY_RESULT"
   printf -- '- 업로드 ID: %s\n' "${UPLOAD_ID:-없음}"
   [[ -n "$UPLOAD_ERROR" ]] && printf -- '- 업로드 실패: %s\n' "$UPLOAD_ERROR"
   printf -- '- 녹화본: `%s`, 요점: `%s`\n' "$REC_DIR/$REC_NAME.json" "$SUMMARY"

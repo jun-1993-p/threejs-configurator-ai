@@ -3,7 +3,8 @@
     .venv/Scripts/python -m scripts.recording_summary fixtures/private/recordings/<이름>.json
 
 파라미터, 부품마다 면 수와 기본 형상의 위치(mm), 면 종류와 반쪽으로 나눈 원기둥, 스윕마다 샘플 상태와 위상,
-갈라지거나 새로 생긴 면 이름, 점이 표면에서 벗어난 정도를 찍는다. 묶음 검사는 서버가 업로드를 받을 때 한다.
+갈라지거나 새로 생긴 면 이름, 점이 표면에서 벗어난 정도, 서버의 묶음 검사 결과를 찍는다. 녹화본은 서버가 받을 때
+이미 검사했으므로 늘 통과지만, 건식 업로드 묶음(data/dry-runs)은 서버를 거치지 않아 여기서 처음 검사한다.
 """
 
 import json
@@ -13,7 +14,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from server.bundle import pair_faces, placed_shapes
+from server.bundle import bundle_errors, pair_faces, placed_shapes
 from uploader.core import ADDIN_EXPRESSION
 
 _HALVES = (":half1", ":half2")
@@ -61,6 +62,10 @@ def broken_halves(shape: dict[str, Any]) -> list[str]:
 
 def summarize(bundle: dict[str, Any]) -> list[str]:
     lines = [f"출처: {bundle.get('source')}"]
+    # 나머지 요점은 형식이 맞는 묶음을 전제로 읽으므로, 형식 오류가 있으면 그것만 찍는다
+    errors = bundle_errors(bundle)
+    if errors:
+        return lines + [f"서버 묶음 검사: 오류 {len(errors)}건"] + [f"  {e}" for e in errors[:10]]
     params = bundle["parameters"]
     for p in params:
         if p["is_user"]:
@@ -101,6 +106,7 @@ def summarize(bundle: dict[str, Any]) -> list[str]:
     lines.append(f"이음선이 빠진 반쪽 원기둥: {', '.join(broken) if broken else '없음'}")
     worst = max((off_surface(f) for shape in shapes for f in shape["faces"]), default=0.0)
     lines.append(f"점이 표면에서 벗어난 가장 큰 거리: {worst:.2e} mm")
+    lines.append("서버 묶음 검사: 통과")
     return lines
 
 

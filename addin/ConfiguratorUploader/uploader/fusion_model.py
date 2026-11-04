@@ -195,10 +195,14 @@ class FusionDesignModel:
             out.append(FaceRole(feature, role, _order(face), tag.value if tag else None))
         return out
 
-    def _tag_baseline(self) -> None:
-        """앞 업로드의 표시를 지우고, 기본 형상의 면에 이름을 붙인다."""
+    def clear_tags(self) -> None:
+        """이 디자인의 면 표시를 모두 지운다. 건식 업로드가 끝날 때와, 업로드가 앞 업로드의 표시를 지울 때 쓴다."""
         for attr in self._design.findAttributes(TAG_GROUP, TAG_NAME):
             attr.deleteMe()
+
+    def _tag_baseline(self) -> None:
+        """앞 업로드의 표시를 지우고, 기본 형상의 면에 이름을 붙인다."""
+        self.clear_tags()
         roles = self._roles()
         for _, body, _ in self._visible_bodies():
             names = face_names(self._face_roles(body, roles), baseline=True)
