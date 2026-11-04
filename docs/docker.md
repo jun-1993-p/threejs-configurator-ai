@@ -43,4 +43,6 @@ docker compose run --rm pipeline scripts/cases.ts list
 
 컨테이너 안에서 저장소 루트는 `/app`이다. `fixtures/`와 `data/`가 같은 이름으로 연결되어 있다.
 
+LiteLLM을 그 명령에만 붙인 환경 값으로 띄워 두었다면(예: `GROQ_API_KEY=… docker compose up -d litellm`) `run`에 `--no-deps`를 붙인다. 붙이지 않으면 compose가 지금 셸 환경과 `.env`로 설정을 다시 계산해, 달라진 LiteLLM을 다시 만든다. 셸에 export해 둔 값으로 띄웠다면 설정이 같아 다시 만들지 않는다. 그러면 재시작 중에는 연결이 거부되고, 바꿔 둔 키도 `.env` 값으로 돌아간다(`scripts/fallback-check-wizard.sh`에서 겪음).
+
 최종 확인 도구(`scripts/final-check.ts`)는 git이 필요해 컨테이너 밖에서 돌린다. 절차는 `docs/final-check.md`.

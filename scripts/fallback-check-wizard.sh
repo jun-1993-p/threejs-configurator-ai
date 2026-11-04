@@ -236,7 +236,7 @@ groq_name() {
 
 # run_round 회차 기대llm 기대vlm: 답한 모델 묶음을 보고 합성 서랍장으로 파이프라인을 돌려 summary.md에 남긴다
 run_round() {
-  local name="$1" out="$CHECK_DIR/$1" llm vlm result formats
+  local name="$1" out="$CHECK_DIR/$1" llm vlm result formats started status=0
   step "llm에 묻는 중…"
   llm=$(model_group llm)
   if [[ "$llm" == "$2" ]]; then say "${GREEN}✓${RESET} llm → $llm"; else warn "llm → ${llm:-답 없음} (기대 $2)"; fi
@@ -248,13 +248,26 @@ run_round() {
   # 사례 저장소는 회차마다 따로 둔다. 앞 회차의 사례가 예시로 끼지 않고, 실제 사례 저장소(data/cases)도 건드리지 않는다.
   # 컨테이너 안 경로(/app/…)는 Git Bash가 Windows 경로로 바꾸지 않게 이 명령에서만 변환을 끈다.
   # 끄는 범위를 넓히면 Windows용 curl이 mktemp의 /tmp/… 경로를 찾지 못한다.
-  # --no-deps: 없으면 compose가 litellm_with_key로 띄운 litellm을 .env 설정으로 다시 만들어, 재시작 중에 연결이 거부된다.
+  # --no-deps: litellm_with_key로 띄운 litellm을 compose가 .env 설정으로 다시 만들지 않게 한다(docs/docker.md 파이프라인 실행).
+  # LiteLLM 로그는 Docker 쪽 시계로 거르므로, 두 시계가 조금 어긋나도 빠지지 않게 30초 앞당긴다
+  started=$(date -u -d '-30 seconds' +%Y-%m-%dT%H:%M:%SZ)
   MSYS_NO_PATHCONV=1 docker compose run --rm -T --no-deps -e CASES_DIR="/app/$out/cases" pipeline scripts/run-pipeline.ts \
     /app/fixtures/synthetic/drawer.json "/app/$CHECK_DIR/intake.json" "/app/$CHECK_DIR/rules.json" "/app/$out" \
-    2>&1 | tee "$out.out" || true
-  # 끝까지 돌면 마지막 줄이 실행 결과({"status":…})이고, 파이프라인 밖 오류로 끊기면 그 오류 줄을 남긴다
+    2>&1 | tee "$out.out" || status=$?
+  # 끝까지 돌면 마지막 줄이 실행 결과({"status":…})다. 파이프라인 밖에서 끊기면 종료 코드와 오류 줄(Node 오류의 첫 줄,
+  # 없으면 Docker 연결 끊김 같은 level=error의 마지막 줄)을 남기고, 그동안의 LiteLLM 오류 줄을 같은 출력 파일에 덧붙인다.
   result=$(grep -E '^\{"status"' "$out.out" | tail -n1 || true)
-  [[ -n "$result" ]] || result="끊김: $(grep -m1 -E '^Error' "$out.out" | cut -c1-300 || true)"
+  if [[ -z "$result" ]]; then
+    result="끊김(종료 코드 $status): $({ grep -m1 -E '^Error' "$out.out" || grep -E 'level=error' "$out.out" | tail -n1; } | cut -c1-300 || true)"
+    # Docker 연결이 끊긴 채면 로그도 읽지 못하므로, 그 실패를 LiteLLM 오류 줄과 나눠 남긴다
+    local logs logs_status=0
+    logs=$(docker compose logs --no-color --since "$started" litellm 2>&1) || logs_status=$?
+    if [[ $logs_status -ne 0 ]]; then
+      printf '\n--- LiteLLM 로그를 읽지 못함(종료 코드 %s) ---\n%s\n' "$logs_status" "$(printf '%s\n' "$logs" | tail -n 5)" >> "$out.out"
+    else
+      printf '\n--- LiteLLM 오류 줄 (%s부터) ---\n%s\n' "$started" "$(printf '%s\n' "$logs" | grep -iE 'error|exception' | tail -n 20 || true)" >> "$out.out"
+    fi
+  fi
   formats=$(node -e '
     const log = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
     const count = {};
@@ -270,7 +283,7 @@ run_round() {
     printf -- '- vlm: %s (기대 %s)\n' "${vlm:-답 없음}" "$3"
     printf -- '- 파이프라인 결과: `%s`\n' "$result"
     printf -- '- 형식 검사에 걸려 다시 물은 횟수: %s\n' "$formats"
-    printf -- '- 처리 기록: `%s/log.json`\n\n' "$out"
+    printf -- '- 처리 기록: `%s/log.json`, 실행 출력: `%s.out`\n\n' "$out" "$out"
   } >> "$SUMMARY"
   note "결과를 $SUMMARY 에 덧붙였다. 형식 오류가 다음 단계로 샜는지는 $out/log.json 에서 볼 수 있다."
   pause "다음으로 넘어가려면 Enter"
