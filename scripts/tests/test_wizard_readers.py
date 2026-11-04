@@ -5,9 +5,11 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from scripts import connection_check
 from scripts.addin_checks import RESTORED_ALL, describe
 from scripts.last_error import failure
 from scripts.probe_summary import restored, summarize
@@ -105,3 +107,33 @@ def test_탐색이_바꾼_파라미터가_돌아왔는지와_타임라인_오류
         "W: 400 mm → 320.0 mm",
         "타임라인 오류가 0개에서 1개로 늘었다",
     ]
+
+
+def test_연결_확인_요청은_앞의_두_사용자_파라미터를_기본_형상_값으로_묻는다() -> None:
+    bundle = {"parameters": [
+        {"name": "n", "value": 3.0, "is_user": True, "is_count": True},
+        {"name": "d1", "value": 5.0, "is_user": False, "is_count": False},
+        {"name": "W", "value": 400.0, "is_user": True, "is_count": False},
+        {"name": "D", "value": 300.0, "is_user": True, "is_count": False},
+        {"name": "H", "value": 700.0, "is_user": True, "is_count": False},
+    ]}
+
+    assert connection_check.request_body(bundle) == {"kind": "cross", "values": [{"W": 400.0, "D": 300.0}]}
+
+
+def test_연결_확인은_요청_상태를_상태_낱말로_시작하는_한_줄로_줄인다() -> None:
+    request = {"kind": "cross", "values": [{"W": 400.0}, {"W": 500.0}]}
+    samples = [{"values": {"W": 400.0}, "status": "ok"}, {"values": {"W": 500.0}, "status": "failed"}]
+    answered = {"status": "answered", "fusion": "connected", "response": {"samples": samples}}
+
+    def word(state: dict[str, Any]) -> str:
+        return connection_check.describe(state, request).split(" ", 1)[0]
+
+    assert connection_check.describe(answered, request) == "answered 샘플 2개 중 성공 1개"
+    # 기다리는 요청은 Fusion 연결 상태로 가른다. 끊긴 쪽 문장에 "connected"가 들어가도 낱말은 따로다
+    assert word({"status": "pending", "fusion": "connected"}) == connection_check.CONNECTED
+    assert word({"status": "pending", "fusion": "disconnected"}) == connection_check.DISCONNECTED
+    assert word({"status": "failed", "fusion": "connected", "reason": "ValueError: x"}) == connection_check.FAILED
+    # 다른 값 묶음의 샘플로 답하면 답한 것으로 보지 않는다
+    swapped = {**answered, "response": {"samples": samples[::-1]}}
+    assert word(swapped) == connection_check.FAILED
