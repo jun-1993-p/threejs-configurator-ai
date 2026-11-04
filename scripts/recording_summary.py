@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from server.bundle import pair_faces, placed_shapes
+from uploader.core import ADDIN_EXPRESSION
 
 _HALVES = (":half1", ":half2")
 
@@ -66,6 +67,9 @@ def summarize(bundle: dict[str, Any]) -> list[str]:
             kind = " (개수형)" if p.get("is_count") else ""
             lines.append(f"사용자 파라미터 {p['name']} = {p['value']:g} {p['unit']}{kind}  [{p['expression']}]")
     lines.append(f"모델 파라미터 {sum(1 for p in params if not p['is_user'])}개(스윕하지 않음)")
+    leftovers = [f"{p['name']} = {p['expression']}" for p in params if p["is_user"] and ADDIN_EXPRESSION.match(p["expression"])]
+    if leftovers:
+        lines.append(f"애드인이 쓴 꼴의 수식(앞 업로드가 끊겨 남긴 값일 수 있음): {', '.join(leftovers)}")
     baseline = bundle["baseline"]
     for part in bundle["parts"]:
         points = [q for i in part["faces"] for q in baseline["faces"][i]["points"]]

@@ -1,6 +1,7 @@
 """업로드 묶음을 만드는 애드인 핵심. Fusion API에 의존하지 않는다."""
 
 import math
+import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
@@ -720,10 +721,62 @@ def run_upload(
         notify("서버에 연결할 수 없습니다. 스윕을 시작하지 않았습니다.")
         return None
     parameters = model.parameters()
+    try:
+        return server.upload(_bundle(model, parameters, source, extra_sweeps))
+    except BaseException:
+        # 스윕은 끝날 때마다 수식을 되돌리지만, 도중에 Fusion API가 예외를 내면 바꾼 값이 모델에 남는다.
+        # 사용자가 모르고 저장하지 않게, 스윕이 바꾸는 파라미터의 원래 수식을 모두 되돌린다. 하나를 되돌리다
+        # 실패해도 나머지는 되돌리고, 알려 줄 예외는 처음 난 것이다.
+        for p in parameters:
+            if _swept(p, extra_sweeps):
+                try:
+                    model.restore_parameter(p)
+                except Exception:
+                    pass
+        raise
+
+
+def _swept(parameter: ParameterInfo, extra_sweeps: Sequence[str]) -> bool:
+    """업로드가 단독 스윕으로 바꾸는 파라미터: 사용자 파라미터와 extra_sweeps, 개수형은 뺀다(ADR-0005)."""
+    return (parameter.is_user or parameter.name in extra_sweeps) and not is_count(parameter)
+
+
+def restore_changed_parameters(model: FusionModel, before: list[ParameterInfo]) -> list[str]:
+    """업로드 전(before)과 값이나 수식이 달라진 파라미터를 다시 되돌리고, 그 이름을 돌려준다.
+
+    사람이 매개변수 창에서 하나하나 비교하지 않아도 되게, 애드인이 업로드 뒤 스스로 잰다(티켓 26 2절).
+    수식까지 보는 것은 값이 같아도 "W / 2"가 상수로 덮이면 자식 관계가 끊기기 때문이다(ADR-0003).
+    """
+    now = {p.name: p for p in model.parameters()}
+    changed = [
+        p
+        for p in before
+        if p.name in now
+        and (now[p.name].expression != p.expression or not math.isclose(now[p.name].value, p.value, abs_tol=1e-9))
+    ]
+    for p in changed:
+        model.restore_parameter(p)
+    return [p.name for p in changed]
+
+
+def parameter_expression(value: float, unit: str) -> str:
+    """스윕이 파라미터에 쓰는 수식(파이썬 실수 표기, 예: "900.0 mm"). 어댑터가 이 꼴로 값을 넣는다."""
+    return f"{value} {unit}"
+
+
+# parameter_expression이 만든 꼴. 사람은 보통 "900 mm"로 쓰므로, 업로드가 끊겨 되돌리지 못한 값이
+# 다음 업로드의 기본값이 된 경우를 녹화본에서 찾는 데 쓴다(scripts.recording_summary). 단위 없는 파라미터는
+# 값으로 바꾸므로 흔적이 남지 않는다.
+ADDIN_EXPRESSION = re.compile(r"^-?(\d+\.\d+(e[+-]\d+)?|\d+e[+-]\d+|inf|nan) (mm|deg)$")
+
+
+def _bundle(
+    model: FusionModel, parameters: list[ParameterInfo], source: str, extra_sweeps: Sequence[str]
+) -> dict[str, Any]:
     baseline = _shape_json(model, baseline=True)
     # 개수형 파라미터(자식 포함)는 스윕하지 않고, 샘플마다 값을 적어 위상이 바뀐 까닭을 가린다.
     reference = Baseline(Composition.of(baseline), {p.name: p.value for p in parameters if is_count(p)})
-    swept = [p for p in parameters if (p.is_user or p.name in extra_sweeps) and not is_count(p)]
+    swept = [p for p in parameters if _swept(p, extra_sweeps)]
     bundle = {
         "schema_version": SCHEMA_VERSION,
         "units": "mm",
@@ -744,4 +797,4 @@ def run_upload(
             for p in parameters
         ],
     }
-    return server.upload(bundle)
+    return bundle

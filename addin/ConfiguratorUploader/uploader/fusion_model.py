@@ -9,12 +9,12 @@ Fusion API의 길이는 내부 단위(cm)이므로 묶음에는 mm로 바꿔 담
 
 import math
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import adsk.core
 import adsk.fusion
 
-from .core import BodyInfo, EdgeSample, FaceSample, ParameterInfo, Point
+from .core import BodyInfo, EdgeSample, FaceSample, ParameterInfo, Point, parameter_expression
 from .face_names import EdgeRole, FaceRole, Order, edge_names, face_names
 from .face_sampling import (
     FaceSampler,
@@ -47,6 +47,26 @@ class _Body:
     edges: dict[str, Edge]
 
 
+@dataclass
+class SelfChecks:
+    """업로드 동안 어댑터가 스스로 잰 것. 애드인이 점검 파일(data/addin-checks)에 쓴다.
+
+    사람이 Fusion 화면과 값을 비교하지 않아도 되게 한다(티켓 26 2절).
+    - proxy_*: 컴포넌트 안 바디의 모서리 점과 평면 법선이, 본래 컴포넌트의 것을 오커런스 변환으로 옮긴 것과
+      같은지. 점을 뽑는 경로(모서리 평가기·표면 정의)를 그대로 잰다. 옮기지 않은(항등 변환) 오커런스만 있으면
+      늘 맞으므로, 옮긴 오커런스 수를 함께 적는다.
+    - recompute_failures: 재계산 실패로 판정한 샘플마다 오류 상태인 타임라인 피처. 판정이 맞는지 볼 근거다.
+    """
+
+    proxy_edges: int = 0
+    moved_occurrences: int = 0
+    proxy_mismatches: list[str] = field(default_factory=list)
+    recompute_failures: list[str] = field(default_factory=list)
+
+
+_Visible = tuple[BodyInfo, adsk.fusion.BRepBody, adsk.fusion.Occurrence | None]
+
+
 class FusionDesignModel:
     def __init__(self, design: adsk.fusion.Design) -> None:
         self._design = design
@@ -57,14 +77,14 @@ class FusionDesignModel:
         self._diagonal: dict[str, float] = {}
         self._shape: list[_Body] | None = None
         self._tag_baseline()
+        self.checks = SelfChecks()
+        self._check_proxies()
 
     def _bundle_unit(self, unit: str) -> str:
         """길이는 mm, 각도는 deg로 담는다. 그 밖의 단위는 원래 단위와 내부 값을 그대로 쓴다."""
-        # convert는 단위가 호환되지 않으면 -1을 돌려준다.
-        if unit and self._units.convert(1, unit, "mm") != -1:
-            return "mm"
-        if unit and self._units.convert(1, unit, "deg") != -1:
-            return "deg"
+        for target in ("mm", "deg"):
+            if unit and _convertible(self._units, unit, target):
+                return target
         return unit
 
     def parameters(self) -> list[ParameterInfo]:
@@ -77,7 +97,7 @@ class FusionDesignModel:
             result.append(ParameterInfo(p.name, value, unit, p.expression, is_user))
         return result
 
-    def _visible_bodies(self) -> list[tuple[BodyInfo, adsk.fusion.BRepBody]]:
+    def _visible_bodies(self) -> list[_Visible]:
         """보이는 바디를 매번 새로 찾는다. 재계산 뒤에는 이전 프록시가 무효일 수 있다.
 
         오커런스(컴포넌트 인스턴스) 안의 바디는 그 오커런스에 속한다. 서로 다른 하위 어셈블리의
@@ -88,7 +108,7 @@ class FusionDesignModel:
         for i in range(root.bRepBodies.count):
             body = root.bRepBodies.item(i)
             if body.isVisible:
-                found.append((BodyInfo(name=body.name, component=None), body))
+                found.append((BodyInfo(name=body.name, component=None), body, None))
         for i in range(root.allOccurrences.count):
             occurrence = root.allOccurrences.item(i)
             if not occurrence.isVisible:
@@ -97,11 +117,11 @@ class FusionDesignModel:
                 body = occurrence.bRepBodies.item(j)  # 어셈블리 좌표의 프록시
                 if body.isVisible:
                     path = occurrence.fullPathName
-                    found.append((BodyInfo(name=f"{path}/{body.name}", component=path), body))
+                    found.append((BodyInfo(name=f"{path}/{body.name}", component=path), body, occurrence))
         return found
 
     def bodies(self) -> list[BodyInfo]:
-        return [info for info, _ in self._visible_bodies()]
+        return [info for info, _, _ in self._visible_bodies()]
 
     def set_parameter(self, name: str, value: float) -> bool:
         parameter = self._design.allParameters.itemByName(name)
@@ -109,12 +129,16 @@ class FusionDesignModel:
         self._shape = None
         try:
             if unit in ("mm", "deg"):
-                parameter.expression = f"{value} {unit}"
+                parameter.expression = parameter_expression(value, unit)
             else:
                 parameter.value = value
         except Exception:
+            self.checks.recompute_failures.append(f"{name}={value:g}: 값을 넣지 못함")
             return False
-        return self._error_count() <= self._initial_errors
+        if self._error_count() <= self._initial_errors:
+            return True
+        self.checks.recompute_failures.append(f"{name}={value:g}: {', '.join(self._error_features())}")
+        return False
 
     def restore_parameter(self, parameter: ParameterInfo) -> None:
         self._shape = None
@@ -134,6 +158,14 @@ class FusionDesignModel:
             for i in range(timeline.count)
             if timeline.item(i).healthState == adsk.fusion.FeatureHealthStates.ErrorFeatureHealthState
         )
+
+    def _error_features(self) -> list[str]:
+        timeline = self._design.timeline
+        return [
+            timeline.item(i).name
+            for i in range(timeline.count)
+            if timeline.item(i).healthState == adsk.fusion.FeatureHealthStates.ErrorFeatureHealthState
+        ]
 
     def _roles(self) -> dict[str, tuple[str, str]]:
         """면(본래 컴포넌트의 entityToken)마다 그 면을 가진 첫 피처와 역할. 직접 모델링 디자인에는 피처가 없다."""
@@ -168,11 +200,45 @@ class FusionDesignModel:
         for attr in self._design.findAttributes(TAG_GROUP, TAG_NAME):
             attr.deleteMe()
         roles = self._roles()
-        for _, body in self._visible_bodies():
+        for _, body, _ in self._visible_bodies():
             names = face_names(self._face_roles(body, roles), baseline=True)
             for face, name in zip(body.faces, names):
                 native = face.nativeObject or face
                 native.attributes.add(TAG_GROUP, TAG_NAME, name)
+
+    def _check_proxies(self) -> None:
+        """컴포넌트 안 바디의 모서리 점과 평면 법선을 본래 것과 맞대 본다(SelfChecks). 0.001 mm·0.001 rad 안이어야
+        한다. 점검이 실패해도 업로드는 멈추지 않고, 그 사실을 어긋남으로 적는다."""
+        checks = self.checks
+        identity = adsk.core.Matrix3D.create()
+        for info, body, occurrence in self._visible_bodies():
+            if occurrence is None:
+                continue
+            try:
+                transform = occurrence.transform2
+                if not transform.isEqualTo(identity):
+                    checks.moved_occurrences += 1
+                for edge in body.edges:
+                    want = [p.copy() for p in _edge_points(edge.nativeObject, _CHECK_FRACTIONS)]
+                    for p in want:
+                        p.transformBy(transform)
+                    got = _edge_points(edge, _CHECK_FRACTIONS)
+                    gap = max(math.dist(_mm(a), _mm(b)) for a, b in zip(want, got))
+                    checks.proxy_edges += 1
+                    if gap > 1e-3:
+                        checks.proxy_mismatches.append(f"{info.name} 모서리: {gap:.3f} mm")
+                for face in body.faces:
+                    if face.geometry.surfaceType != adsk.core.SurfaceTypes.PlaneSurfaceType:
+                        continue
+                    ok, normal = face.nativeObject.evaluator.getNormalAtPoint(face.nativeObject.pointOnFace)
+                    if not ok:
+                        continue
+                    normal.transformBy(transform)
+                    angle = math.acos(max(-1.0, min(1.0, sum(a * b for a, b in zip(_vec(normal), _normal(face))))))
+                    if angle > 1e-3:
+                        checks.proxy_mismatches.append(f"{info.name} 평면 법선: {angle:.4f} rad")
+            except Exception as error:
+                checks.proxy_mismatches.append(f"{info.name}: 점검 실패({error})")
 
     def _read_shape(self) -> list[_Body]:
         """지금 형상의 면과 모서리. 파라미터를 바꾸기 전까지 다시 읽지 않는다."""
@@ -180,7 +246,7 @@ class FusionDesignModel:
             return self._shape
         roles = self._roles()
         shape = []
-        for info, body in self._visible_bodies():
+        for info, body, _ in self._visible_bodies():
             faces = list(body.faces)
             names = face_names(self._face_roles(body, roles), baseline=False)
             name_of = {f.tempId: n for f, n in zip(faces, names)}
@@ -210,6 +276,15 @@ class FusionDesignModel:
             for body in self._read_shape()
             for name, e in body.edges.items()
         ]
+
+
+def _convertible(units: adsk.fusion.FusionUnitsManager, unit: str, target: str) -> bool:
+    """unit을 target으로 바꿀 수 있는지. API 문서는 맞지 않으면 -1을 돌려준다고 하지만, 실제 Fusion은
+    RuntimeError("6 : The input and output units are not compatible")를 낸다(티켓 26 2절 첫 업로드). 둘 다 받는다."""
+    try:
+        return bool(units.convert(1, unit, target) != -1)
+    except RuntimeError:
+        return False
 
 
 def _mm(p: adsk.core.Point3D) -> Point:
@@ -285,19 +360,43 @@ def _closed(edge: adsk.fusion.BRepEdge) -> bool:
     return edge.startVertex.geometry.isEqualTo(edge.endVertex.geometry)
 
 
-def _points_at(edge: adsk.fusion.BRepEdge, fractions: Sequence[float]) -> list[Point]:
-    """모서리 위 길이 비율 위치의 점(mm)"""
+# 어셈블리 좌표 점검(SelfChecks)이 모서리마다 맞대 보는 점의 길이 비율
+_CHECK_FRACTIONS = (0.0, 0.5, 1.0)
+
+
+def _edge_points(edge: adsk.fusion.BRepEdge, fractions: Sequence[float]) -> list[adsk.core.Point3D]:
+    """모서리 위 길이 비율 위치의 점(내부 단위 cm).
+
+    getParameterAtLength가 돌려준 매개변수는 끝에서 범위를 아주 조금 넘을 수 있고, getPointAtParameter는 범위
+    밖이면 RuntimeError("3 : invalid argument parameter")를 낸다(티켓 26 2절 첫 업로드). 끝점은 범위 끝을 그대로
+    쓰고, 범위 길이의 1e-6 안쪽 넘침만 범위 안으로 묶는다. 그보다 크게 벗어나면 숨기지 않고 오류로 알린다.
+    """
     ev = edge.evaluator
     _, t0, t1 = ev.getParameterExtents()
     _, length = ev.getLengthAtParameter(t0, t1)
+    lo, hi = min(t0, t1), max(t0, t1)
+    slack = 1e-6 * (hi - lo) + 1e-12
     points = []
     for f in fractions:
-        ok, t = ev.getParameterAtLength(t0, length * f)
-        ok_p, p = ev.getPointAtParameter(t if ok else t0 + (t1 - t0) * f)
+        if f <= 0.0 or f >= 1.0:
+            t = t0 if f <= 0.0 else t1
+        else:
+            ok, t = ev.getParameterAtLength(t0, length * f)
+            if not ok:
+                t = t0 + (t1 - t0) * f
+            if t < lo - slack or t > hi + slack:
+                raise RuntimeError(f"{edge.body.name}: 길이 비율 {f}의 매개변수 {t}가 모서리 범위 [{lo}, {hi}] 밖입니다")
+            t = min(hi, max(lo, t))
+        ok_p, p = ev.getPointAtParameter(t)
         if not ok_p:
             raise RuntimeError(f"{edge.body.name}: 모서리 위 점을 계산하지 못했습니다")
-        points.append(_mm(p))
+        points.append(p)
     return points
+
+
+def _points_at(edge: adsk.fusion.BRepEdge, fractions: Sequence[float]) -> list[Point]:
+    """모서리 위 길이 비율 위치의 점(mm)"""
+    return [_mm(p) for p in _edge_points(edge, fractions)]
 
 
 def _edges(

@@ -1,6 +1,7 @@
 """Fusion 어댑터와 서버의 가짜 구현. 실제 Fusion 없이 애드인 핵심을 시험한다."""
 
 from collections.abc import Sequence
+from dataclasses import replace
 from typing import Any
 
 from uploader.core import BodyInfo, BodyMeasure, EdgeSample, FaceSample, ParameterInfo
@@ -31,7 +32,8 @@ class FakeModel:
         self.set_calls: list[tuple[str, float]] = []
 
     def parameters(self) -> list[ParameterInfo]:
-        return list(self._parameters)
+        # Fusion 어댑터처럼 지금 값과 수식을 읽는다
+        return [replace(p, value=self.values[p.name], expression=self.expressions[p.name]) for p in self._parameters]
 
     def bodies(self) -> list[BodyInfo]:
         return list(self._bodies)

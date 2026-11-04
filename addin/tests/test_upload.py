@@ -9,7 +9,18 @@ import jsonschema
 import pytest
 from fakes import FakeModel, FakeServer, FakeMeasuringModel
 from server.bundle import sample_response_errors
-from uploader.core import BodyInfo, EdgeSample, FaceSample, ParameterInfo, cross_check_sample, run_upload, serve_sample_request
+from uploader.core import (
+    BodyInfo,
+    EdgeSample,
+    FaceSample,
+    ParameterInfo,
+    cross_check_sample,
+    run_upload,
+    serve_sample_request,
+    ADDIN_EXPRESSION,
+    parameter_expression,
+    restore_changed_parameters,
+)
 
 SCHEMA_PATH = Path(__file__).parents[2] / "schema" / "upload-bundle.schema.json"
 
@@ -332,6 +343,76 @@ def test_교차_검증_샘플을_뽑다가_예외가_나도_바꾼_파라미터�
         cross_check_sample(model, {"W": 600.0, "D": 250.0})
 
     assert model.expressions == {"W": "800 mm", "D": "W / 2", "d12": "18 mm"}
+
+
+class _ShapeBreaksModel(FakeModel):
+    """W를 바꾼 형상에서 점을 뽑으면 Fusion API가 예외를 내는 모델(티켓 26 2절 첫 업로드)"""
+
+    def sample_faces(self, grid_n: int) -> list[FaceSample]:
+        if self.values["W"] != 800.0:
+            raise RuntimeError("3 : invalid argument parameter")
+        return super().sample_faces(grid_n)
+
+
+def test_업로드_스윕_중에_예외가_나도_바꾼_파라미터의_수식을_되돌린다() -> None:
+    model = _ShapeBreaksModel()
+
+    with pytest.raises(RuntimeError):
+        run_upload(model, FakeServer(), lambda _: None)
+
+    assert model.expressions == {"W": "800 mm", "D": "W / 2", "d12": "18 mm"}
+
+
+def test_업로드_뒤_값이나_수식이_달라진_파라미터를_찾아_되돌린다() -> None:
+    model = FakeModel()
+    before = model.parameters()
+    model.set_parameter("W", 900.0)
+    # 값은 같아도 수식이 상수로 덮이면 자식 관계가 끊긴다
+    model.expressions["D"] = "400.0 mm"
+
+    assert restore_changed_parameters(model, before) == ["W", "D"]
+    assert model.expressions == {"W": "800 mm", "D": "W / 2", "d12": "18 mm"}
+    assert restore_changed_parameters(model, before) == []
+
+
+class _RestoreSpy(FakeModel):
+    """extra_sweeps로 스윕하는 d12를 바꾼 형상에서 예외가 나고, 되돌린 파라미터를 적는 모델"""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.restored: list[str] = []
+
+    def restore_parameter(self, parameter: ParameterInfo) -> None:
+        self.restored.append(parameter.name)
+        super().restore_parameter(parameter)
+
+    def sample_faces(self, grid_n: int) -> list[FaceSample]:
+        if self.values["d12"] != 18.0:
+            raise RuntimeError("3 : invalid argument parameter")
+        return super().sample_faces(grid_n)
+
+
+def test_예외가_나면_스윕하는_파라미터만_되돌리고_extra_sweeps도_되돌린다() -> None:
+    model = _RestoreSpy()
+
+    with pytest.raises(RuntimeError):
+        run_upload(model, FakeServer(), lambda _: None, extra_sweeps=("d12",))
+
+    assert model.expressions == {"W": "800 mm", "D": "W / 2", "d12": "18 mm"}
+
+    # extra_sweeps가 없으면 d12는 스윕 대상이 아니므로, 업로드가 예외로 끝나도 건드리지 않는다
+    other = _RestoreSpy()
+    other.set_parameter("d12", 20.0)
+    with pytest.raises(RuntimeError):
+        run_upload(other, FakeServer(), lambda _: None)
+    assert "d12" not in other.restored and {"W", "D"} <= set(other.restored)
+
+
+def test_스윕이_쓰는_수식_꼴을_녹화본에서_알아본다() -> None:
+    for value in (900.0, 12.5, 1e-05, 1e20, -0.75):
+        assert ADDIN_EXPRESSION.match(parameter_expression(value, "mm"))
+    for human in ("900 mm", "W / 2", "body_d - 20 mm"):
+        assert not ADDIN_EXPRESSION.match(human)
 
 
 def test_추가_샘플을_뽑지_못하면_답_대신_실패_이유를_서버에_알린다() -> None:

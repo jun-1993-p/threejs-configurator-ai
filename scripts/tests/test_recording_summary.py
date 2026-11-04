@@ -27,6 +27,18 @@ def test_합성_서랍장_녹화본의_요점() -> None:
     assert float(off.split(": ")[1].split()[0]) < 1e-6
 
 
+def test_애드인이_쓴_꼴의_수식은_앞_업로드가_남긴_값일_수_있다고_알린다() -> None:
+    bundle = _load("drawer")
+    for p in bundle["parameters"]:
+        if p["name"] == "body_w":
+            p["expression"] = "450.0 mm"
+
+    lines = summarize(bundle)
+
+    assert "애드인이 쓴 꼴의 수식(앞 업로드가 끊겨 남긴 값일 수 있음): body_w = 450.0 mm" in lines
+    assert not any("애드인이 쓴 꼴" in line for line in summarize(_load("drawer")))
+
+
 def test_위상_묶음_안의_스윕은_묶음을_밝혀_따로_찍는다() -> None:
     lines = summarize(_load("shelf"))
 

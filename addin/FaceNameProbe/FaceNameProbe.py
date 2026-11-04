@@ -212,6 +212,14 @@ def _api_shapes(design: adsk.fusion.Design) -> dict:
     return out
 
 
+def _is_length(units: adsk.fusion.FusionUnitsManager, unit: str) -> bool:
+    # 단위가 맞지 않으면 convert는 -1이 아니라 RuntimeError를 낸다(애드인 fusion_model._convertible과 같은 사정)
+    try:
+        return bool(units.convert(1, unit, "mm") != -1)
+    except RuntimeError:
+        return False
+
+
 def _tag_faces(design: adsk.fusion.Design) -> int:
     count = 0
     for _, _, body in _bodies(design):
@@ -290,7 +298,7 @@ def run(context):
         lengths = [
             p
             for p in design.userParameters
-            if p.unit and units.convert(1, p.unit, "mm") != -1 and p.value != 0
+            if p.unit and _is_length(units, p.unit) and p.value != 0
         ][:MAX_PARAMETERS]
         for parameter in lengths:
             expression = parameter.expression

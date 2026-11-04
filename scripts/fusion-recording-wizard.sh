@@ -247,6 +247,7 @@ say "업로드할 모델을 Fusion에서 연다. stool1이나 슬라이더 1~2�
 step "파라메트릭 디자인이고, 슬라이더로 쓸 치수가 사용자 파라미터다. 기본값은 0이 아니다."
 step "타임라인에 오류(빨간 표시)가 없다. 상품이 아닌 바디(보조·참고용)는 숨긴다."
 step "모델을 먼저 저장한다. 업로드는 파라미터를 바꿨다가 되돌린다."
+note "앞서 업로드가 실패했다면 그 모델은 저장하지 말고, 저장해 둔 판으로 다시 연다. 끊긴 업로드가 바꾼 값이 남아 있을 수 있다."
 note "가능하면 컴포넌트로 나뉘고 둥근 부분(원형 구멍, 둥근 다리)이 있는 모델을 고른다. 이번 확인의 목적이다."
 note "면은 평면과 원기둥만 다룬다. 모따기한 구멍(원뿔)이나 구·자유곡면이 있으면 업로드가 멈춘다."
 while true; do
@@ -337,7 +338,8 @@ pause "Enter"
 
 stage "녹화와 확인"
 SUMMARY="$REC_DIR/$REC_NAME-summary.txt"
-RECORDED=""
+# 같은 이름의 예전 요점을 이번 결과로 읽지 않게, 이번에 만든 요점인지 적어 둔다
+SUMMARY_FRESH=""
 if [[ -n "$UPLOAD_ID" ]]; then
   body=$(mktemp)
   resp=$(mktemp)
@@ -345,10 +347,10 @@ if [[ -n "$UPLOAD_ID" ]]; then
   code=$(curl -s -m 60 -o "$resp" -w '%{http_code}' -X POST -H "Content-Type: application/json" \
     --data-binary @"$body" "$SERVER/uploads/$UPLOAD_ID/recording" || true)
   if [[ "$code" == "201" && -f "$REC_DIR/$REC_NAME.json" ]]; then
-    RECORDED="예"
     say "${GREEN}✓${RESET} 녹화본: $REC_DIR/$REC_NAME.json"
     status=0
     PYTHONUTF8=1 .venv/Scripts/python -m scripts.recording_summary "$REC_DIR/$REC_NAME.json" > "$SUMMARY" 2>&1 || status=$?
+    SUMMARY_FRESH="예"
     (( status == 0 )) || warn "요점을 만들다 실패했다(종료 코드 $status). 아래 출력이 그 오류다."
     say ""
     while IFS= read -r line; do note "$line"; done < "$SUMMARY"
@@ -365,18 +367,47 @@ else
 fi
 pause "Enter"
 
-stage "Fusion에서 확인"
+stage "점검과 전달 항목"
 NOTES="$REC_DIR/$REC_NAME-notes.md"
-step "수정 → 매개변수 변경에서 사용자 파라미터의 값과 수식이 업로드 전과 같은지 본다."
-if confirm "값·수식이 원래대로인가?"; then RESTORED="예"; else RESTORED="아니오"; fi
-if [[ -n "$RECORDED" ]]; then
-  step "요점의 \"사용자 파라미터\"가 Fusion의 사용자 매개변수와 빠짐없이 같은지 본다."
-  if confirm "빠진 사용자 파라미터가 없나?"; then PARAMS_OK="예"; else PARAMS_OK="아니오"; fi
-  step "요점의 부품 이름이 Fusion 브라우저의 컴포넌트와 맞고, 위치(mm)가 화면의 부품 위치와 맞는지 본다."
-  if confirm "부품 이름과 위치가 맞나?"; then POSITIONS="예"; else POSITIONS="아니오"; fi
-  step "스윕 줄의 failed는 재계산 실패다. 그 값으로 Fusion에서 직접 바꿔 봐서 형상이 멀쩡하면 판정이 틀린 것이다."
-  ask RECOMPUTE "failed인데 형상이 멀쩡했던 값(없으면 Enter):"
+# 사람에게 Fusion 화면과 값을 비교시키지 않는다. 애드인이 업로드 뒤 스스로 잰 결과(_write_checks)를 읽는다.
+CHECKS="data/addin-checks/${UPLOAD_ID:-none}.json"
+RESTORED="점검 파일 없음"
+PROXIES="점검 파일 없음"
+RECOMPUTE="점검 파일 없음"
+if [[ -f "$CHECKS" ]]; then
+  # 파일이 깨졌거나 예전 형식이면 python이 실패한다. 그때도 위저드는 멈추지 않고 그 사실을 메모에 남긴다.
+  read_status=0
+  lines=$(PYTHONUTF8=1 .venv/Scripts/python -c '
+import json, sys
+c = json.load(open(sys.argv[1], encoding="utf-8"))
+print("업로드 뒤 다시 되돌림: " + ", ".join(c["restored"]) if c["restored"] else "모두 원래대로")
+bad, edges, moved = c["proxy_mismatches"], c["proxy_edges"], c["moved_occurrences"]
+detail = ": " + "; ".join(bad[:3]) if bad else ""
+print(f"모서리 {edges}개(옮긴 오커런스 {moved}개) 중 어긋남 {len(bad)}개{detail}")
+failures = c["recompute_failures"]
+print(f"{len(failures)}개" + (": " + "; ".join(failures[:3]) if failures else ""))
+' "$CHECKS" 2>&1) || read_status=$?
+  if (( read_status == 0 )); then
+    { read -r RESTORED; read -r PROXIES; read -r RECOMPUTE; } <<< "$lines"
+  else
+    RESTORED="점검 파일을 읽지 못함: $(tail -n1 <<< "$lines")"
+    PROXIES="$RESTORED"
+    RECOMPUTE="$RESTORED"
+  fi
+  say "애드인 점검(${CHECKS}):"
+  note "  파라미터: $RESTORED"
+  note "  어셈블리 좌표: $PROXIES"
+  note "  재계산 실패 샘플(오류 피처): $RECOMPUTE"
+  if [[ "$RESTORED" == "업로드 뒤 다시 되돌림"* ]]; then
+    warn "업로드가 끝난 뒤에도 달라진 파라미터가 있어 애드인이 되돌렸다. 모델은 원래대로다. 어댑터 결함이니 Claude에게 알린다."
+  fi
+elif [[ -n "$UPLOAD_ID" ]]; then
+  warn "애드인 점검 파일($CHECKS)이 없다. 애드인을 중지·다시 실행하지 않아 예전 코드로 업로드했을 수 있다."
 fi
+if [[ -n "$SUMMARY_FRESH" ]] && grep -q "애드인이 쓴 꼴의 수식" "$SUMMARY"; then
+  warn "요점에 애드인이 쓴 꼴의 수식이 있다. 앞 업로드가 끊겨 남긴 값이면 저장해 둔 판으로 다시 열고 다시 업로드한다."
+fi
+note "아래는 사람만 아는 정보다. 모르면 Enter로 넘어간다."
 ask PARTS "부품마다 무엇인지(예: 상판=Top, 다리=Leg1~4):"
 ask PARAM_MEANING "사용자 파라미터마다 뜻·축(W·D·H)·판매 범위(예: W=좌판 폭, W, 300~500):"
 ask FRONT "정면 방향(예: -Y 쪽이 정면):"
@@ -389,10 +420,9 @@ ask ODDITIES "그 밖에 이상했던 점(없으면 Enter):"
   printf -- '- 업로드 ID: %s\n' "${UPLOAD_ID:-없음}"
   [[ -n "$UPLOAD_ERROR" ]] && printf -- '- 업로드 실패: %s\n' "$UPLOAD_ERROR"
   printf -- '- 녹화본: `%s`, 요점: `%s`\n' "$REC_DIR/$REC_NAME.json" "$SUMMARY"
-  printf -- '- 파라미터가 원래대로: %s\n' "$RESTORED"
-  printf -- '- 빠진 사용자 파라미터 없음: %s\n' "${PARAMS_OK:-확인 못 함}"
-  printf -- '- 부품 이름·위치가 Fusion과 맞음: %s\n' "${POSITIONS:-확인 못 함}"
-  printf -- '- failed인데 형상이 멀쩡한 값: %s\n' "${RECOMPUTE:-없음}"
+  printf -- '- 애드인 점검, 파라미터: %s\n' "$RESTORED"
+  printf -- '- 애드인 점검, 어셈블리 좌표: %s\n' "$PROXIES"
+  printf -- '- 애드인 점검, 재계산 실패 샘플: %s\n' "$RECOMPUTE"
   printf -- '- 부품 설명: %s\n' "${PARTS:-없음}"
   printf -- '- 파라미터 뜻: %s\n' "${PARAM_MEANING:-없음}"
   printf -- '- 정면: %s\n' "${FRONT:-없음}"
@@ -401,7 +431,6 @@ ask ODDITIES "그 밖에 이상했던 점(없으면 Enter):"
   printf -- '- 이상했던 점: %s\n' "${ODDITIES:-없음}"
 } > "$NOTES"
 say "${GREEN}✓${RESET} 메모를 $NOTES 에 썼다."
-[[ "$RESTORED" == "아니오" ]] && warn "원래대로가 아니면 저장하지 말고 문서를 닫았다가 저장해 둔 판으로 다시 연다."
 note "녹화본 백업은 저장소 밖(개인 드라이브 등)에 둔다. 정면·측면 화면 캡처를 $REC_DIR/ 에 두면 도움이 된다(선택)."
 note "티켓 26은 공개 저장소에 있다. Claude는 판정 결과만 옮기고, 부품 이름·파라미터 뜻 같은 상품 정보는 이 메모에만 둔다."
 say "Claude에게 \"녹화 끝, $NOTES\"라고 알린다."

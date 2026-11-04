@@ -4,16 +4,19 @@
 일꾼 스레드가 몇 초마다 사용자 이벤트를 쏘고 주 스레드의 처리기가 요청 하나에 답한다.
 """
 
+import dataclasses
+import json
 import threading
 import traceback
+from pathlib import Path
 
 import adsk.core
 import adsk.fusion
 
 # Fusion은 애드인을 패키지로 불러온다. 다른 애드인과 모듈 이름이 겹치지 않게 상대 import를 쓴다.
 from . import config
-from .uploader.core import run_upload, serve_sample_request
-from .uploader.fusion_model import FusionDesignModel
+from .uploader.core import restore_changed_parameters, run_upload, serve_sample_request
+from .uploader.fusion_model import FusionDesignModel, SelfChecks
 from .uploader.server_client import HttpServerClient
 
 COMMAND_ID = "configuratorUploaderCommand"
@@ -95,12 +98,37 @@ class _ExecuteHandler(adsk.core.CommandEventHandler):
                 return
             _serving.forget()
             model = FusionDesignModel(design)
+            before = model.parameters()
             upload_id = run_upload(model, HttpServerClient(config.SERVER_URL), ui.messageBox)
             if upload_id:
                 _serving.start(model, upload_id)
-                ui.messageBox(f"업로드했습니다: {upload_id}\n최종 승인까지 Fusion과 이 문서를 열어 두세요.")
+                checks = _write_checks(upload_id, restore_changed_parameters(model, before), model.checks)
+                ui.messageBox(f"업로드했습니다: {upload_id}\n{checks}\n최종 승인까지 Fusion과 이 문서를 열어 두세요.")
         except Exception:
             ui.messageBox(f"업로드 실패:\n{traceback.format_exc()}")
+
+
+def _write_checks(upload_id: str, restored: list[str], checks: SelfChecks) -> str:
+    """업로드 뒤 애드인이 스스로 잰 점검 결과를 저장소의 data/addin-checks/<업로드 ID>.json에 쓰고 한 줄로 돌려준다.
+
+    녹화 위저드(scripts/fusion-recording-wizard.sh)가 이 파일을 읽는다. 키는 upload_id, restored(업로드 뒤 값이나
+    수식이 달라져 다시 되돌린 파라미터)와 SelfChecks의 필드다(docs/recording-guide.md 4-3).
+    사람이 Fusion 화면과 값을 비교하지 않아도 되게 하려는 것이다(티켓 26 2절). 애드인을 저장소 밖에 둔 경우처럼
+    쓸 수 없으면 창에만 보인다.
+    """
+    record = {"upload_id": upload_id, "restored": restored, **dataclasses.asdict(checks)}
+    try:
+        path = Path(__file__).resolve().parents[2] / "data" / "addin-checks" / f"{upload_id}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(record, ensure_ascii=False, indent=1), encoding="utf-8")
+    except OSError:
+        pass
+    parameters = f"업로드 뒤 다시 되돌린 파라미터 {', '.join(restored)}" if restored else "파라미터 모두 원래대로"
+    proxies = (
+        f"어셈블리 좌표 모서리 {checks.proxy_edges}개(옮긴 오커런스 {checks.moved_occurrences}개) 중 "
+        f"어긋남 {len(checks.proxy_mismatches)}개"
+    )
+    return f"점검: {parameters} · {proxies} · 재계산 실패 샘플 {len(checks.recompute_failures)}개"
 
 
 class _CreatedHandler(adsk.core.CommandCreatedEventHandler):
