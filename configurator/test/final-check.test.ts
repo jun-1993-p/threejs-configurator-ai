@@ -77,6 +77,19 @@ test("같은 후보로 검증을 통과하지 못해 후보 제시로 돌아갔�
   });
 });
 
+test("후보 제시로 돌아가지 못하고 후보 제시 단계에서 멈췄으면 마지막 시도의 피드백으로 엔진 한계를 가린다", () => {
+  // 후보 하나뿐인 구성(티켓 28)이나 회차 상한(티켓 31)으로 멈추면 뒤에 후보 제시 기록이 없다
+  const engine = [feedback("shape_error", "body_w", "DrawerBox")];
+  const failedChoice = [entry("choice", { candidate: "c1", parents: {} }), entry("style", "natural"), ...[engine, engine, engine, engine].flatMap((f, attempt) => [entry("spec"), entry("assembly"), entry("verification", { attempt, feedback: f })])];
+  const reason = "후보 제시를 5회차 돌아도 제출할 명세를 얻지 못했습니다";
+  const log = [...start, ...failedChoice, entry("candidates", { stopped: reason })];
+
+  assert.deepEqual(judgeRun(log, { status: "stopped", stage: "candidates", reason }).failure, {
+    class: "engine",
+    evidence: ["shape_error: 슬라이더 body_w, 부품 DrawerBox", `candidates 단계에서 멈췄다: ${reason}`],
+  });
+});
+
 test("애드인이 추가 샘플을 뽑지 못해 검증에서 멈췄으면 엔진 한계이고, 같은 검증 단계라도 AI 판정 응답이 형식 검사를 끝내 통과하지 못해 멈췄으면 명세 문제다", () => {
   const stoppedAt = (reason: string) =>
     judgeRun([...start, entry("choice", { candidate: "c1", parents: {} }), entry("verification", { stopped: reason })], { status: "stopped", stage: "verification", reason });

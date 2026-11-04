@@ -37,10 +37,15 @@ export function judgeRun(log: LogEntry[], result: PipelineResult): ProductOutcom
   /** 최종 승인에서 거절 이유로 후보 제시를 다시 하게 했다 */
   let rejectedForCandidates = false;
 
+  /** 마지막 검증의 피드백을 근거로 붙이고, 엔진 한계 종류가 있으면 엔진 한계로 본다 */
+  const weighLastFeedback = () => {
+    evidence.push(...lastFeedback.map((f) => `${f.kind}: 슬라이더 ${f.slider}, 부품 ${f.part}`));
+    engineLimit ||= lastFeedback.some((f) => ENGINE_LIMIT_KINDS.includes(f.kind));
+  };
   const intervene = (what: string) => {
     interventions.push(what);
-    evidence.push(what, ...lastFeedback.map((f) => `${f.kind}: 슬라이더 ${f.slider}, 부품 ${f.part}`));
-    engineLimit ||= lastFeedback.some((f) => ENGINE_LIMIT_KINDS.includes(f.kind));
+    evidence.push(what);
+    weighLastFeedback();
   };
 
   for (const { stage, detail } of log) {
@@ -63,6 +68,8 @@ export function judgeRun(log: LogEntry[], result: PipelineResult): ProductOutcom
     }
   }
   if (result.status === "stopped") {
+    // 후보 제시 단계에서 멈춘 것(후보 하나뿐인 구성, 회차 상한)은 후보 제시로 돌아가려다 멈춘 것이라, 돌아간 경우처럼 마지막 시도로 가린다
+    if (result.stage === "candidates") weighLastFeedback();
     evidence.push(`${result.stage} 단계에서 멈췄다: ${result.reason}`);
     // 업로드 묶음을 읽지 못했거나 애드인이 추가 샘플을 주지 못한 것은 고정된 코드 쪽 한계다. AI 응답 형식은 명세를 쓰는 쪽 문제다.
     engineLimit ||= (result.stage === "upload" || result.stage === "verification") && !result.reason.startsWith(AI_FORMAT_FAILURE);

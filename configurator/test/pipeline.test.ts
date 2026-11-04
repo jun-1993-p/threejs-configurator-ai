@@ -10,7 +10,7 @@ import { inflateSync } from "node:zlib";
 import type { Spec } from "../src/engine.ts";
 import type { CandidateCard } from "../pipeline/candidate-cards.ts";
 import type { Feedback } from "../pipeline/feedback.ts";
-import { FUSION_NEEDED, FUSION_RECONNECTED, runPipeline, type Candidate, type CaseRecord, type FusionPort, type PartsFound, type HumanPort, type Intake, type SampleRequest } from "../pipeline/runner.ts";
+import { CANDIDATE_ROUNDS, FUSION_NEEDED, SPEC_RETRIES, FUSION_RECONNECTED, runPipeline, type Candidate, type CaseRecord, type FusionPort, type PartsFound, type HumanPort, type Intake, type SampleRequest } from "../pipeline/runner.ts";
 import { scriptedAi, type Script } from "../pipeline/scripted-ai.ts";
 import { memoryStore } from "../pipeline/memory-store.ts";
 import { recordOf } from "../pipeline/case-store.ts";
@@ -389,6 +389,61 @@ test("후보 하나뿐인 회차에서 그 후보가 검증을 통과하지 못�
   assert.equal(result.status, "stopped");
   assert.equal(result.status === "stopped" && result.stage, "candidates");
   assert.match(result.status === "stopped" ? result.reason : "", /후보 c1 하나뿐인 구성이 검증을 통과하지 못했습니다/);
+  assert.equal(ai.calls.candidates.length, 1);
+});
+
+test("후보 제시가 회차 상한만큼 돌아도 제출하지 못하면 다음 후보 제시 없이 멈춘다", async () => {
+  // 자동으로 고르는 실행 도구에서는 사람이 회차를 끊지 않는다. 티켓 28에서 같은 후보로 끝없이 돌았다(티켓 31).
+  const tooWide: Spec = { ...spec, sliders: [{ ...spec.sliders[0], max: 900 }] };
+  const { ai, ports } = setup({
+    candidates: Array.from({ length: CANDIDATE_ROUNDS + 1 }, () => candidates),
+    style: Array.from({ length: CANDIDATE_ROUNDS + 1 }, () => ({ style: "natural" })),
+    spec: Array.from({ length: (1 + SPEC_RETRIES) * (CANDIDATE_ROUNDS + 1) }, () => tooWide),
+  });
+
+  const result = await runPipeline({ bundle: pushMaxSide(825, "DrawerBox", "X", 0.3), intake, human: approveFirst, ports });
+
+  assert.equal(result.status, "stopped");
+  assert.equal(result.status === "stopped" && result.stage, "candidates");
+  assert.match(result.status === "stopped" ? result.reason : "", new RegExp(`후보 선택을 ${CANDIDATE_ROUNDS}회차 돌아도`));
+  assert.equal(ai.calls.candidates.length, CANDIDATE_ROUNDS);
+});
+
+test("검증 실패와 최종 승인 반려로 돌아온 회차를 함께 세어 회차 상한에서 멈춘다", async () => {
+  const tooWide: Spec = { ...spec, sliders: [{ ...spec.sliders[0], max: 900 }] };
+  const rounds = CANDIDATE_ROUNDS + 1;
+  const { ai, ports } = setup({
+    candidates: Array.from({ length: rounds }, () => candidates),
+    style: Array.from({ length: rounds }, () => ({ style: "natural" })),
+    // 첫 회차는 검증에 실패하고, 그 뒤 회차는 검증을 통과해 최종 승인에서 반려된다
+    spec: [...Array.from({ length: 1 + SPEC_RETRIES }, () => tooWide), ...Array.from({ length: rounds }, () => spec)],
+    judgment: Array.from({ length: rounds }, () => judged()),
+  });
+  const rejectAll: HumanPort = { ...approveFirst, finalApproval: () => Promise.resolve({ decision: "reject", back: "candidates", reason: "높이도 바꾸고 싶다" }) };
+
+  const result = await runPipeline({ bundle: pushMaxSide(825, "DrawerBox", "X", 0.3), intake, human: rejectAll, ports });
+
+  assert.equal(result.status === "stopped" && result.reason.match(/검증 실패 \d+번, 반려 \d+번/)?.[0], `검증 실패 1번, 반려 ${CANDIDATE_ROUNDS - 1}번`);
+  assert.equal(ai.calls.candidates.length, CANDIDATE_ROUNDS);
+});
+
+test("최종 승인에서 다른 후보로 다시 고르기만 되풀이해도 회차 상한에서 멈춘다", async () => {
+  const rounds = CANDIDATE_ROUNDS + 1;
+  const { ai, ports } = setup({
+    style: Array.from({ length: rounds }, () => ({ style: "natural" })),
+    spec: Array.from({ length: rounds }, () => spec),
+    judgment: Array.from({ length: rounds }, () => judged()),
+  });
+  let choices = 0;
+  const backToChoice: HumanPort = {
+    chooseCandidate: () => (choices++, Promise.resolve({ candidate: "c1" })),
+    finalApproval: () => Promise.resolve({ decision: "reject", back: "choice" }),
+  };
+
+  const result = await runPipeline({ bundle, intake, human: backToChoice, ports });
+
+  assert.equal(result.status === "stopped" && result.stage, "candidates");
+  assert.equal(choices, CANDIDATE_ROUNDS);
   assert.equal(ai.calls.candidates.length, 1);
 });
 

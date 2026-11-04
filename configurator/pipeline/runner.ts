@@ -294,7 +294,13 @@ const SCHEMA_RETRIES = 3;
 export const AI_FORMAT_FAILURE = `AI 응답이 ${SCHEMA_RETRIES}번 다시 물어도 형식 검사를 통과하지 못했습니다`;
 
 /** 같은 후보로 검증 피드백을 붙여 명세를 다시 쓰는 횟수. 이를 넘으면 후보 제시로 돌아간다. */
-const SPEC_RETRIES = 3;
+export const SPEC_RETRIES = 3;
+
+/**
+ * 후보 선택 회차 상한: 고른 후보로 명세를 써 보는 횟수다. 검증 실패, 최종 승인 반려, 다른 후보로 다시 고르기를 함께 센다.
+ * 자동으로 고르는 실행 도구에서는 사람이 회차를 끊지 않아, 같은 후보로 끝없이 돌 수 있다(티켓 28, 티켓 31).
+ */
+export const CANDIDATE_ROUNDS = 5;
 
 /** AI 단계에 예시로 넣는 사례 수(ADR-0011) */
 export const CASE_EXAMPLES = 3;
@@ -643,14 +649,20 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
       ai.findParts({ intake, views, colors, rejected, schemaErrors }),
     );
 
-    // 후보 제시로 돌아오는 고리. 회차마다 사람이 후보를 고르므로 사람 없이 끝없이 돌지는 않는다.
+    // 후보 제시로 돌아오는 고리. 끝나는 것은 CANDIDATE_ROUNDS가 맡는다.
     const failures: CandidateFailure[] = [];
     const rejections: Rejection[] = [];
     /** 후보 제시 회차마다 받은 후보. 사례에 남긴다. */
     const proposed: Candidate[][] = [];
     /** 최종 승인에서 "다른 후보"로 반려한 고른 후보. 사례에 남긴다. */
     const backToChoice: ChosenCandidate[] = [];
+    const stopAtRoundLimit = () => {
+      if (failures.length + rejections.length + backToChoice.length < CANDIDATE_ROUNDS) return;
+      const counts = `검증 실패 ${failures.length}번, 반려 ${rejections.length}번, 다른 후보로 다시 고르기 ${backToChoice.length}번`;
+      throw new PipelineStop("candidates", `후보 선택을 ${CANDIDATE_ROUNDS}회차 돌아도 제출할 명세를 얻지 못했습니다(${counts}). 처리 기록의 검증 피드백과 반려 이유를 보고 정보 입력을 고쳐 다시 돌리세요`);
+    };
     for (;;) {
+      stopAtRoundLimit();
       const candidates = await askUntilValid<Candidate[]>("candidates", checkBundleCandidates(parts), (schemaErrors, rejected) =>
         ai.proposeCandidates({
           bundle,
@@ -669,6 +681,7 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
       // 후보 선택으로 돌아오는 고리. 최종 승인에서 "다른 후보"로 반려하면 이미 받은 카드로 다시 고른다.
       const cards = candidateCards(candidates, uploaded, parts);
       for (;;) {
+        stopAtRoundLimit();
         const { candidate: chosenId, parents: chosenParents } = await human.chooseCandidate(cards);
         const card = cards.find((c) => c.id === chosenId);
         if (!card) throw new PipelineStop("choice", `제시되지 않은 후보 ${chosenId}를 골랐습니다`);
