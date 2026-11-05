@@ -3,7 +3,7 @@
     .venv/Scripts/python -m scripts.addin_checks data/addin-checks/<업로드 ID>.json
     .venv/Scripts/python -m scripts.addin_checks latest data/addin-checks [<기준 파일>]
 
-첫 꼴은 파라미터, 어셈블리 좌표, 재계산 실패 샘플의 세 줄이다. 키는 애드인의 _write_checks가 쓴다(docs/recording-guide.md 4-3).
+첫 꼴은 파라미터, 어셈블리 좌표, 재계산 실패 샘플, 바디 표시가 없는 바디의 네 줄이다. 키는 애드인의 _write_checks가 쓴다(docs/recording-guide.md 4-3).
 업로드 뒤 다시 되돌린 파라미터가 있으면 종료 코드 RESTORED_AGAIN으로 끝난다. 위저드는 문장이 아니라 종료 코드로 판정한다.
 latest는 애드인이 마지막으로(기준 파일이 있으면 그보다 뒤에) 점검 파일을 쓴 진짜 업로드의 ID를 찍는다. 없으면 아무것도 찍지 않는다.
 """
@@ -28,11 +28,13 @@ def describe(checks: dict[str, Any]) -> list[str]:
     restored = checks["restored"]
     mismatches = checks["proxy_mismatches"]
     failures = checks["recompute_failures"]
+    untagged = checks.get("untagged_bodies")
     return [
         "업로드 뒤 다시 되돌림: " + ", ".join(restored) if restored else RESTORED_ALL,
         f"모서리 {checks['proxy_edges']}개(옮긴 오커런스 {checks['moved_occurrences']}개) 중"
         f" 어긋남 {len(mismatches)}개{_first(mismatches)}",
         f"{len(failures)}개{_first(failures)}",
+        f"{len(untagged)}개{_first(untagged)}" if untagged is not None else "점검 파일에 없음(바디 표시 전 애드인)",
     ]
 
 

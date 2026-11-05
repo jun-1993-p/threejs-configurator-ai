@@ -46,7 +46,7 @@ def resume_serving(
 ) -> tuple[str, Model] | None:
     """이어 답할 업로드가 있으면 (업로드 ID, 새로 만든 모델)을 돌려준다. 이어받을 것이 없으면 None.
 
-    모델을 만들 때 어댑터가 문서에 면 표시를 붙이므로, 만들다 예외가 나면 반쯤 붙은 표시를 치우고(discard_tags)
+    모델을 만들 때 어댑터가 문서에 면·바디 표시를 붙이므로, 만들다 예외가 나면 반쯤 붙은 표시를 치우고(discard_tags)
     예외를 그대로 던진다.
     """
     upload_id = resumable_upload(document, server)

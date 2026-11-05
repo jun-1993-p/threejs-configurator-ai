@@ -457,24 +457,30 @@ CHECKS="data/addin-checks/${UPLOAD_ID:-none}.json"
 RESTORED="점검 파일 없음"
 PROXIES="점검 파일 없음"
 RECOMPUTE="점검 파일 없음"
+UNTAGGED="점검 파일 없음"
 if [[ -f "$CHECKS" ]]; then
   # 파일이 깨졌거나 예전 형식이면 python이 실패한다. 그때도 위저드는 멈추지 않고 그 사실을 메모에 남긴다.
   read_status=0
   # 종료 코드: 0 그대로, 3 업로드 뒤 다시 되돌림(scripts/addin_checks.py RESTORED_AGAIN), 그 밖은 읽지 못함
   lines=$(PYTHONUTF8=1 .venv/Scripts/python -m scripts.addin_checks "$CHECKS" 2>&1) || read_status=$?
   if (( read_status == 0 || read_status == 3 )); then
-    { read -r RESTORED; read -r PROXIES; read -r RECOMPUTE; } <<< "$lines"
+    { read -r RESTORED; read -r PROXIES; read -r RECOMPUTE; read -r UNTAGGED; } <<< "$lines"
   else
     RESTORED="점검 파일을 읽지 못함: $(tail -n1 <<< "$lines")"
     PROXIES="$RESTORED"
     RECOMPUTE="$RESTORED"
+    UNTAGGED="$RESTORED"
   fi
   say "애드인 점검(${CHECKS}):"
   note "  파라미터: $RESTORED"
   note "  어셈블리 좌표: $PROXIES"
   note "  재계산 실패 샘플(오류 피처): $RECOMPUTE"
+  note "  바디 표시 없는 바디: $UNTAGGED"
   if (( read_status == 3 )); then
     warn "업로드가 끝난 뒤에도 달라진 파라미터가 있어 애드인이 되돌렸다. 모델은 원래대로다. 어댑터 결함이니 Claude에게 알린다."
+  fi
+  if [[ "$UNTAGGED" != 0개 && "$UNTAGGED" == [0-9]*개* ]]; then
+    warn "바디 표시 없이 나온 바디가 있다. 재계산 뒤 바디 이름이 바뀌어 면이 사라진 것으로 보였을 수 있다. Claude에게 알린다."
   fi
 elif [[ -n "$UPLOAD_ID" ]]; then
   warn "애드인 점검 파일($CHECKS)이 없다. 애드인을 중지·다시 실행하지 않아 예전 코드로 업로드했을 수 있다."
@@ -501,6 +507,7 @@ ask ODDITIES "그 밖에 이상했던 점(없으면 Enter):"
   printf -- '- 애드인 점검, 파라미터: %s\n' "$RESTORED"
   printf -- '- 애드인 점검, 어셈블리 좌표: %s\n' "$PROXIES"
   printf -- '- 애드인 점검, 재계산 실패 샘플: %s\n' "$RECOMPUTE"
+  printf -- '- 애드인 점검, 바디 표시 없는 바디: %s\n' "$UNTAGGED"
   printf -- '- 부품 설명: %s\n' "${PARTS:-없음}"
   printf -- '- 파라미터 뜻: %s\n' "${PARAM_MEANING:-없음}"
   printf -- '- 정면: %s\n' "${FRONT:-없음}"

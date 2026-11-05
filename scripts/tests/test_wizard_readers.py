@@ -69,7 +69,7 @@ def test_마지막_업로드는_애드인이_가장_늦게_쓴_진짜_업로드�
     assert latest_upload(tmp_path / "missing") is None
 
 
-def test_애드인_점검_파일은_파라미터_좌표_재계산_실패의_세_줄이다() -> None:
+def test_애드인_점검_파일은_파라미터_좌표_재계산_실패_바디_표시의_네_줄이다() -> None:
     checks = {
         "upload_id": "x",
         "restored": [],
@@ -77,14 +77,25 @@ def test_애드인_점검_파일은_파라미터_좌표_재계산_실패의_세_
         "moved_occurrences": 2,
         "proxy_mismatches": ["a/b 모서리: 0.500 mm"],
         "recompute_failures": [],
+        "untagged_bodies": [],
     }
 
     assert describe(checks) == [
         RESTORED_ALL,
         "모서리 24개(옮긴 오커런스 2개) 중 어긋남 1개: a/b 모서리: 0.500 mm",
         "0개",
+        "0개",
     ]
     assert describe({**checks, "restored": ["W"]})[0] == "업로드 뒤 다시 되돌림: W"
+    assert describe({**checks, "untagged_bodies": ["P#1/본체4"]})[3] == "1개: P#1/본체4"
+
+
+def test_바디_표시_점검이_없는_예전_점검_파일도_읽는다() -> None:
+    """바디 표시(티켓 26 4절) 전 애드인이 쓴 점검 파일에는 untagged_bodies가 없다."""
+    checks = {"upload_id": "x", "restored": [], "proxy_edges": 0, "moved_occurrences": 0,
+              "proxy_mismatches": [], "recompute_failures": []}
+
+    assert describe(checks)[3] == "점검 파일에 없음(바디 표시 전 애드인)"
 
 
 def test_탐색_결과_요점() -> None:

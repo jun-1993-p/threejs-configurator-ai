@@ -26,7 +26,7 @@ for _name in [n for n in sys.modules if __package__ and n.startswith(f"{__packag
 # Fusion은 애드인을 패키지로 불러온다. 다른 애드인과 모듈 이름이 겹치지 않게 상대 import를 쓴다.
 from . import config
 from .uploader.core import restore_changed_parameters, run_upload, serve_sample_request
-from .uploader.fusion_model import TAG_GROUP, FusionDesignModel, SelfChecks, clear_face_tags
+from .uploader.fusion_model import TAG_GROUP, FusionDesignModel, SelfChecks, clear_tags
 from .uploader.resume import resume_serving
 from .uploader.server_client import FileServerClient, HttpServerClient
 from .uploader.serving_status import POLL_S, ObservedServer, ServingStatus, write_record
@@ -137,13 +137,17 @@ class _Serving:
         """Fusion을 다시 켠 뒤 열린 문서에 적힌 업로드가 있고 서버가 아직 알면 그 업로드에 이어 답한다(ADR-0013).
 
         기본 형상에서 면 이름을 다시 짓는다. 업로드 뒤 파라미터를 되돌려 두었으므로 업로드 때와 같은 이름이 나온다.
+        바디 이름은 Fusion이 업로드 중에 바꿨을 수 있어 다시 짓지 않고, 업로드 때 붙인 바디 표시를 그대로 쓴다.
         면 표시를 다시 붙이므로 문서를 열기만 해도 수정됨으로 바뀐다.
         """
         if time.monotonic() < self.resume_retry_at:
             return
         try:
             resumed = resume_serving(
-                _DocumentUploadId(design), self.client, lambda: FusionDesignModel(design), lambda: clear_face_tags(design)
+                _DocumentUploadId(design),
+                self.client,
+                lambda: FusionDesignModel(design, keep_body_tags=True),
+                lambda: clear_tags(design, keep_bodies=True),
             )
         except Exception as error:
             # 일시 오류일 수 있어 잠시 쉬었다 다시 시도한다. 3초마다 모델을 다시 만들지는 않는다.
@@ -245,7 +249,7 @@ class _UploadHandler(_ExecuteHandler):
 
 
 class _DryRunHandler(_ExecuteHandler):
-    """서버 대신 data/dry-runs/에 묶음을 쓴다. 추가 샘플 요청에는 답하지 않으므로 면 표시도 끝에 지운다."""
+    """서버 대신 data/dry-runs/에 묶음을 쓴다. 추가 샘플 요청에는 답하지 않으므로 면·바디 표시도 끝에 지운다."""
 
     label = "업로드 점검"
 
@@ -312,7 +316,10 @@ def _write_checks(upload_id: str, restored: list[str], checks: SelfChecks) -> st
         f"어셈블리 좌표 모서리 {checks.proxy_edges}개(옮긴 오커런스 {checks.moved_occurrences}개) 중 "
         f"어긋남 {len(checks.proxy_mismatches)}개"
     )
-    return f"점검: {parameters} · {proxies} · 재계산 실패 샘플 {len(checks.recompute_failures)}개"
+    return (
+        f"점검: {parameters} · {proxies} · 재계산 실패 샘플 {len(checks.recompute_failures)}개"
+        f" · 바디 표시 없는 바디 {len(checks.untagged_bodies)}개"
+    )
 
 
 class _CreatedHandler(adsk.core.CommandCreatedEventHandler):
