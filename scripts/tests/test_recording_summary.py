@@ -116,6 +116,52 @@ def test_위상_묶음마다_값_구간과_개수_값을_찍는다(no_bundle_che
     assert "450~799.915 (bays=2" in line and "1200.04~1350 (bays=4" in line
 
 
+def test_적응형_스윕이_처음_5점에_더한_샘플_수를_찍는다(no_bundle_check: None) -> None:
+    """비선형 모델 실물 확인(티켓 26 4절): 적응형 스윕이 실제로 나눴는지 사람이 샘플 값을 세지 않게 한다."""
+    assert "적응형으로 더한 샘플: back_angle 6개" in summarize(_load("bench-tilt"))
+    assert "적응형으로 더한 샘플: 없음" in summarize(_load("drawer"))
+
+
+def test_재계산_실패로_범위를_줄이며_샘플로_올린_점은_적응형으로_세지_않는다(no_bundle_check: None) -> None:
+    """애드인은 재계산에 실패한 쪽을 지우고 그 안쪽의 가장 먼 검증점을 샘플로 올린다(core._trim_failures)."""
+    bundle = _load("drawer")
+    sweep = next(s for s in bundle["sweeps"] if s["parameter"] == "body_w")
+    promoted = next(c for c in sweep["checks"] if c["value"] == 825)
+    sweep["samples"] = [s for s in sweep["samples"] if s["value"] != 900] + [promoted]
+    sweep["range"] = {"min": 300.0, "max": 825.0}
+    sweep["reductions"] = [
+        {"side": "max", "at": 900.0, "reason": "recompute_failed", "removed_faces": [], "added_faces": [],
+         "removed_edges": [], "added_edges": [], "counts": {}}
+    ]
+
+    assert "적응형으로 더한 샘플: 없음" in summarize(bundle)
+
+
+def test_위상_묶음이_있는_스윕은_경계_샘플과_가리지_않아_적응형_샘플을_세지_않는다(no_bundle_check: None) -> None:
+    lines = summarize(_load("shelf"))
+
+    line = next(line for line in lines if line.startswith("적응형으로 더한 샘플: "))
+    assert "shelf_w" not in line
+
+
+def test_바디_측정값이_있는_형상_수를_찍는다(no_bundle_check: None) -> None:
+    """Fusion 어댑터도 바디 부피를 낸다(티켓 26 4절). 녹화본에 실제로 실렸는지 본다."""
+    bundle = _load("bench-tilt")
+    line = next(line for line in summarize(bundle) if line.startswith("바디 측정값: "))
+    total = int(line.split("/")[1].split("개")[0])
+    assert line == f"바디 측정값: 형상 {total}/{total}개"
+
+    for sweep in bundle["sweeps"]:
+        for sample in sweep["samples"]:
+            sample.pop("bodies", None)
+    for sweep in bundle["sweeps"]:
+        for key in ("samples", "checks"):
+            for sample in sweep[key]:
+                sample.pop("bodies", None)
+    bundle["baseline"].pop("bodies", None)
+    assert f"바디 측정값: 형상 0/{total}개" in summarize(bundle)
+
+
 def test_표면에서_벗어난_점의_거리를_잰다() -> None:
     plane = {"geometry": {"type": "plane", "normal": [0, 0, 2]}, "points": [[0, 0, 5], [3, 1, 5], [1, 1, 5.25]]}
     cylinder = {

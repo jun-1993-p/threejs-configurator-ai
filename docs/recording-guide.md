@@ -176,7 +176,7 @@ node scripts/verify-recording.ts ../fixtures/private/recordings/stool1.json <명
 
 | 티켓 | 필요한 모델 |
 | --- | --- |
-| 05 적응형 스윕 | 슬라이더에 따라 비선형으로 변하는 부분(경사, 원형 패턴)이 있는 모델(합성 녹화본 `fixtures/synthetic/bench-tilt.json`이 있다. Fusion 실물은 아직) |
+| 05 적응형 스윕 | 슬라이더에 따라 비선형으로 변하는 부분(경사, 원형 패턴)이 있는 모델(합성 녹화본 `fixtures/synthetic/bench-tilt.json`이 있다. Fusion 실물은 `scripts/fusion-nonlinear-wizard.sh`가 녹화 위저드를 부르고 적응형 스윕·보간 실패·바디 측정값을 판정하며 부피 튐 경고를 센다) |
 | 06 축 반응 검증 | 한 축에 슬라이더가 둘인 모델(예: 전체 폭과 서랍 폭) |
 | 09 격자 보강 | 두 슬라이더가 서로 영향을 주는 모델(서랍 폭이 전체 폭의 비율을 따라감) |
 | 11 위상 묶음 | 폭에 따라 칸막이 수가 바뀌는 모델(합성 녹화본 `fixtures/synthetic/shelf.json`이 있다. Fusion 실물은 아직) |

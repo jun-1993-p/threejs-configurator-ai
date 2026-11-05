@@ -2,7 +2,7 @@
 // 돌린다. 추가 샘플은 서버를 거쳐 업로드한 애드인에 요청한다. 실패를 모으는 일이라 첫 실패 단계에서 멈추지 않는다.
 // 실행(저장소의 configurator 폴더에서):
 //   node scripts/verify-recording.ts <녹화본.json> <명세.json> --upload <업로드 ID>   검증 단계마다 피드백을 한 줄씩 찍는다
-//   node scripts/verify-recording.ts <녹화본.json> --responses                       슬라이더별 부품 반응(명세의 affects를 정하는 근거)
+//   node scripts/verify-recording.ts <녹화본.json> --responses                       슬라이더별 부품 반응(명세의 affects를 정하는 근거)과 업로드 스윕 문제
 // 환경 변수: SERVER_URL(업로드 서버, 기본 http://localhost:8000)
 // 끝 코드: 0 모두 통과, 1 검증 실패나 애드인이 샘플을 못 뽑음, 2 입력 오류, 3 Fusion 연결 필요
 import { existsSync, readFileSync } from "node:fs";
@@ -17,6 +17,7 @@ import { checkSpec, checkUploadBundle, FUSION_AXES, specReferenceChecker } from 
 import { UI_STYLES } from "../pipeline/ui-styles.ts";
 import type { UploadBundle } from "../pipeline/upload-bundle.ts";
 import { sampleRequester, samplesFailed, verifySpec, type StageResult, type VerifyStage } from "../pipeline/verify-spec.ts";
+import { uploadSweepFeedback } from "../pipeline/verify-sweep.ts";
 
 export interface ToolEnv {
   /** 업로드 ID로 Fusion 연결을 만든다 */
@@ -128,6 +129,10 @@ export async function main(args: string[], env: ToolEnv): Promise<number> {
   const bundle = raw as UploadBundle;
   if (responses) {
     printResponses(bundle, env.print);
+    // 업로드 단계가 알리는 스윕 문제. 부피 튐(경고)은 녹화본에 바디 측정값이 있어야 나온다(티켓 26 4절).
+    const upload = uploadSweepFeedback(bundle);
+    if (upload.length === 0) env.print("[업로드 스윕] 통과");
+    for (const f of upload) env.print(`[업로드 스윕] ${feedbackLine(f)}`);
     return 0;
   }
   const spec = readJson(paths[1]);

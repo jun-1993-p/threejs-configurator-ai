@@ -3,7 +3,7 @@
     .venv/Scripts/python -m scripts.recording_summary fixtures/private/recordings/<이름>.json
 
 파라미터, 부품마다 면 수와 기본 형상의 위치(mm), 면 종류와 반쪽으로 나눈 원기둥, 스윕마다 샘플 상태와 위상,
-갈라지거나 새로 생긴 면 이름, 점이 표면에서 벗어난 정도, 서버의 묶음 검사 결과를 찍는다. 녹화본은 서버가 받을 때
+적응형 스윕이 더한 샘플 수, 바디 측정값이 있는 형상 수, 갈라지거나 새로 생긴 면 이름, 점이 표면에서 벗어난 정도, 서버의 묶음 검사 결과를 찍는다. 녹화본은 서버가 받을 때
 이미 검사했으므로 늘 통과지만, 건식 업로드 묶음(data/dry-runs)은 서버를 거치지 않아 여기서 처음 검사한다.
 """
 
@@ -18,7 +18,7 @@ from server.bundle import bundle_errors, pair_faces, placed_shapes
 
 # 애드인 패키지는 저장소 루트에 없다. 시험은 pyproject의 pythonpath로 찾지만, 위저드가 `python -m`으로 부를 때는 여기서 넣는다.
 sys.path.append(str(Path(__file__).resolve().parents[1] / "addin" / "ConfiguratorUploader"))
-from uploader.core import ADDIN_EXPRESSION  # noqa: E402
+from uploader.core import ADDIN_EXPRESSION, SWEEP_FACTORS  # noqa: E402
 
 _HALVES = (":half1", ":half2")
 
@@ -103,6 +103,25 @@ def _ranges(bundle: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _adaptive(bundle: dict[str, Any]) -> str:
+    """스윕마다 적응형 스윕(ADR-0007)이 처음 5점(기본값 × SWEEP_FACTORS)에 더한 샘플 수. 비선형 모델 확인에 쓴다(티켓 26 4절).
+
+    위상 묶음이 있는 스윕은 묶음 경계 샘플도 더해지는데 둘을 가릴 수 없어 세지 않는다. 범위를 줄인 쪽의 끝 샘플도 세지 않는다.
+    재계산 실패로 줄일 때 애드인이 그 안쪽 검증점을 샘플로 올리기 때문이다(core._trim_failures).
+    """
+    defaults = {p["name"]: p["value"] for p in bundle["parameters"]}
+    added = []
+    for sweep in bundle["sweeps"]:
+        base = defaults.get(sweep["parameter"])
+        if base is None or sweep.get("groups"):
+            continue
+        initial = [base * f for f in SWEEP_FACTORS] + [sweep["range"][r["side"]] for r in sweep.get("reductions", [])]
+        extra = sum(1 for s in sweep["samples"] if not any(math.isclose(s["value"], v, abs_tol=1e-9) for v in initial))
+        if extra:
+            added.append(f"{sweep['parameter']} {extra}개")
+    return f"적응형으로 더한 샘플: {', '.join(added) if added else '없음'}"
+
+
 def summarize(bundle: dict[str, Any]) -> list[str]:
     lines = [f"출처: {bundle.get('source')}"]
     # 나머지 요점은 형식이 맞는 묶음을 전제로 읽으므로, 형식 오류가 있으면 그것만 찍는다
@@ -145,6 +164,9 @@ def summarize(bundle: dict[str, Any]) -> list[str]:
     for (where, parameter), values in states.items():
         lines.append(f"스윕 {f'{where} 안의 ' if where else ''}{parameter}: {' '.join(values)}")
     lines += _ranges(bundle)
+    lines.append(_adaptive(bundle))
+    # 부피 튐(volume_jump) 경고의 재료. Fusion 어댑터는 티켓 26 4절부터 낸다.
+    lines.append(f"바디 측정값: 형상 {sum(1 for s in shapes if s.get('bodies'))}/{len(shapes)}개")
     lines.append(f"갈라진 면 이름(:split) {renamed[':split']}개, 새 면 이름(:new) {renamed[':new']}개")
     broken = sorted({b for shape in shapes for b in broken_halves(shape)})
     lines.append(f"이음선이 빠진 반쪽 원기둥: {', '.join(broken) if broken else '없음'}")

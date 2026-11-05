@@ -19,6 +19,7 @@ import {
   gridDepth,
   gridDepthChecks,
   ratioThicknessRecording,
+  recording,
   shelfCrossCorners,
   shelfRecording,
   shelfThicknessCross,
@@ -162,6 +163,20 @@ test("--responses는 명세 없이 녹화본만으로 슬라이더별 부품 반
   const drawer = lines.findIndex((l) => l.startsWith("drawer_d: "));
   assert.match(lines[drawer + 1], /^ {2}DrawerBox: 치수 Y [\d.]+ \/ 위치 Y [\d.]+$/);
   assert.ok(!lines[drawer + 2].startsWith("  Carcass"), lines.join("\n"));
+});
+
+test("--responses는 업로드 스윕 문제(보간 실패, 부피 튐)도 찍는다", async () => {
+  const quiet = await runTool(() => [drawerPath, "--responses"], disconnected);
+  assert.ok(quiet.lines.includes("[업로드 스윕] 통과"), quiet.lines.join("\n"));
+
+  // 서랍장 몸통의 폭 600 샘플 부피를 1.5배로 튀게 한다(verify-sweep.test.ts와 같은 변형)
+  const bundle = structuredClone(recording);
+  const sample = bundle.sweeps.find((s) => s.parameter === "body_w")!.samples.find((s) => s.value === 600)!;
+  sample.bodies!.find((b) => b.name === "Carcass")!.volume *= 1.5;
+  const { code, lines } = await runTool((dir) => [join(dir, "rec.json"), "--responses"], disconnected, { "rec.json": bundle });
+
+  assert.equal(code, 0);
+  assert.ok(lines.some((l) => l.startsWith("[업로드 스윕] 슬라이더 body_w · 부품 Carcass · volume_jump")), lines.join("\n"));
 });
 
 test("명세가 녹화본을 가리키지 않으면 검증하지 않고 그 오류를 찍는다", async () => {
