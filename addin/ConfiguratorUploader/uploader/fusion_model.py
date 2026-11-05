@@ -4,7 +4,7 @@ Fusion API 호출을 고치기 전에 docs/fusion-api.md(문서와 다른 동작
 Fusion API의 길이는 내부 단위(cm)이므로 묶음에는 mm로 바꿔 담는다.
 
 면의 점은 경계 맞춤 격자다(ADR-0016). 면 이름은 기본 형상에서 피처와 역할로 지어 면 표시로 붙여 두고,
-다른 샘플에서는 표시를 읽는다(face_names). 바디 이름도 기본 형상의 것을 바디 표시로 붙여 이어 간다(_body_name).
+다른 샘플에서는 표시를 읽는다(face_names). 바디 이름도 기본 형상의 것을 그 바디의 면마다 바디 표시로 붙여 이어 간다(_body_tag).
 표시는 다음 업로드 때 지운다. 그때까지 문서에 남지만 형상에는
 영향이 없다. 이음선 없는 원기둥(구멍 안쪽, 둥근 다리)은 반쪽 원기둥 둘로 나눠 넘긴다(face_sampling).
 """
@@ -17,7 +17,7 @@ import adsk.core
 import adsk.fusion
 
 from .core import BodyInfo, BodyMeasure, EdgeSample, FaceSample, ParameterInfo, Point, parameter_expression
-from .face_names import EdgeRole, FaceRole, Order, edge_names, face_names
+from .face_names import BodyTag, EdgeRole, FaceRole, Order, body_name, body_names, edge_names, face_names
 from .face_sampling import (
     FaceSampler,
     FaceSurface,
@@ -34,7 +34,8 @@ _INTERNAL = "internalUnits"
 _CM_TO_MM = 10.0
 TAG_GROUP = "ConfiguratorUploader"
 TAG_NAME = "face"
-# 바디 표시: 기본 형상에서 본 바디 이름. Fusion은 재계산 뒤 바디 이름을 바꿀 수 있다(티켓 26 4절, 본체3 → 본체4).
+# 바디 표시: 기본 형상에서 본 바디 이름을 그 바디의 면마다 붙인다. Fusion은 재계산 뒤 바디를 새로 만들어 이름과
+# 바디 속성을 잃기도 하지만 면 표시는 남는다(티켓 26 4절: 본체3 → 본체4 → 본체5, 바디에 붙인 표시는 사라짐).
 BODY_TAG_NAME = "body"
 # 피처의 역할별 면 모음. 앞의 것이 먼저다(돌출의 faces는 시작·끝·옆면을 모두 담는다).
 _ROLES = (("startFaces", "start"), ("endFaces", "end"), ("sideFaces", "side"), ("faces", "face"))
@@ -61,8 +62,8 @@ class SelfChecks:
       같은지. 점을 뽑는 경로(모서리 평가기·표면 정의)를 그대로 잰다. 옮기지 않은(항등 변환) 오커런스만 있으면
       늘 맞으므로, 옮긴 오커런스 수를 함께 적는다.
     - recompute_failures: 재계산 실패로 판정한 샘플마다 오류 상태인 타임라인 피처. 판정이 맞는지 볼 근거다.
-    - untagged_bodies: 기본 형상을 표시한 뒤 바디 표시 없이 나온 바디(그 순간의 Fusion 바디 이름). 있으면 그 바디는
-      이름이 바뀌어 면이 사라지고 새로 생긴 것으로 보였을 수 있다(티켓 26 4절).
+    - untagged_bodies: 기본 형상을 표시한 뒤 바디 표시를 쓰지 못한 바디(그 순간의 Fusion 바디 이름). 면에 바디 표시가
+      하나도 없거나(기본 형상에 없던 바디, 모든 면이 새로 만들어진 바디), 갈라진 바디의 작은 조각이다(티켓 26 4절).
     """
 
     proxy_edges: int = 0
@@ -103,19 +104,31 @@ class FusionDesignModel:
         self._tagged = True
         self._check_proxies()
 
-    def _body_name(self, body: adsk.fusion.BRepBody) -> str:
-        """기본 형상에서 붙인 바디 표시, 없으면 Fusion의 바디 이름.
+    def _body_tag(self, body: adsk.fusion.BRepBody) -> BodyTag:
+        """면에 붙인 바디 표시에서 고른 이름(face_names.body_name)과 그 이름이 붙은 면 수.
 
         한 파라미터를 바꾸자 다리 바디 이름이 본체3에서 본체4로 바뀌었는데, 그 바디 면의 표시는 그대로였다(티켓 26 4절).
-        같은 바디이니 면 이름처럼 기본 형상의 이름을 표시로 이어 간다. 프록시는 본래 바디의 표시를 읽는다.
-        표시를 붙인 뒤에 표시 없는 바디가 나오면 점검(untagged_bodies)에 적는다.
+        바디 자체에 붙인 표시는 다음 업로드에서 이름이 본체5로 바뀔 때 사라졌으므로 면에 붙인다. 프록시는 본래 면의
+        표시를 읽는다. 면에 표시가 없으면 바디에 붙은 예전 표시(커밋 01cd75f의 애드인이 붙임)를 읽는다. 그 업로드에
+        이어 답할 때 쓴다.
         """
-        tag = (body.nativeObject or body).attributes.itemByName(TAG_GROUP, BODY_TAG_NAME)
-        if tag:
-            return str(tag.value)
-        if self._tagged and body.name not in self.checks.untagged_bodies:
-            self.checks.untagged_bodies.append(body.name)
-        return str(body.name)
+        tags = []
+        for face in body.faces:
+            tag = (face.nativeObject or face).attributes.itemByName(TAG_GROUP, BODY_TAG_NAME)
+            tags.append(str(tag.value) if tag else None)
+        name = body_name(tags)
+        if name is None:
+            legacy = (body.nativeObject or body).attributes.itemByName(TAG_GROUP, BODY_TAG_NAME)
+            name = str(legacy.value) if legacy else None
+        return BodyTag(name, tags.count(name) if name is not None else 0, str(body.name))
+
+    def _body_names(self, bodies: list[adsk.fusion.BRepBody]) -> list[str]:
+        """한 부품(또는 루트) 안 바디들의 이름(face_names.body_names). 표시를 붙인 뒤 표시를 쓰지 못한 바디는
+        점검(untagged_bodies)에 적는다. 기본 형상을 표시하기 전에는 표시가 없는 것이 당연하다."""
+        names, fallback = body_names([self._body_tag(body) for body in bodies])
+        if self._tagged:
+            self.checks.untagged_bodies.extend(n for n in fallback if n not in self.checks.untagged_bodies)
+        return names
 
     def _bundle_unit(self, unit: str) -> str:
         """길이는 mm, 각도는 deg로 담는다. 그 밖의 단위는 원래 단위와 내부 값을 그대로 쓴다."""
@@ -143,10 +156,9 @@ class FusionDesignModel:
         """
         root = self._design.rootComponent
         found: list[_Visible] = []
-        for i in range(root.bRepBodies.count):
-            body = root.bRepBodies.item(i)
-            if body.isVisible:
-                found.append((BodyInfo(name=self._body_name(body), component=None), body, None))
+        root_bodies = [b for i in range(root.bRepBodies.count) if (b := root.bRepBodies.item(i)).isVisible]
+        for body, name in zip(root_bodies, self._body_names(root_bodies)):
+            found.append((BodyInfo(name=name, component=None), body, None))
         occurrences_with_bodies: list[tuple[adsk.fusion.Occurrence, list[adsk.fusion.BRepBody]]] = []
         for i in range(root.allOccurrences.count):
             occurrence = root.allOccurrences.item(i)
@@ -159,8 +171,8 @@ class FusionDesignModel:
             [(occ.fullPathName, _min_corner(bodies[0])) for occ, bodies in occurrences_with_bodies]  # 위치: 첫 바디의 어셈블리 좌표 최소점
         )
         for (occurrence, bodies), part in zip(occurrences_with_bodies, names):
-            for body in bodies:
-                found.append((BodyInfo(name=f"{part}/{self._body_name(body)}", component=part), body, occurrence))
+            for body, name in zip(bodies, self._body_names(bodies)):
+                found.append((BodyInfo(name=f"{part}/{name}", component=part), body, occurrence))
         return found
 
     def bodies(self) -> list[BodyInfo]:
@@ -243,17 +255,19 @@ class FusionDesignModel:
         clear_tags(self._design)
 
     def _tag_baseline(self, keep_body_tags: bool) -> None:
-        """앞 업로드의 표시를 지우고, 기본 형상의 바디와 면에 이름을 붙인다. keep_body_tags면 있는 바디 표시는 둔다."""
+        """앞 업로드의 표시를 지우고, 기본 형상의 면에 면 이름과 바디 이름을 붙인다. keep_body_tags면 있는 바디 표시는 둔다."""
         clear_tags(self._design, keep_bodies=keep_body_tags)
         roles = self._roles()
         for _, body, _ in self._visible_bodies():
-            native_body = body.nativeObject or body
-            if native_body.attributes.itemByName(TAG_GROUP, BODY_TAG_NAME) is None:
-                native_body.attributes.add(TAG_GROUP, BODY_TAG_NAME, body.name)
             names = face_names(self._face_roles(body, roles), baseline=True)
+            # 새 업로드는 표시를 지운 뒤라 Fusion의 바디 이름이다. 이어 답할 때는 업로드 때 붙인 표시를 두고, 표시가 없는
+            # 면에는 그 바디의 표시(면 또는 예전 애드인이 바디에 붙인 것)를 붙인다.
+            label = self._body_tag(body).tag or body.name
             for face, name in zip(body.faces, names):
                 native = face.nativeObject or face
                 native.attributes.add(TAG_GROUP, TAG_NAME, name)
+                if native.attributes.itemByName(TAG_GROUP, BODY_TAG_NAME) is None:
+                    native.attributes.add(TAG_GROUP, BODY_TAG_NAME, label)
 
     def _check_proxies(self) -> None:
         """컴포넌트 안 바디의 모서리 점과 평면 법선을 본래 것과 맞대 본다(SelfChecks). 0.001 mm·0.001 rad 안이어야

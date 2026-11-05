@@ -70,6 +70,48 @@ def face_names(faces: Sequence[FaceRole], baseline: bool) -> list[str]:
     return names
 
 
+def body_name(face_tags: Sequence[str | None]) -> str | None:
+    """바디의 면마다 붙인 기본 형상의 바디 이름 중 가장 많은 것(같으면 이름 순으로 앞의 것). 없으면 None.
+
+    Fusion은 재계산 뒤 바디를 새로 만들어 바디 이름과 바디에 붙인 속성을 잃기도 하지만, 면 표시는 남는다(티켓 26 4절).
+    그래서 바디 이름도 면에 붙여 둔다. 바디가 합쳐지면 면마다 다를 수 있다.
+    """
+    counts: dict[str, int] = {}
+    for tag in face_tags:
+        if tag is not None:
+            counts[tag] = counts.get(tag, 0) + 1
+    return min(counts, key=lambda name: (-counts[name], name)) if counts else None
+
+
+@dataclass(frozen=True)
+class BodyTag:
+    """바디 하나의 이름 재료: 면의 바디 표시에서 고른 이름(body_name), 그 이름이 붙은 면 수, Fusion의 바디 이름"""
+
+    tag: str | None
+    tagged_faces: int
+    fusion: str
+
+
+def body_names(bodies: Sequence[BodyTag]) -> tuple[list[str], list[str]]:
+    """한 부품(또는 루트) 안 바디들의 이름과, 표시를 쓰지 못해 Fusion 이름으로 돌린 바디의 Fusion 이름 목록.
+
+    잘라내기로 바디 하나가 둘이 되면 두 조각의 면이 같은 표시를 물려받는다. 이름이 겹치면 면 샘플이 섞이므로
+    표시된 면이 가장 많은 바디(같으면 앞의 것)만 그 이름을 쓰고 나머지는 Fusion 이름으로 돌린다. Fusion 이름이
+    다른 바디의 표시와 겹치면 `:new`를 붙인다.
+    """
+    owner: dict[str, int] = {}
+    for i, b in enumerate(bodies):
+        if b.tag is not None and (b.tag not in owner or b.tagged_faces > bodies[owner[b.tag]].tagged_faces):
+            owner[b.tag] = i
+    names = [b.tag if b.tag is not None and owner[b.tag] == i else "" for i, b in enumerate(bodies)]
+    fallback = []
+    for i, b in enumerate(bodies):
+        if not names[i]:
+            fallback.append(b.fusion)
+            names[i] = f"{b.fusion}:new" if b.fusion in owner else b.fusion
+    return names, fallback
+
+
 def edge_names(edges: Sequence[EdgeRole]) -> list[str]:
     pairs = ["|".join(sorted((e.face_a, e.face_b))) for e in edges]
     return _numbered(pairs, [e.order for e in edges], lambda n, k: f"{n}~{k}", False)
