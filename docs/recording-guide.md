@@ -101,15 +101,18 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:8000/uploads/<업로드 ID
 
 ### 4-5. 녹화본 확인
 
+업로드 묶음(`data/uploads/<업로드 ID>.json`)이나 녹화본은 요점 도구로 읽는다. 에이전트도 업로드 결과를 읽을 때 이 도구부터 쓴다.
+
 ```powershell
-.venv\Scripts\python -c "import json,sys; b=json.load(open(sys.argv[1],encoding='utf-8')); print('파라미터', [(p['name'], p['value'], p['unit'], p['is_user']) for p in b['parameters']]); print('부품', [(p['name'], p['kind'], len(p['faces'])) for p in b['parts']]); [print('스윕', s['parameter'], s['range'], [x['status'] for x in s['samples']]) for s in b['sweeps']]" fixtures/private/recordings/stool1.json
+$env:PYTHONUTF8=1; .venv\Scripts\python -m scripts.recording_summary fixtures/private/recordings/stool1.json
 ```
 
 다음을 확인한다.
 
-- 사용자 파라미터가 빠짐없이 `is_user True`로 나오고, 값이 mm 기준으로 맞다(예: 800 mm 폭이면 800).
+- 사용자 파라미터가 빠짐없이 나오고, 값이 mm 기준으로 맞다(예: 800 mm 폭이면 800). 개수형은 `(개수형)`이 붙는다.
 - 부품 이름이 Fusion 브라우저의 컴포넌트와 맞고, 부품마다 면 수가 0보다 크다.
-- 스윕마다 5개 상태가 나오고, 가능하면 모두 `ok`다.
+- 스윕마다 샘플 상태가 나오고, 가능하면 모두 `ok`다.
+- `범위` 줄 끝에 `폭 0`이 찍히면 그 스윕은 쓸 수 없다. `쪽이 줄었다`가 찍히면 `범위 줄임` 줄의 까닭(`recompute_failed`, `modeling_error_suspected`)과 사라지거나 새로 생긴 면의 바디를 본다.
 
 ## 5. 보안
 

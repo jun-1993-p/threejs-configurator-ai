@@ -69,7 +69,7 @@ function engineSweeps(spec: Spec, sweeps: Sweep[]): Sweep[] {
 const engineSamples = (samples: CrossSample[]) => samples.map(({ values, status, faces }) => ({ values, status, faces: engineFaces(faces) }));
 
 /** 업로드 묶음과 격자 보강·두께 후보 형상에서 명세가 쓰는 부분만 남긴다. 형식은 그대로라 엔진이 바로 읽는다. */
-function sweepDataFor(spec: Spec, bundle: SweepData): SweepData {
+export function sweepDataFor(spec: Spec, bundle: SweepData): SweepData {
   // 격자 보강 쌍은 두 슬라이더, 또는 두께 쌍(두께 선택과 슬라이더)이다
   const grids = (bundle.grids ?? []).filter((g) => findPair(spec, g.parameters) !== undefined);
   const thickness = spec.thickness.length === 0 ? [] : (bundle.thickness ?? []);

@@ -63,6 +63,46 @@ def broken_halves(shape: dict[str, Any]) -> list[str]:
     return broken
 
 
+def _ranges(bundle: dict[str, Any]) -> list[str]:
+    """스윕마다 애드인이 남긴 범위(기본값 ±50%와 견줌), 범위를 줄인 까닭, 위상 묶음.
+
+    범위가 기본값 한 점으로 줄면 그 스윕은 쓸 수 없다. 실물 선반에서 부품 이름이 재계산마다 바뀌어 모든 범위가 그렇게
+    됐는데, 스윕 상태 줄만으로는 보이지 않았다(티켓 26).
+    """
+    defaults = {p["name"]: p["value"] for p in bundle["parameters"]}
+    lines = []
+    for sweep in bundle["sweeps"]:
+        name, low, high = sweep["parameter"], sweep["range"]["min"], sweep["range"]["max"]
+        base = defaults.get(name)
+        head = f"범위 {name}: {low:g}~{high:g}"
+        if base is None:
+            # 서버 검사를 거치지 않은 건식 업로드 묶음은 스윕 파라미터가 목록에 없을 수 있다
+            lines.append(f"{head} (기본값 없음)")
+        else:
+            full = sorted((base * 0.5, base * 1.5))
+            # 줄었는지는 사람이 두 범위를 견주지 않게 도구가 판정해 찍는다
+            shrunk = [side for side, cut in (("min", low > full[0]), ("max", high < full[1])) if cut]
+            if low == high:
+                note = " — 폭 0, 스윕을 쓸 수 없다"
+            elif shrunk:
+                note = f" — {'·'.join(shrunk)} 쪽이 줄었다"
+            else:
+                note = ""
+            lines.append(f"{head} (기본값 {base:g}의 ±50%: {full[0]:g}~{full[1]:g}){note}")
+        for r in sweep.get("reductions", []):
+            removed = dict(Counter(f["body"] for f in r.get("removed_faces", [])))
+            added = dict(Counter(f["body"] for f in r.get("added_faces", [])))
+            lines.append(f"범위 줄임 {name} {r['side']} {r['at']:g} {r['reason']}: 사라진 면 {removed}, 새 면 {added}")
+        groups = sweep.get("groups", [])
+        if groups:
+            spans = [
+                f"{g['range']['min']:g}~{g['range']['max']:g} ({', '.join(f'{k}={v:g}' for k, v in g['counts'].items())})"
+                for g in groups
+            ]
+            lines.append(f"위상 묶음 {name}: {', '.join(spans)}")
+    return lines
+
+
 def summarize(bundle: dict[str, Any]) -> list[str]:
     lines = [f"출처: {bundle.get('source')}"]
     # 나머지 요점은 형식이 맞는 묶음을 전제로 읽으므로, 형식 오류가 있으면 그것만 찍는다
@@ -104,6 +144,7 @@ def summarize(bundle: dict[str, Any]) -> list[str]:
                 states.setdefault((where, parameter), []).append(f"{sample['value']:g}:{state}")
     for (where, parameter), values in states.items():
         lines.append(f"스윕 {f'{where} 안의 ' if where else ''}{parameter}: {' '.join(values)}")
+    lines += _ranges(bundle)
     lines.append(f"갈라진 면 이름(:split) {renamed[':split']}개, 새 면 이름(:new) {renamed[':new']}개")
     broken = sorted({b for shape in shapes for b in broken_halves(shape)})
     lines.append(f"이음선이 빠진 반쪽 원기둥: {', '.join(broken) if broken else '없음'}")
