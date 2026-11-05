@@ -33,7 +33,7 @@ function interpolationFeedback(scope: Scope): Feedback[] {
 
 /**
  * 같은 위상 묶음 안에서 이웃한 세 샘플마다, 가운데 샘플의 바디 부피를 양옆 샘플로 선형 보간한 값과 견준다.
- * 기본 묶음의 단독 스윕은 샘플 값이 든 위상 묶음(scope.groups, 어디에도 들지 않으면 기본 묶음)으로 나눠 본다. 바디 측정값이 없는 녹화본(Fusion)에서는 아무것도 내지 않는다.
+ * 기본 묶음의 단독 스윕은 샘플 값이 든 위상 묶음(scope.groups, 어디에도 들지 않으면 기본 묶음)으로 나눠 본다. 바디 측정값이 없는 녹화본(티켓 26 4절 전의 Fusion 녹화본)에서는 아무것도 내지 않는다.
  */
 function volumeFeedback(scope: Scope): Feedback[] {
   const { groups } = scope;

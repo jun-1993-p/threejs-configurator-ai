@@ -70,7 +70,7 @@ class FusionModel(Protocol):
 
 @runtime_checkable
 class MeasuringModel(Protocol):
-    """바디 측정값까지 주는 모델. 지금은 SolidCraft 합성 녹화본만 해당한다."""
+    """바디 측정값까지 주는 모델. Fusion 어댑터와 SolidCraft 합성 녹화본 어댑터가 해당한다."""
 
     def measure_bodies(self) -> list[BodyMeasure]: ...
 

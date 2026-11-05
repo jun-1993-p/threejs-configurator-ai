@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 import adsk.core
 import adsk.fusion
 
-from .core import BodyInfo, EdgeSample, FaceSample, ParameterInfo, Point, parameter_expression
+from .core import BodyInfo, BodyMeasure, EdgeSample, FaceSample, ParameterInfo, Point, parameter_expression
 from .face_names import EdgeRole, FaceRole, Order, edge_names, face_names
 from .face_sampling import (
     FaceSampler,
@@ -293,6 +293,21 @@ class FusionDesignModel:
             for body in self._read_shape()
             for name, e in body.edges.items()
         ]
+
+    def measure_bodies(self) -> list[BodyMeasure]:
+        """바디 부피(mm³)와 경계 상자(mm, 프록시는 어셈블리 좌표). 업로드 스윕의 부피 튐(volume_jump) 경고에 쓴다(티켓 26 4절)."""
+        measures = []
+        for info, body, _ in self._visible_bodies():
+            box = body.boundingBox
+            measures.append(
+                BodyMeasure(
+                    body=info.name,
+                    volume=body.volume * _CM_TO_MM**3,
+                    bbox_min=_mm(box.minPoint),
+                    bbox_max=_mm(box.maxPoint),
+                )
+            )
+        return measures
 
 
 def _convertible(units: adsk.fusion.FusionUnitsManager, unit: str, target: str) -> bool:
