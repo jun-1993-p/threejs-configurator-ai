@@ -35,7 +35,7 @@
 - 애드인 코드를 고치면 "스크립트 및 추가 기능" 창에서 **중지한 뒤 다시 실행**해야 새 코드를 읽는다. 다시 실행하지 않으면 예전 코드로 업로드한다(확인, 두 번째 녹화). 그래서 애드인은 실행할 때 `data/addin-checks/loaded.txt`를 쓰고, 녹화 위저드는 그보다 새로 고친 애드인 코드가 있으면 업로드로 넘어가지 않는다.
 - 다시 실행할 때 Fusion이 하위 모듈(`uploader.*`)을 `sys.modules`에서 비우는지는 확인하지 못했다. 그래서 애드인이 시작할 때 자기 패키지의 하위 모듈을 스스로 지운다(`ConfiguratorUploader.py` 머리).
 - Fusion API는 주 스레드에서만 부른다(ADR-0013).
-- **`ui.messageBox`는 닫을 때까지 주 스레드를 막는다(확인, 티켓 26 선반).** 그동안 일꾼 스레드의 사용자 이벤트를 처리하지 않아 추가 샘플 요청에 답하지 못했다. 그래서 업로드 완료는 텍스트 명령 창(`ui.palettes.itemById("TextCommands")`의 `writeText`)에 알린다. 이 창이 열리고 글이 찍히는지는 아직 Fusion에서 보지 못했다(티켓 33). 못 쓰면 `last-error.txt`에 "알림 실패"로 남는다.
+- **`ui.messageBox`는 닫을 때까지 주 스레드를 막는다(확인, 티켓 26 선반).** 그동안 일꾼 스레드의 사용자 이벤트를 처리하지 않아 추가 샘플 요청에 답하지 못했다. 그래서 업로드 완료는 텍스트 명령 창(`ui.palettes.itemById("TextCommands")`의 `writeText`)에 알린다. 메시지 창 없이 이 창에 글이 찍힌다(확인, 티켓 33). 못 쓰면 `last-error.txt`에 "알림 실패"로 남는다.
 - **`design.attributes`에 쓴 업로드 ID는 문서를 저장하고 Fusion을 껐다 켠 뒤에도 남는다(확인, 티켓 26 3절).** 같은 그룹에 `upload_id` 속성을 둔다(`ConfiguratorUploader._DocumentUploadId`).
 - **문서 열림 이벤트에는 걸지 않는다.** 이벤트 동작은 확인하지 못했다. 답하는 업로드가 없는 동안 3초마다 `activeProduct`를 읽어 문서에 적힌 업로드를 찾고(`_Serving._resume`), 껐다 켠 뒤 6초 안에 이어 답하는 것을 확인했다.
 - 실패 기록 파일과 점검 파일은 녹화 안내서 4-3에 있다. 탐색 스크립트의 실패는 `data/probes/last-error.txt`에 남는다.
