@@ -114,6 +114,27 @@ $env:PYTHONUTF8=1; .venv\Scripts\python -m scripts.recording_summary fixtures/pr
 - 스윕마다 샘플 상태가 나오고, 가능하면 모두 `ok`다.
 - `범위` 줄 끝에 `폭 0`이 찍히면 그 스윕은 쓸 수 없다. `쪽이 줄었다`가 찍히면 `범위 줄임` 줄의 까닭(`recompute_failed`, `modeling_error_suspected`)과 사라지거나 새로 생긴 면의 바디를 본다.
 
+### 4-6. 검증 단계 돌려 보기 (에이전트용)
+
+실제 녹화본에 손으로 쓴 명세를 붙여, AI 없이 파이프라인의 검증 단계를 실제 애드인의 추가 샘플로 돌린다. 검증 순서는 실행기와 같은 함수(`configurator/pipeline/verify-spec.ts`)라, 실행기를 베낀 스크립트를 따로 쓰지 않는다. 명령은 `configurator` 폴더에서 돌린다.
+
+먼저 슬라이더(스윕한 파라미터)마다 부품의 치수·위치가 축별로 얼마나 바뀌는지 본다. 명세의 `affects`(shape·move)를 정하는 근거다. 명세가 필요 없고 애드인에도 묻지 않는다.
+
+```powershell
+node scripts/verify-recording.ts ../fixtures/private/recordings/stool1.json --responses
+```
+
+명세를 쓴 뒤 검증 단계를 돌린다. 업로드 ID는 그 녹화본을 올린 업로드다. 애드인이 그 업로드에 답해야 하므로 Fusion과 디자인 문서를 열어 두고, 업로드 완료 창은 닫아 둔다(창이 열려 있으면 애드인이 서버를 찾지 못한다).
+
+```powershell
+node scripts/verify-recording.ts ../fixtures/private/recordings/stool1.json <명세.json> --upload <업로드 ID>
+```
+
+- 단계(두께 후보 형상, 스윕 범위, 두께 고정 실측, 수치 검증, 축 반응, 교차 검증, 격자 검증점)를 마칠 때마다 `통과`나 피드백 한 줄(슬라이더, 부품, 종류, 잰 값)을 찍는다. 첫 실패 단계에서 멈추지 않고 모든 단계를 본다. 애드인이 샘플을 뽑지 못해 끝나도 앞 단계 결과는 이미 찍혀 있다.
+- 교차 검증에 실패한 쌍은 실행기와 달리 바로 3×3 격자로 보강해 같은 명세를 다시 검증하고, 그 회차는 `[격자 보강 뒤 …]`로 찍는다.
+- 애드인이 연결되지 않았으면 다시 연결되기를 기다리지 않고 "Fusion 연결 필요"로 끝난다(끝 코드 3). 애드인 상태 파일(`data/addin-checks/serving.json`)이 있으면 그 내용도 찍는다. 서버는 애드인 소식이 끊긴 뒤 15초 동안은 연결된 것으로 보므로, 그동안은 응답을 기다리다가 끊김을 알게 된다. 끝난 뒤에도 서버에 건 요청은 남아, 애드인이 다시 붙으면 그 요청을 뒤늦게 계산한다.
+- 끝 코드: 0 모두 통과, 1 검증 실패나 애드인이 샘플을 뽑지 못함, 2 입력 오류(명세가 녹화본을 가리키지 않음 등).
+
 ## 5. 보안
 
 - 저장소는 Public이다. `fixtures/private/`와 `data/`는 `.gitignore` 대상이므로 커밋되지 않는다. 다른 곳으로 옮기거나 이름을 바꾸지 않는다.

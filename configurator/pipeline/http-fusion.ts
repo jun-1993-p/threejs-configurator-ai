@@ -1,6 +1,7 @@
 // HTTP Fusion 연결 포트(ADR-0013): 서버(server/app.py)의 추가 샘플 요청 API로 업로드한 애드인에 샘플을 받는다.
 // 서버는 요청을 걸어 두고, 애드인이 몇 초마다 가져가 답한다. 애드인 소식이 끊기면 서버가 요청 상태에 disconnected를 싣는다.
-import type { FusionPort, SampleAnswer, SampleRequest } from "./runner.ts";
+import type { FusionPort, SampleAnswer } from "./runner.ts";
+import type { SampleRequest } from "./verify-spec.ts";
 
 /** 서버가 돌려주는 추가 샘플 요청 상태(GET /uploads/{업로드}/sample-requests/{요청}) */
 export type RequestStatus ={ status: "pending" | "answered" | "failed"; fusion: "connected" | "disconnected"; response?: unknown; reason?: string };

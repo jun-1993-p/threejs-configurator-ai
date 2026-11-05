@@ -1,8 +1,8 @@
 // 파이프라인 실행기: 상품 하나를 10단계 고정 순서로 진행한다(ADR-0014). AI는 단계 안에서 정해진 형식으로만 답한다.
 // 바깥 의존은 Fusion 연결·AI 모델·저장소 세 포트로만 접근한다.
-import { samePair, thicknessSamplePlan, type Axis, type GridSweep, type Pair, type Spec, type SweepData } from "../src/engine.ts";
+import { samePair, type Axis, type Pair, type Spec } from "../src/engine.ts";
 import type { Style } from "../src/style.ts";
-import { assembleProduct, withApprovedSpec, type ProductFiles } from "./assemble.ts";
+import { withApprovedSpec, type ProductFiles } from "./assemble.ts";
 import { caseQuery, type CaseStore } from "./case-store.ts";
 import { candidateCards, partViews, pickParent, type CandidateCard, type PartColor, type PartView } from "./candidate-cards.ts";
 import type { Feedback } from "./feedback.ts";
@@ -13,7 +13,6 @@ import {
   checkCandidates,
   checkIntake,
   checkParts,
-  checkSampleResponse,
   checkSpec,
   checkStyles,
   checkUploadBundle,
@@ -35,25 +34,10 @@ import {
   type ThicknessExposure,
 } from "./schemas.ts";
 import type { UploadBundle } from "./upload-bundle.ts";
-import { verifyAxisResponse } from "./verify-axis.ts";
-import {
-  checkGridSamples,
-  crossCheckValues,
-  fixableByGrid,
-  GRID_PAIR_LIMIT,
-  gridLimitFeedback,
-  gridValues,
-  pairInSpec,
-  verifyCross,
-  verifyGrid,
-  type CrossSample,
-  type PairFailure,
-} from "./verify-cross.ts";
 import { judgmentFeedback, judgmentShots, type JudgmentProblem, type JudgmentRender } from "./verify-judgment.ts";
-import { verifyNumeric } from "./verify-numeric.ts";
 import { rangeIntersection, type DimensionRule } from "./range-intersection.ts";
-import { checkThicknessSamples, verifyThicknessFixed } from "./verify-thickness.ts";
-import { uploadRangeFeedback, verifyRange } from "./verify-range.ts";
+import { uploadRangeFeedback } from "./verify-range.ts";
+import { sampleRequester, samplesFailed, verifySpec, type Reinforcement, type SampleRequest } from "./verify-spec.ts";
 import { uploadSweepFeedback } from "./verify-sweep.ts";
 
 /** 단계 이름. 순서는 runPipeline의 코드가 정한다. */
@@ -162,12 +146,6 @@ export interface CaseRecord {
   rejections: Rejection[];
   /** 최종 승인에서 거절 이유 없이 반려하고 다른 후보를 고르러 돌아간 고른 후보(사용자 스토리 71) */
   backToChoice: ChosenCandidate[];
-}
-
-/** 추가 샘플 요청(ADR-0013). 응답 형식은 업로드 묶음의 샘플과 같다. */
-export interface SampleRequest {
-  kind: "cross" | "grid" | "thickness";
-  values: Record<string, number>[];
 }
 
 /**
@@ -358,36 +336,23 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
     throw new PipelineStop(stage, `${AI_FORMAT_FAILURE}: ${errors.join("; ")}`);
   }
 
-  /** 같은 요청에는 같은 형상이 오므로, 이 상품을 처리하는 동안 받은 추가 샘플은 다시 요청하지 않는다. */
-  const answered = new Map<string, CrossSample[]>();
-
   /**
-   * 애드인에 추가 샘플을 요청한다. 연결이 끊겨 있으면 실패로 세지 않고 "Fusion 연결 필요"로 기다렸다가 다시 요청한다.
-   * 애드인이 샘플을 뽑지 못했거나 응답이 형식에 맞지 않으면 검증 단계에서 멈춘다.
+   * 애드인에 추가 샘플을 요청한다. 이 상품을 처리하는 동안 받은 샘플은 다시 요청하지 않는다. 연결이 끊겨 있으면 실패로 세지 않고
+   * "Fusion 연결 필요"로 기다렸다가 다시 요청한다. 애드인이 샘플을 뽑지 못했거나 응답이 형식에 맞지 않으면 검증 단계에서 멈춘다.
    */
-  async function requestSamples(request: SampleRequest): Promise<CrossSample[]> {
-    const key = JSON.stringify(request);
-    const cached = answered.get(key);
-    if (cached) return cached;
-    for (;;) {
-      const answer = await fusion.requestSamples(request);
-      if (answer.status === "answered") {
-        const errors = checkSampleResponse(answer.response);
-        if (errors.length > 0) throw new PipelineStop("verification", `애드인 응답 형식 오류: ${errors.join("; ")}`);
-        const { samples } = answer.response as { samples: CrossSample[] };
-        // 서버도 같은 검사를 하지만, 포트 구현이 서버를 거치지 않을 수도 있어 여기서 한 번 더 본다.
-        if (JSON.stringify(samples.map((s) => s.values)) !== JSON.stringify(request.values)) {
-          throw new PipelineStop("verification", "애드인 응답의 값 묶음이 요청과 다릅니다");
-        }
-        answered.set(key, samples);
-        return samples;
+  const requestSamples = sampleRequester(
+    async (request) => {
+      for (;;) {
+        const answer = await fusion.requestSamples(request);
+        if (answer.status === "answered") return answer.response;
+        if (answer.status === "failed") throw new PipelineStop("verification", samplesFailed(answer.reason));
+        await log("verification", { fusion: FUSION_NEEDED });
+        await fusion.reconnected();
+        await log("verification", { fusion: FUSION_RECONNECTED });
       }
-      if (answer.status === "failed") throw new PipelineStop("verification", `애드인이 추가 샘플을 뽑지 못했습니다: ${answer.reason}`);
-      await log("verification", { fusion: FUSION_NEEDED });
-      await fusion.reconnected();
-      await log("verification", { fusion: FUSION_RECONNECTED });
-    }
-  }
+    },
+    (reason) => new PipelineStop("verification", reason),
+  );
 
   // 명세의 상품명은 정보 입력에서 가져오고, 슬라이더·부품 이름은 업로드 묶음을 가리킨다(docs/spec-schema.md).
   // 슬라이더 범위의 근거는 정보 입력의 상품 종류의 치수 규칙이다. 상품 하나를 처리하는 동안 바뀌지 않는다.
@@ -462,53 +427,6 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
     await log("submission");
   }
 
-  /** 받은 격자 보강. key는 요청한 값 묶음이라, 명세의 범위나 기본값이 바뀌면 그 격자는 쓰지 않는다. */
-  interface Reinforcement {
-    pair: Pair;
-    key: string;
-    sweep: GridSweep;
-    /** 격자 마디 사이 검증점의 Fusion 형상 */
-    checks: CrossSample[];
-  }
-
-  const gridKey = (spec: Spec, pair: Pair) => JSON.stringify(gridValues(spec, pair));
-  /** 이 명세에 쓸 수 있는 격자: 쌍(두 슬라이더, 또는 두께 선택과 슬라이더)이 명세에 있고, 요청한 값 묶음이 지금 범위·기본값·두께 후보와 같다 */
-  const gridsFor = (spec: Spec, reinforcements: Reinforcement[]) =>
-    reinforcements.filter((r) => pairInSpec(spec, r.pair) && r.key === gridKey(spec, r.pair));
-
-  /**
-   * 조립하고 수치 검증 → 축 반응 → 교차 검증(격자 보강 쌍은 격자 검증점까지)을 차례로 본다. 첫 실패 단계의 피드백과,
-   * 교차 검증까지 갔으면 실패한 쌍을 돌려준다.
-   */
-  async function assembleAndVerify(spec: Spec, grids: Reinforcement[], style: Style): Promise<{ files: ProductFiles; feedback: Feedback[]; failedPairs: PairFailure[] }> {
-    // 두께 선택이 있으면 두께 후보 형상을 애드인에 받아 결과물에 담는다(ADR-0010). 엔진에 넣을 수 없는 형상이면 재기 전에 돌려준다.
-    // 같은 요청은 requestSamples가 다시 보내지 않으므로, 두께 선택과 슬라이더 범위가 그대로인 재작성은 애드인을 부르지 않는다.
-    const plan = thicknessSamplePlan(spec, uploaded);
-    const thickness = plan.length === 0 ? [] : await requestSamples({ kind: "thickness", values: plan.map((p) => p.values) });
-    const files = await assembleProduct(spec, { ...uploaded, grids: grids.map((r) => r.sweep), thickness }, style);
-    await log("assembly");
-    const thicknessProblems = checkThicknessSamples(plan, thickness);
-    if (thicknessProblems.length > 0) return { files, feedback: thicknessProblems, failedPairs: [] };
-
-    // 두께 고정 실측은 녹화된 단독 스윕으로, 수치 검증은 결과물에 담긴 스윕 데이터로 잰다. 통과하면 축 반응을 녹화된 단독 스윕으로 보고,
-    // 그것도 통과하면 애드인에 교차 검증 샘플을 받아 슬라이더 덧셈을 본다. AI 판정은 이 모두를 통과한 뒤 writeVerifiedSpec이 부른다.
-    // 슬라이더가 애드인이 줄인 스윕 범위를 넘으면 엔진이 그 밖을 끝 샘플에 붙이므로, 재기 전에 범위부터 좁히게 한다.
-    const sweeps: SweepData = JSON.parse(files["sweeps.json"]);
-    let feedback = verifyRange(spec, uploaded);
-    // 두께 고정 실측은 수치 검증보다 먼저 본다. 슬라이더가 판 두께를 바꾸면 수치 검증의 판 두께 치수 오차보다
-    // "슬라이더 X가 부품 Y의 두께를 바꿈"이 원인을 바로 가리키고, 비율 수식이면 수치 검증은 통과하기 때문이다.
-    if (feedback.length === 0) feedback = verifyThicknessFixed(spec, sweeps, uploaded);
-    if (feedback.length === 0) feedback = verifyNumeric(spec, sweeps, uploaded);
-    if (feedback.length === 0) feedback = verifyAxisResponse(spec, uploaded);
-    const crossValues = crossCheckValues(spec);
-    if (feedback.length > 0 || crossValues.length === 0) return { files, feedback, failedPairs: [] };
-
-    const samples = await requestSamples({ kind: "cross", values: crossValues });
-    const failedPairs = verifyCross(spec, sweeps, uploaded, samples);
-    feedback = [...failedPairs.flatMap((f) => f.feedback), ...grids.flatMap((r) => verifyGrid(spec, sweeps, uploaded, r.pair, r.checks))];
-    return { files, feedback, failedPairs };
-  }
-
   /**
    * 결과물의 스윕 데이터로 그린 렌더링을 AI 판정에 보내고, 문제를 찾은 렌더링마다 그림을 저장해 ai_judgment 피드백을 돌려준다.
    * 비싼 VLM 호출이라 수치로 잡을 수 있는 실패를 모두 통과한 명세에만 부른다(사용자 스토리 52).
@@ -576,55 +494,29 @@ export async function runPipeline({ bundle, intake, human, ports }: PipelineInpu
         continue;
       }
 
-      const grids = gridsFor(spec, reinforcements);
-      const verified = await assembleAndVerify(spec, grids, style);
-      let files = verified.files;
-      feedback = verified.feedback;
+      // 같은 요청은 requestSamples가 다시 보내지 않으므로, 두께 선택과 슬라이더 범위가 그대로인 재작성은 애드인을 부르지 않는다.
+      // 앞선 명세에서 실패한 쌍이 또 실패해야 격자로 보강한다(먼저 피드백으로 고치게 한다).
       const failedBefore = (pair: Pair) => pairsFailedBefore.some((p) => samePair(p, pair));
-      const toReinforce = verified.failedPairs
-        .filter((f) => failedBefore(f.pair) && fixableByGrid(f) && !grids.some((r) => samePair(r.pair, f.pair)))
-        .map((f) => f.pair);
+      const verified = await verifySpec({
+        spec,
+        bundle: uploaded,
+        style,
+        reinforcements,
+        requestSamples,
+        shouldReinforce: failedBefore,
+        onAssembled: () => log("assembly"),
+        onGrid: (pair) => log("verification", { grid: pair }),
+      });
+      const { files } = verified;
+      feedback = verified.feedback;
       pairsFailedBefore.push(...verified.failedPairs.map((f) => f.pair).filter((pair) => !failedBefore(pair)));
-
-      if (toReinforce.length > 0) {
-        const needed = [...grids.map((r) => r.pair), ...toReinforce];
-        if (needed.length > GRID_PAIR_LIMIT) {
-          feedback.push(gridLimitFeedback(needed));
-        } else {
-          const { added, problems } = await reinforce(spec, toReinforce);
-          // 격자를 뽑을 수 있었던 쌍은 다른 쌍이 실패해도 남겨 두고 다음 명세에서 쓴다.
-          reinforcements.push(...added);
-          if (problems.length > 0) feedback.push(...problems);
-          else ({ files, feedback } = await assembleAndVerify(spec, gridsFor(spec, reinforcements), style));
-        }
-      }
+      // 격자를 뽑을 수 있었던 쌍은 다른 쌍이 실패해도 남겨 두고 다음 명세에서 쓴다.
+      reinforcements.push(...verified.added);
       const judgment = feedback.length === 0 ? await judge(spec, files) : null;
       await log("verification", { attempt, feedback: judgment ?? feedback });
       if (judgment) return { spec, files, judgment };
     }
     return { feedback };
-  }
-
-  /**
-   * 쌍마다 격자와 그 검증점을 애드인에 요청한다. 엔진에 넣을 수 있는 격자는 added로,
-   * 넣을 수 없는 격자(재계산 실패·위상 변화)는 그 피드백을 problems로 돌려준다.
-   */
-  async function reinforce(spec: Spec, pairs: Pair[]): Promise<{ added: Reinforcement[]; problems: Feedback[] }> {
-    const added: Reinforcement[] = [];
-    const problems: Feedback[] = [];
-    for (const pair of pairs) {
-      const { grid, checks } = gridValues(spec, pair);
-      const samples = await requestSamples({ kind: "grid", values: [...grid, ...checks] });
-      const gridSamples = samples.slice(0, grid.length);
-      const unusable = checkGridSamples(spec, uploaded, pair, gridSamples);
-      if (unusable.length > 0) {
-        problems.push(...unusable);
-        continue;
-      }
-      added.push({ pair, key: gridKey(spec, pair), sweep: { parameters: pair, samples: gridSamples }, checks: samples.slice(grid.length) });
-      await log("verification", { grid: pair });
-    }
-    return { added, problems };
   }
 
   try {

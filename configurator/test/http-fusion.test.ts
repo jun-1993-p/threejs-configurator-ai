@@ -6,7 +6,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 
 import { httpFusion, type RequestStatus as Status } from "../pipeline/http-fusion.ts";
-import type { SampleRequest } from "../pipeline/runner.ts";
+import type { SampleRequest } from "../pipeline/verify-spec.ts";
 
 /** 요청 상태를 볼 때마다 states를 하나씩 내고, 마지막 것을 되풀이한다 */
 async function fakeServer(states: Status[]) {
