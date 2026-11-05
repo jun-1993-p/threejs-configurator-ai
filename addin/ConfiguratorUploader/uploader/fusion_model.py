@@ -27,6 +27,7 @@ from .face_sampling import (
     split_circle,
 )
 from .fitted import Cylinder, Edge, Plane, Surface
+from .part_names import stable_part_names
 
 _INTERNAL = "internalUnits"
 _CM_TO_MM = 10.0
@@ -107,24 +108,30 @@ class FusionDesignModel:
     def _visible_bodies(self) -> list[_Visible]:
         """보이는 바디를 매번 새로 찾는다. 재계산 뒤에는 이전 프록시가 무효일 수 있다.
 
-        오커런스(컴포넌트 인스턴스) 안의 바디는 그 오커런스에 속한다. 서로 다른 하위 어셈블리의
-        같은 이름 오커런스가 섞이지 않도록 전체 경로 이름을 부품 이름으로 쓴다.
+        오커런스(컴포넌트 인스턴스) 안의 바디는 그 오커런스에 속한다. 부품 이름은 인스턴스 번호를 뗀 컴포넌트 경로에
+        위치 순서의 순번을 붙인 것이다(`part_names.stable_part_names`). 패턴이 만든 인스턴스는 재계산마다 번호가
+        바뀌어(`:12` → `:16`) 전체 경로를 이름으로 쓰면 부품이 사라진 것으로 보인다(티켓 26 2절).
         """
         root = self._design.rootComponent
-        found = []
+        found: list[_Visible] = []
         for i in range(root.bRepBodies.count):
             body = root.bRepBodies.item(i)
             if body.isVisible:
                 found.append((BodyInfo(name=body.name, component=None), body, None))
+        occurrences_with_bodies: list[tuple[adsk.fusion.Occurrence, list[adsk.fusion.BRepBody]]] = []
         for i in range(root.allOccurrences.count):
             occurrence = root.allOccurrences.item(i)
             if not occurrence.isVisible:
                 continue
-            for j in range(occurrence.bRepBodies.count):
-                body = occurrence.bRepBodies.item(j)  # 어셈블리 좌표의 프록시
-                if body.isVisible:
-                    path = occurrence.fullPathName
-                    found.append((BodyInfo(name=f"{path}/{body.name}", component=path), body, occurrence))
+            bodies = [b for j in range(occurrence.bRepBodies.count) if (b := occurrence.bRepBodies.item(j)).isVisible]
+            if bodies:  # 어셈블리 좌표의 프록시
+                occurrences_with_bodies.append((occurrence, bodies))
+        names = stable_part_names(
+            [(occ.fullPathName, _min_corner(bodies[0])) for occ, bodies in occurrences_with_bodies]  # 위치: 첫 바디의 어셈블리 좌표 최소점
+        )
+        for (occurrence, bodies), part in zip(occurrences_with_bodies, names):
+            for body in bodies:
+                found.append((BodyInfo(name=f"{part}/{body.name}", component=part), body, occurrence))
         return found
 
     def bodies(self) -> list[BodyInfo]:
@@ -299,6 +306,11 @@ def _convertible(units: adsk.fusion.FusionUnitsManager, unit: str, target: str) 
 
 def _mm(p: adsk.core.Point3D) -> Point:
     return (p.x * _CM_TO_MM, p.y * _CM_TO_MM, p.z * _CM_TO_MM)
+
+
+def _min_corner(body: adsk.fusion.BRepBody) -> Point:
+    """바디 경계 상자의 최소점(mm). 같은 컴포넌트의 인스턴스를 위치 순서로 세는 열쇠다."""
+    return _mm(body.boundingBox.minPoint)
 
 
 def _vec(v: adsk.core.Vector3D) -> Point:

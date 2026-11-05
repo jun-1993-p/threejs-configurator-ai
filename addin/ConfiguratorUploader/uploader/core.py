@@ -112,8 +112,17 @@ SWEEP_FACTORS = (0.5, 0.75, 1.0, 1.25, 1.5)
 
 
 def is_count(parameter: ParameterInfo) -> bool:
-    """개수형 파라미터: 단위가 없고 값이 정수인 파라미터(선반 수, 패턴 개수). 스윕하지 않는다(ADR-0005)."""
-    return parameter.unit == "" and float(parameter.value).is_integer()
+    """개수형 파라미터: 단위가 없고 값이 정수인 파라미터(선반 수, 패턴 개수). 스윕하지 않는다(ADR-0005).
+
+    Fusion은 단위를 지우는 수식(`floor(W / 400 mm) + 1`)의 값을 3.0000000000000004처럼 부동소수 잡음이 낀 채 낸다(티켓 26).
+    그래서 정수에서 1e-9 안쪽이면 정수로 본다.
+    """
+    return parameter.unit == "" and abs(parameter.value - round(parameter.value)) < 1e-9
+
+
+def _count_values(values: dict[str, float]) -> dict[str, float]:
+    """개수형 값에서 부동소수 잡음을 털어 같은 개수가 같은 값으로 읽히게 한다(`!=`로 견주고 묶음의 열쇠로 쓰기 때문이다)."""
+    return {name: float(round(value)) for name, value in values.items()}
 
 
 @dataclass(frozen=True)
@@ -181,7 +190,7 @@ def _sample(model: FusionModel, parameter: ParameterInfo, value: float, counts: 
     """단독 스윕 샘플. 개수형 파라미터가 있으면 그 값도 담는다(위상이 바뀐 까닭을 가리는 데 쓴다)."""
     sample = {"value": value, **_shape_or_failure(model, model.set_parameter(parameter.name, value))}
     if counts:
-        sample["counts"] = model.parameter_values(counts)
+        sample["counts"] = _count_values(model.parameter_values(counts))
     return sample
 
 
@@ -696,7 +705,7 @@ def _group_json(
     try:
         model.set_parameter(parameter.name, anchor)
         shape = _shape_json(model, baseline=True)
-        reference = Baseline(Composition.of(shape), model.parameter_values(list(group.reference.counts)))
+        reference = Baseline(Composition.of(shape), _count_values(model.parameter_values(list(group.reference.counts))))
         return {
             "range": {"min": values[0], "max": values[-1]},
             "anchor": anchor,
@@ -775,7 +784,7 @@ def _bundle(
 ) -> dict[str, Any]:
     baseline = _shape_json(model, baseline=True)
     # 개수형 파라미터(자식 포함)는 스윕하지 않고, 샘플마다 값을 적어 위상이 바뀐 까닭을 가린다.
-    reference = Baseline(Composition.of(baseline), {p.name: p.value for p in parameters if is_count(p)})
+    reference = Baseline(Composition.of(baseline), _count_values({p.name: p.value for p in parameters if is_count(p)}))
     swept = [p for p in parameters if _swept(p, extra_sweeps)]
     bundle = {
         "schema_version": SCHEMA_VERSION,

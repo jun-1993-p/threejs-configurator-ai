@@ -15,6 +15,7 @@ from uploader.core import (
     FaceSample,
     ParameterInfo,
     cross_check_sample,
+    is_count,
     run_upload,
     serve_sample_request,
     ADDIN_EXPRESSION,
@@ -474,6 +475,17 @@ def test_단위가_없는_정수_파라미터는_개수형으로_담기고_사�
     assert [s["parameter"] for s in bundle["sweeps"]] == ["W", "D"]
 
 
+def test_Fusion이_수식으로_낸_부동소수_잡음이_낀_정수도_개수형이다() -> None:
+    """실물 선반: `floor(shelf_w / 400 mm) + 1`이 3.0000000000000004로 나와 개수형이 아니라 연속 치수로 스윕됐다(티켓 26)."""
+    noisy = ParameterInfo("bays", 3.0000000000000004, "", "floor(shelf_w / 400 mm) + 1", True)
+    half = ParameterInfo("ratio", 2.5, "", "5 / 2", True)
+    length = ParameterInfo("W", 3.0, "mm", "3 mm", True)
+
+    off = ParameterInfo("off", 3.0 + 1e-6, "", "3.000001", True)
+
+    assert [is_count(noisy), is_count(half), is_count(length), is_count(off)] == [True, False, False, False]
+
+
 def test_개수형_파라미터가_있으면_샘플마다_그_값을_담는다() -> None:
     d = run_upload_bundle(_ShelfModel())["sweeps"][1]
 
@@ -554,6 +566,23 @@ def test_파라미터_하나의_위상_묶음이_4개를_넘으면_기본값에�
     assert reduction["reason"] == "topology_group_limit"
     assert reduction["counts"] == {"shelves": [2.0, 1.0]}
     assert all(s["value"] >= w["range"]["min"] for s in w["samples"] + w["checks"])
+
+
+def test_개수형_값의_부동소수_잡음은_개수가_바뀐_것으로_치지_않는다() -> None:
+    """실물 선반: 기본값은 2.0000000000000004, 샘플은 2.0으로 읽혀 같은 개수가 다른 개수로 보이면 안 된다(티켓 26)."""
+
+    class _NoisyCount(_ShelfModel):
+        def parameters(self) -> list[ParameterInfo]:
+            return [replace(p, value=2.0000000000000004) if p.name == "shelves" else p for p in super().parameters()]
+
+        def sample_faces(self, grid_n: int) -> list[FaceSample]:
+            faces = super().sample_faces(grid_n)
+            return faces[:-1] if self.values["D"] < 250 else faces
+
+    d = run_upload_bundle(_NoisyCount())["sweeps"][1]
+
+    assert d["range"] == {"min": 300.0, "max": 600.0}
+    assert [(r["reason"], r["counts"]) for r in d["reductions"]] == [("modeling_error_suspected", {})]
 
 
 def test_개수형_값이_그대로인데_면_구성이_바뀌면_모델링_오류_의심으로_범위를_줄인다() -> None:

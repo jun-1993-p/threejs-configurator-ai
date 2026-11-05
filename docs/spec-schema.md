@@ -42,7 +42,7 @@
 | `sliders[].default` | 기본값 | 업로드한 모델의 현재 값이고, `min`~`max` 안이다 |
 | `sliders[].step`, `unit` | 슬라이더 단위 | AI |
 | `sliders[].children` | 이 부모를 따르는 자식 파라미터 | 기록과 검증용. 업로드 묶음의 수식(`expression`)이 이 부모를 직접 또는 간접으로 따르는 파라미터만 적고, 자식 치수를 바꾸려고 고른 부모면 그 자식을 꼭 적는다. 변형 엔진은 읽지 않는다(ADR-0003) |
-| `sliders[].affects.shape` | 형태 변경 부품 | 업로드 묶음의 부품 이름이어야 한다. 단독 스윕의 축 반응과 비교한다 |
+| `sliders[].affects.shape` | 형태 변경 부품 | 업로드 묶음의 부품 이름이어야 한다(Fusion 업로드는 `컴포넌트 경로#순번`, 순번은 위치 순서). 단독 스윕의 축 반응과 비교한다 |
 | `sliders[].affects.move` | 위치 이동 부품 | 위와 같고, `shape`와 겹칠 수 없다 |
 | `thickness[].ids` | 하나의 두께 선택으로 묶인 두께 파라미터 | 같은 기본 두께여야 한다 |
 | `thickness[].name` | 두께 선택의 이름 | AI |
