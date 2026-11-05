@@ -29,6 +29,7 @@ from .uploader.core import restore_changed_parameters, run_upload, serve_sample_
 from .uploader.fusion_model import TAG_GROUP, FusionDesignModel, SelfChecks, clear_face_tags
 from .uploader.resume import resume_serving
 from .uploader.server_client import FileServerClient, HttpServerClient
+from .uploader.serving_status import POLL_S, ObservedServer, ServingStatus, write_record
 
 COMMAND_ID = "configuratorUploaderCommand"
 DRY_COMMAND_ID = "configuratorUploaderDryRun"
@@ -36,8 +37,8 @@ DRY_COMMAND_ID = "configuratorUploaderDryRun"
 _DATA = Path(__file__).resolve().parents[2] / "data"
 PANEL_ID = "SolidScriptsAddinsPanel"
 SERVE_EVENT_ID = "configuratorUploaderServeSamples"
-# 추가 샘플 요청을 찾는 간격(초). 서버의 연결 판정 시간(FUSION_TIMEOUT_S)보다 짧아야 한다.
-POLL_S = 3.0
+# 애드인이 추가 샘플 요청에 답하는 상태. 일꾼 스레드가 POLL_S마다 쓰고 연결 확인 위저드가 읽는다(티켓 33).
+_SERVING_FILE = _DATA / "addin-checks" / "serving.json"
 # 이어받기 중 모델을 만들다 실패하면 다시 시도하기까지 쉬는 시간(초)
 RESUME_RETRY_S = 60.0
 
@@ -51,7 +52,9 @@ class _Serving:
     def __init__(self) -> None:
         self.model: FusionDesignModel | None = None
         self.upload_id: str | None = None
-        self.client = HttpServerClient(config.SERVER_URL)
+        self.status = ServingStatus()
+        # 서버 호출마다 서버를 찾았는지와 오류를 상태에 남긴다
+        self.client = ObservedServer(HttpServerClient(config.SERVER_URL), self.status)
         self.busy = threading.Event()
         self.stop = threading.Event()
         self.thread: threading.Thread | None = None
@@ -77,6 +80,8 @@ class _Serving:
 
     def start(self, model: FusionDesignModel, upload_id: str) -> None:
         self.model, self.upload_id = model, upload_id
+        # 업로드나 이어받기의 연결 신호가 방금 서버에 닿았다. 업로드 클라이언트는 상태를 남기지 않아 여기서 남긴다.
+        self.status.server_seen()
         self.ensure_thread()
 
     def ensure_thread(self) -> None:
@@ -95,28 +100,36 @@ class _Serving:
                     self.client.heartbeat(upload_id)
                 else:
                     app.fireCustomEvent(SERVE_EVENT_ID, "")
-            except Exception:
+            except Exception as error:
                 # 서버가 꺼져 있어도 계속 찾는다. 연결 상태는 서버가 판정한다.
-                pass
+                self.status.failed(error)
+            # 주 스레드가 막혀도 이 스레드는 돌므로, 상태 파일은 새로 쓰이고 주 스레드가 일한 시각만 멈춘다.
+            write_record(
+                _SERVING_FILE, self.status.record(self.upload_id, busy=self.busy.is_set(), paused=self.paused.is_set())
+            )
 
     def serve_once(self) -> None:
+        self.status.main_thread_ran()
+        # 업로드 명령이 도는 동안에는 문서를 건드리지 않는다
         if self.busy.is_set() or self.paused.is_set():
             return
         self.busy.set()
         try:
             design = adsk.fusion.Design.cast(adsk.core.Application.get().activeProduct)
+            document_upload = _DocumentUploadId(design).read() if design else None
+            self.status.document_opened(document_upload)
             if not design:
                 return
             # 다른 문서로 옮겼으면 앞 문서의 모델로 답하지 않는다. 그 문서로 돌아오거나 문서에 적힌 업로드가 있는 문서를 열면 이어받는다.
-            if self.upload_id is not None and _DocumentUploadId(design).read() != self.upload_id:
+            if self.upload_id is not None and document_upload != self.upload_id:
                 self.model, self.upload_id = None, None
             if self.model is None or self.upload_id is None:
                 self._resume(design)
             else:
                 serve_sample_request(self.model, self.client, self.upload_id)
-        except Exception:
-            # 서버가 꺼져 있으면 다음 차례에 다시 찾는다.
-            pass
+        except Exception as error:
+            # 서버가 꺼져 있으면 다음 차례에 다시 찾는다. 까닭은 상태 파일에 남는다.
+            self.status.failed(error)
         finally:
             self.busy.clear()
 
@@ -132,9 +145,10 @@ class _Serving:
             resumed = resume_serving(
                 _DocumentUploadId(design), self.client, lambda: FusionDesignModel(design), lambda: clear_face_tags(design)
             )
-        except Exception:
+        except Exception as error:
             # 일시 오류일 수 있어 잠시 쉬었다 다시 시도한다. 3초마다 모델을 다시 만들지는 않는다.
             self.resume_retry_at = time.monotonic() + RESUME_RETRY_S
+            self.status.resume_failed(error, RESUME_RETRY_S)
             _write_error("이어받기 실패", traceback.format_exc())
             return
         if resumed is not None:
@@ -221,9 +235,12 @@ class _UploadHandler(_ExecuteHandler):
         design = adsk.fusion.Design.cast(adsk.core.Application.get().activeProduct)
         _DocumentUploadId(design).write(upload_id)
         _serving.start(model, upload_id)
-        ui.messageBox(
+        # 메시지 창은 닫을 때까지 주 스레드를 막아 바로 오는 추가 샘플 요청에 답하지 못한다(ADR-0013, 티켓 33).
+        # 텍스트 명령 창에 알리고, 위저드는 점검 파일(data/addin-checks/<업로드 ID>.json)을 읽는다.
+        _notify(
+            ui,
             f"업로드했습니다: {upload_id}\n{checks}\n최종 승인까지 이 문서를 저장해 두세요. "
-            "Fusion을 껐다 켜도 문서를 열면 이어서 답합니다."
+            "Fusion을 껐다 켜도 문서를 열면 이어서 답합니다.",
         )
 
 
@@ -258,6 +275,16 @@ def _write_error(title: str, detail: str) -> None:
         path.write_text(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {title}\n{detail.rstrip()}\n", encoding="utf-8")
     except OSError:
         pass
+
+
+def _notify(ui: adsk.core.UserInterface, text: str) -> None:
+    """주 스레드를 막지 않게 메시지 창 대신 텍스트 명령 창을 열어 적는다. 적지 못해도 업로드는 성공이다."""
+    try:
+        palette = ui.palettes.itemById("TextCommands")
+        palette.isVisible = True
+        palette.writeText(text)
+    except Exception:
+        _write_error("알림 실패", traceback.format_exc())
 
 
 def _confirm(ui: adsk.core.UserInterface, text: str) -> bool:

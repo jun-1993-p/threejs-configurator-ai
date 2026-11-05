@@ -228,6 +228,13 @@ RECONNECT_RESULT="확인 못 함"
 
 reader() { PYTHONUTF8=1 .venv/Scripts/python -m scripts.connection_check "$@"; }
 
+# addin_status: 애드인 상태 파일로 고른, 애드인이 지금 이 업로드에 답하는지나 못 하는 까닭 한 줄(티켓 33).
+# 끊김이 Fusion이 꺼진 것인지, 주 스레드가 막힌 것인지, 답할 업로드를 모르는 것인지를 사람에게 묻지 않고 가린다.
+addin_status() {
+  PYTHONUTF8=1 .venv/Scripts/python -m scripts.serving_status data/addin-checks/serving.json "$UPLOAD_ID" \
+    || echo "애드인 상태 파일을 읽지 못함"
+}
+
 # new_request: 업로드에 추가 샘플 요청 하나를 걸고 요청 ID를 찍는다. 걸지 못하면 아무것도 찍지 않는다.
 new_request() {
   rm -f "$CHECK_DIR/request.json" "$CHECK_DIR/created.json"
@@ -264,9 +271,13 @@ wait_for() {
   done
 }
 
-# report 기대낱말 제목: 마지막 상태를 RESULT에 "N초 뒤 <설명>"으로 두고 ✓ 또는 ⚠로 보인다
+# report 기대낱말 제목: 마지막 상태를 RESULT에 "N초 뒤 <설명>"으로 두고 ✓ 또는 ⚠로 보인다.
+# 답하지 않았으면(connected·disconnected) 애드인 상태 파일로 고른 까닭을 덧붙인다.
 report() {
   RESULT="${WAITED}초 뒤 ${LAST#* }"
+  if [[ "$WORD" == connected || "$WORD" == disconnected ]]; then
+    RESULT+=" / 애드인: $(addin_status)"
+  fi
   if [[ "$WORD" == "$1" ]]; then say "${GREEN}✓${RESET} $2: $RESULT"; else warn "$2: $RESULT"; fi
 }
 
@@ -306,15 +317,14 @@ until curl -sf -m 5 -o /dev/null "$SERVER/health"; do
   pause "서버를 띄웠으면 Enter"
 done
 # 애드인은 이 Fusion 세션에서 마지막으로 올린 업로드에만 답한다. 그 업로드 뒤 애드인이 쓴 점검 파일로 고른다
-# (건식 업로드의 dry-… 파일은 뺀다). 업로드 폴더의 파일 시각은 다른 세션의 업로드와 섞인다.
-# shellcheck disable=SC2012  # ls는 애드인이 만드는 파일 이름(업로드 ID, 공백·줄바꿈 없음)만 다룬다
-newest=$(ls -t data/addin-checks/*.json 2>/dev/null | sed '/\/dry-/d' | head -n1 || true)
-[[ -n "$newest" ]] && UPLOAD_ID=$(basename "$newest" .json)
+# (건식 업로드와 애드인 상태 파일은 뺀다). 업로드 폴더의 파일 시각은 다른 세션의 업로드와 섞인다.
+UPLOAD_ID=$(PYTHONUTF8=1 .venv/Scripts/python -m scripts.addin_checks latest data/addin-checks || true)
 [[ -n "$UPLOAD_ID" && -f "data/uploads/$UPLOAD_ID.json" ]] || {
   warn "애드인의 마지막 업로드를 찾지 못했다. 녹화 위저드로 먼저 업로드한다."
   exit 1
 }
 say "애드인의 마지막 업로드: $UPLOAD_ID"
+note "업로드 직후 바로 돌려도 된다. 업로드 완료는 메시지 창 없이 텍스트 명령 창에 찍히므로 애드인이 곧바로 답한다(ADR-0013)."
 note "Fusion에 그 문서가 열려 있고 애드인이 실행 중이어야 한다. 애드인은 업로드 ID를 문서에 적어 두므로, 문서를 저장한 뒤라면 Fusion을 껐다 켜거나 애드인을 다시 실행해도 이어 답한다."
 pause "Enter를 누르면 요청을 건다"
 first=$(new_request)

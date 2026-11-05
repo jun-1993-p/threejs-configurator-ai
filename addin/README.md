@@ -51,4 +51,6 @@ curl -X POST http://localhost:8000/uploads/<업로드 ID>/recording -H "Content-
 - 일꾼 스레드가 3초마다 사용자 이벤트를 쏘고, 주 스레드가 `GET /uploads/<ID>/sample-requests/next`로 요청을 가져가 `POST .../<요청 ID>/response`로 답한다. 샘플을 뽑지 못하면 `POST .../<요청 ID>/failure`로 이유를 알린다(바꾼 파라미터의 수식은 되돌린다). 샘플을 뽑는 동안에는 일꾼 스레드가 `POST /uploads/<ID>/fusion`으로 연결 신호를 보낸다.
 - 서버는 애드인 소식이 15초 넘게 없으면 연결이 끊긴 것으로 보고, 파이프라인은 "Fusion 연결 필요"로 기다린다.
 - 새로 업로드하면 그 업로드의 요청에만 답한다.
+- 업로드 완료는 메시지 창이 아니라 텍스트 명령 창에 찍는다. 메시지 창은 닫을 때까지 주 스레드를 막아 요청에 답하지 못한다.
+- 일꾼 스레드가 3초마다 `data/addin-checks/serving.json`에 답하는 상태(답하는 업로드, 주 스레드가 일한 시각, 서버를 찾은 시각, 마지막 오류)를 쓴다. "Fusion 연결 필요"의 까닭은 `.venv/Scripts/python -m scripts.serving_status data/addin-checks/serving.json <업로드 ID>`로 읽는다.
 - Fusion 안에서의 이 연결 동작은 아직 사람이 확인하지 않았다(Fusion 업로드 자체가 티켓 26 사람 확인을 기다린다).

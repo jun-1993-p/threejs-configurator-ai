@@ -373,12 +373,13 @@ fi
 # 점검 단계의 실패를 업로드 실패로 읽지 않게 기준을 새로 잡는다
 touch "$MARK"
 step "\"구성기 업로드\"를 누른다."
-say "사용자 파라미터 하나당 재계산이 9번 이상이라 Fusion 화면이 한동안 멈춘다. 메시지 창이 뜰 때까지 기다린다."
-note "\"업로드했습니다: <ID>\"가 뜨면 성공이다. \"업로드 실패\" 창이면 그 문장은 애드인이 $ADDIN_ERROR 에도 남긴다."
+say "사용자 파라미터 하나당 재계산이 9번 이상이라 Fusion 화면이 한동안 멈춘다. 다시 움직일 때까지 기다린다."
+# 성공은 메시지 창 없이 텍스트 명령 창에 찍는다. 창이 주 스레드를 막아 추가 샘플 요청에 답하지 못해서다(ADR-0013, 티켓 33).
+note "성공하면 메시지 창 없이 텍스트 명령 창에 \"업로드했습니다: <ID>\"가 찍힌다. \"업로드 실패\" 창이면 그 문장은 애드인이 $ADDIN_ERROR 에도 남긴다."
 UPLOAD_ID=""
 UPLOAD_ERROR=""
 while [[ -z "$UPLOAD_ID" ]]; do
-  pause "메시지 창이 뜨면 Enter"
+  pause "Fusion 화면이 다시 움직이면 Enter"
   # shellcheck disable=SC2012  # ls는 위저드가 만드는 폴더의 파일 이름(공백·줄바꿈 없음)만 다룬다
   added=$(comm -13 <(printf '%s\n' "$before" | sort) <(ls data/uploads | sort) | grep '\.json$' | tail -n1 || true)
   if [[ -n "$added" ]]; then
@@ -397,13 +398,18 @@ while [[ -z "$UPLOAD_ID" ]]; do
     SKIPPED+=("녹화(업로드 실패)")
     break
   fi
-  if confirm "업로드는 성공했나? (메시지 창에 ID가 있으면 예)"; then
-    ask UPLOAD_ID "메시지 창의 업로드 ID(32자리):"
-    if ! curl -sf -m 10 -o /dev/null "$SERVER/uploads/$UPLOAD_ID"; then
-      warn "서버에 그 ID가 없다. 다시 확인한다."
-      UPLOAD_ID=""
+  # 서버가 다른 폴더에 저장하면 업로드 폴더에 새 파일이 없다. 사람에게 ID를 옮겨 적게 하지 않고, 업로드가 끝나면
+  # 애드인이 쓰는 점검 파일에서 ID를 읽는다.
+  checked=$(PYTHONUTF8=1 .venv/Scripts/python -m scripts.addin_checks latest data/addin-checks "$MARK" || true)
+  if [[ -n "$checked" ]]; then
+    if curl -sf -m 10 -o /dev/null "$SERVER/uploads/$checked"; then
+      say "애드인의 점검 파일로 찾았다(서버는 다른 폴더에 저장한다)."
+      UPLOAD_ID="$checked"
+      break
     fi
-  elif ! confirm "다시 기다릴까? (아니오면 실패로 적고 넘어간다)"; then
+    warn "애드인이 업로드 $checked 를 마쳤지만 $SERVER 는 그 업로드를 모른다. config.py의 SERVER_URL이 다른 서버를 가리킨다."
+  fi
+  if ! confirm "다시 기다릴까? (아니오면 실패로 적고 넘어간다)"; then
     ask UPLOAD_ERROR "업로드 실패 창의 문장(첫 줄과 마지막 줄이면 충분):"
     SKIPPED+=("녹화(업로드 실패)")
     break

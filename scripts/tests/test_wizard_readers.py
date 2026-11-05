@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 
 from scripts import connection_check
-from scripts.addin_checks import RESTORED_ALL, describe
+from scripts.addin_checks import RESTORED_ALL, describe, latest_upload
 from scripts.last_error import failure
 from scripts.probe_summary import restored, summarize
 
@@ -49,6 +49,24 @@ def test_기준보다_뒤에_쓴_같은_제목의_실패_기록만_읽는다(tmp
     assert failure(record, since, "애드인 종료 실패") is None
     # 기준 파일이 없으면 이번 실패인지 알 수 없다. 위저드가 오류로 멈추지 않게 없음으로 본다
     assert failure(record, tmp_path / "missing", "애드인 종료 실패") is None
+
+
+def test_마지막_업로드는_애드인이_가장_늦게_쓴_진짜_업로드의_점검_파일이다(tmp_path: Path) -> None:
+    """같은 폴더의 애드인 상태 파일(serving.json)은 3초마다 새로 쓰이고, 건식 업로드는 서버에 없다(티켓 33 리뷰)."""
+    for name, at in [("up-old.json", 1000), ("up-new.json", 2000), ("dry-20261105.json", 3000), ("serving.json", 4000)]:
+        path = tmp_path / name
+        path.write_text("{}", encoding="utf-8")
+        os.utime(path, (at, at))
+    mark = tmp_path / "mark"
+    mark.touch()
+
+    os.utime(mark, (1500, 1500))
+    assert latest_upload(tmp_path, mark) == "up-new"
+    assert latest_upload(tmp_path) == "up-new"
+    # 기준 뒤에 쓴 점검 파일이 없으면 이번 업로드는 없다
+    os.utime(mark, (2500, 2500))
+    assert latest_upload(tmp_path, mark) is None
+    assert latest_upload(tmp_path / "missing") is None
 
 
 def test_애드인_점검_파일은_파라미터_좌표_재계산_실패의_세_줄이다() -> None:
