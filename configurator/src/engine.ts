@@ -427,10 +427,12 @@ interface GroupSpan {
 export const reaches = (slider: Slider, group: { range: { min: number; max: number } }) =>
   group.range.max >= slider.min && group.range.min <= slider.max;
 
+/** 값이 위상 묶음의 값 구간(닫힌 구간)에 드는지. 조립이 닿지 않는 묶음의 샘플을 거를 때도 같은 경계를 쓴다. */
+export const inGroup = (group: { range: { min: number; max: number } }, value: number) => group.range.min <= value && value <= group.range.max;
+
 export function createMorph(spec: Spec, data: SweepData): Morph {
   const sweepOf = (id: string) => data.sweeps.find((s) => s.parameter === id);
   const groupsOf = (id: string) => sweepOf(id)?.groups ?? [];
-  const inGroup = (g: TopologyGroup, value: number) => g.range.min <= value && value <= g.range.max;
 
   // 기본 묶음: 위상 묶음에 든 샘플은 뺀다. 격자 보강은 기본 묶음에서만 쓴다(격자 샘플은 기본 형상의 면 구성이다).
   const main = createGroupMorph(

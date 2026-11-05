@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import * as esbuild from "esbuild";
 
-import { findPair, reaches, type CrossSample, type SampleFace, type Spec, type Sweep, type SweepData } from "../src/engine.ts";
+import { findPair, inGroup, reaches, type CrossSample, type SampleFace, type Spec, type Sweep, type SweepData } from "../src/engine.ts";
 import type { Style } from "../src/style.ts";
 
 const CORE = fileURLToPath(new URL("../src/core.ts", import.meta.url));
@@ -42,10 +42,12 @@ function engineSweeps(spec: Spec, sweeps: Sweep[]): Sweep[] {
     const slider = spec.sliders.find((s) => s.id === parameter);
     if (!slider) return [];
     const reached = groups.filter((g) => reaches(slider, g));
+    // 범위가 닿지 않아 뺀 위상 묶음 안의 샘플도 뺀다. 남기면 엔진이 다른 묶음의 형상을 기본 묶음의 샘플로 읽는다.
+    const kept = samples.filter((s) => !groups.some((g) => !reached.includes(g) && inGroup(g, s.value)));
     return [
       {
         parameter,
-        samples: samples.map(({ value, status, faces }) => ({ value, status, faces: engineFaces(faces) })),
+        samples: kept.map(({ value, status, faces }) => ({ value, status, faces: engineFaces(faces) })),
         ...(reached.length === 0
           ? {}
           : {
