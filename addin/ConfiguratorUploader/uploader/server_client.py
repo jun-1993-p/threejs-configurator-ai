@@ -54,12 +54,12 @@ class HttpServerClient:
         with urllib.request.urlopen(request, timeout=_UPLOAD_TIMEOUT_S) as r:
             return cast(str, json.loads(r.read())["id"])
 
-    def _post_json(self, path: str, body: dict[str, Any] | None) -> None:
+    def _post_json(self, path: str, body: dict[str, Any] | None, timeout: float = _REQUEST_TIMEOUT_S) -> None:
         data = None if body is None else json.dumps(body, ensure_ascii=False).encode("utf-8")
         request = urllib.request.Request(
             f"{self._base_url}{path}", data=data, headers={"Content-Type": "application/json"}, method="POST"
         )
-        with urllib.request.urlopen(request, timeout=_REQUEST_TIMEOUT_S):
+        with urllib.request.urlopen(request, timeout=timeout):
             pass
 
     def next_sample_request(self, upload_id: str) -> dict[str, Any] | None:
@@ -73,6 +73,15 @@ class HttpServerClient:
     def fail_sample_request(self, upload_id: str, request_id: str, reason: str) -> None:
         self._post_json(f"/uploads/{upload_id}/sample-requests/{request_id}/failure", {"reason": reason})
 
-    def heartbeat(self, upload_id: str) -> None:
-        """샘플을 뽑는 동안 서버에 연결돼 있다고 알린다."""
-        self._post_json(f"/uploads/{upload_id}/fusion", None)
+    def heartbeat(self, upload_id: str) -> bool:
+        """서버에 연결돼 있다고 알린다(샘플을 뽑는 동안, 그리고 재시작 뒤 이어받을 때). 서버가 그 업로드를 모르면 False.
+
+        이어받기는 Fusion 주 스레드에서 부르므로, 서버에 닿지 않을 때 화면이 오래 멈추지 않게 짧게 기다린다.
+        """
+        try:
+            self._post_json(f"/uploads/{upload_id}/fusion", None, timeout=_PING_TIMEOUT_S)
+        except urllib.error.HTTPError as error:
+            if error.code == 404:
+                return False
+            raise
+        return True

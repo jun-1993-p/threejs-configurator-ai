@@ -315,7 +315,7 @@ newest=$(ls -t data/addin-checks/*.json 2>/dev/null | sed '/\/dry-/d' | head -n1
   exit 1
 }
 say "애드인의 마지막 업로드: $UPLOAD_ID"
-note "Fusion에 그 문서가 열려 있고, 업로드한 뒤 애드인을 다시 실행하지 않았어야 한다(다시 실행하면 답하던 업로드를 잊는다)."
+note "Fusion에 그 문서가 열려 있고 애드인이 실행 중이어야 한다. 애드인은 업로드 ID를 문서에 적어 두므로, 문서를 저장한 뒤라면 Fusion을 껐다 켜거나 애드인을 다시 실행해도 이어 답한다."
 pause "Enter를 누르면 요청을 건다"
 first=$(new_request)
 [[ -n "$first" ]] || stop_early "첫 요청을 걸지 못함"
@@ -340,7 +340,7 @@ DISCONNECT_RESULT="$RESULT"
 pause "Enter"
 
 stage "Fusion 다시 켜기"
-note "애드인은 답하던 업로드 ID를 메모리에만 둔다. 코드로 보면 다시 켜도 이 업로드에 답하지 않을 것이다. 실제로 그런지 본다."
+note "애드인은 답하던 업로드 ID를 문서에 적어 둔다. 문서가 열려 있고 애드인이 실행 중이면 서버가 그 업로드를 아는 한 알아서 이어 답한다."
 step "Fusion을 켜고 방금 저장한 문서를 연다."
 step "Shift+S → \"스크립트 및 추가 기능\" 창에서 ConfiguratorUploader를 실행한다(시작할 때 실행은 꺼져 있다)."
 step "\"구성기 업로드\"는 누르지 않는다. 새 업로드는 다른 ID라 이어진 것이 아니다."

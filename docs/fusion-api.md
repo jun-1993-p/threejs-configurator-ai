@@ -33,4 +33,6 @@
 - 애드인 코드를 고치면 "스크립트 및 추가 기능" 창에서 **중지한 뒤 다시 실행**해야 새 코드를 읽는다. 다시 실행하지 않으면 예전 코드로 업로드한다(확인, 두 번째 녹화). 그래서 애드인은 실행할 때 `data/addin-checks/loaded.txt`를 쓰고, 녹화 위저드는 그보다 새로 고친 애드인 코드가 있으면 업로드로 넘어가지 않는다.
 - 다시 실행할 때 Fusion이 하위 모듈(`uploader.*`)을 `sys.modules`에서 비우는지는 확인하지 못했다. 그래서 애드인이 시작할 때 자기 패키지의 하위 모듈을 스스로 지운다(`ConfiguratorUploader.py` 머리).
 - Fusion API는 주 스레드에서만 부른다(ADR-0013).
+- **`design.attributes`에 쓴 업로드 ID가 문서를 저장하고 Fusion을 껐다 켠 뒤에도 남는지는 확인하지 못했다(추정).** 면 표시(`native.attributes`)는 저장 뒤에도 남는다고 보고 같은 그룹에 `upload_id` 속성을 둔다(`ConfiguratorUploader._DocumentUploadId`). 위저드 「Fusion 다시 켜기」가 이를 처음 확인한다.
+- **애드인이 실행될 때 문서가 이미 열려 있는지, 문서 열림을 어떻게 알 수 있는지는 확인하지 못했다(추정).** 그래서 문서 열림 이벤트에 걸지 않고, 답하는 업로드가 없는 동안 3초마다 `activeProduct`를 읽어 문서에 적힌 업로드를 찾는다(`_Serving._resume`).
 - 실패 기록 파일과 점검 파일은 녹화 안내서 4-3에 있다. 탐색 스크립트의 실패는 `data/probes/last-error.txt`에 남는다.

@@ -68,6 +68,12 @@ class SelfChecks:
 _Visible = tuple[BodyInfo, adsk.fusion.BRepBody, adsk.fusion.Occurrence | None]
 
 
+def clear_face_tags(design: adsk.fusion.Design) -> None:
+    """이 디자인의 면 표시를 모두 지운다. 모델을 만들다 실패해 모델 없이 표시만 남았을 때도 쓴다."""
+    for attr in design.findAttributes(TAG_GROUP, TAG_NAME):
+        attr.deleteMe()
+
+
 class FusionDesignModel:
     def __init__(self, design: adsk.fusion.Design) -> None:
         self._design = design
@@ -198,8 +204,7 @@ class FusionDesignModel:
 
     def clear_tags(self) -> None:
         """이 디자인의 면 표시를 모두 지운다. 건식 업로드가 끝날 때와, 업로드가 앞 업로드의 표시를 지울 때 쓴다."""
-        for attr in self._design.findAttributes(TAG_GROUP, TAG_NAME):
-            attr.deleteMe()
+        clear_face_tags(self._design)
 
     def _tag_baseline(self) -> None:
         """앞 업로드의 표시를 지우고, 기본 형상의 면에 이름을 붙인다."""
