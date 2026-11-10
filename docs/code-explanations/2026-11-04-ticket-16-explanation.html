@@ -1,0 +1,1033 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>티켓 16: 정보 입력, 후보 제시·선택 설명</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f6f7f9;
+        --text: #1c2024;
+        --muted: #60646c;
+        --border: #d7dbdf;
+        --border-strong: #848c95;
+        --accent: #2f5ee0;
+        --accent-soft: #e8eefc;
+        --edge: #a35608;
+        --edge-soft: #fbefe1;
+        --ok: #1a7f47;
+        --ok-soft: #e4f3ea;
+        --bad: #c62a3b;
+        --bad-soft: #fbe7e9;
+        --measure: 68ch;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181b;
+          --surface: #1f2226;
+          --text: #eceef0;
+          --muted: #9ba1a6;
+          --border: #33383d;
+          --border-strong: #646c75;
+          --accent: #7aa2ff;
+          --accent-soft: #1e2740;
+          --edge: #e08c3a;
+          --edge-soft: #2e2517;
+          --ok: #57c98b;
+          --ok-soft: #17281d;
+          --bad: #f07178;
+          --bad-soft: #2c1a1c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:visited {
+        color: var(--accent);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 2.5rem;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 6rem;
+      }
+      nav.toc {
+        position: sticky;
+        top: 2.5rem;
+        align-self: start;
+        font-size: 0.9rem;
+      }
+      nav.toc strong {
+        display: block;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc li {
+        margin: 0.35rem 0;
+      }
+      nav.toc a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav.toc a:hover {
+        color: var(--accent);
+      }
+      main {
+        min-width: 0;
+      }
+      main > header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1.25rem;
+        margin-bottom: 2rem;
+      }
+      main > header h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.6rem;
+      }
+      main > header .lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: var(--measure);
+      }
+      main > header .provenance {
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        margin: 0.7rem 0 0;
+      }
+      .colophon {
+        grid-column: 1 / -1;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        border-top: 1px solid var(--border);
+        margin: 4rem 0 0;
+        padding: 1.2rem 0 0;
+      }
+      .colophon a {
+        color: inherit;
+      }
+      section {
+        margin-bottom: 3.5rem;
+      }
+      section h2 {
+        font-size: 1.4rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      section h3 {
+        font-size: 1.05rem;
+        margin: 2rem 0 0.6rem;
+      }
+      section p,
+      section ul,
+      section ol {
+        max-width: var(--measure);
+      }
+      li {
+        margin: 0.3rem 0;
+      }
+      /* Code blocks: white-space set here so a filled-in block cannot collapse. */
+      pre,
+      .code-block {
+        white-space: pre-wrap;
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        font:
+          0.86rem/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        tab-size: 2;
+      }
+      pre .del {
+        color: var(--bad);
+      }
+      pre .add {
+        color: var(--ok);
+      }
+      pre .hi {
+        background: var(--accent-soft);
+        border-radius: 3px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--surface);
+        padding: 0.05rem 0.3rem;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      /* A file:line reference linked to the code it names. Wraps a <code> span
+         in prose, or the bare text of a .filename label. */
+      a.srcref {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px solid var(--muted);
+      }
+      a.srcref:hover {
+        border-bottom-color: var(--accent);
+      }
+      a.srcref:hover code {
+        background: var(--accent-soft);
+      }
+      /* Path label for the code block below it. */
+      .filename {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        margin: 1.5rem 0 0.3rem;
+        overflow-wrap: anywhere;
+      }
+      /* Comparison table: one row per case, .yes / .no / .warn on outcome cells. */
+      table.vals {
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.86rem;
+        width: 100%;
+        max-width: 620px;
+      }
+      table.vals th,
+      table.vals td {
+        border: 1px solid var(--border-strong);
+        padding: 0.4rem 0.65rem;
+        text-align: left;
+      }
+      table.vals th {
+        background: var(--surface);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+      table.vals td.yes {
+        background: var(--ok-soft);
+      }
+      table.vals td.no {
+        background: var(--bad-soft);
+      }
+      table.vals td.warn {
+        background: var(--edge-soft);
+      }
+      /* Callouts: .callout for a concept, .callout.edge for a caveat. */
+      .callout {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+        padding: 0.85rem 1.1rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .callout .label {
+        display: block;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+      }
+      .callout.edge {
+        background: var(--edge-soft);
+        border-left-color: var(--edge);
+      }
+      .callout.edge .label {
+        color: var(--edge);
+      }
+      /* Skippable deep-background block. */
+      details.skippable {
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 0.75rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      details.skippable > summary {
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      details.skippable[open] > summary {
+        margin-bottom: 0.75rem;
+      }
+      /* Diagram family 1: simplified app UI mockup. */
+      .ui-mockup {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1.5rem 0;
+        max-width: 560px;
+        font-size: 0.85rem;
+      }
+      .ui-mockup .bar {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0.5rem 0.85rem;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .ui-mockup .body {
+        padding: 1.1rem 0.85rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+      }
+      .mock-caption {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.3rem 0 0;
+        max-width: var(--measure);
+      }
+      /* Diagram family 2: data flow between components, example data on the arrows. */
+      .dataflow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+      /* Each arrow travels with the node it points at. Without this, a flow
+         wider than the column wraps between an arrow and its node, leaving the
+         arrow pointing at nothing and the node stranded on the next line. */
+      .dataflow .step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .dataflow .node {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 175px;
+      }
+      .dataflow .node.terminal {
+        background: var(--surface);
+        border-color: var(--border);
+      }
+      .dataflow .node.pass {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .dataflow .node.fail {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .dataflow .arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.72rem;
+        min-width: 96px;
+      }
+      .dataflow .arrow .line {
+        width: 100%;
+        border-top: 2px solid var(--border);
+        position: relative;
+      }
+      .dataflow .arrow .line::after {
+        content: "\25B6";
+        position: absolute;
+        right: -2px;
+        top: -0.72em;
+        color: var(--border);
+        font-size: 0.7rem;
+      }
+      .dataflow .arrow .data {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.35rem;
+        margin-bottom: 0.2rem;
+        font-family: ui-monospace, monospace;
+      }
+      .flow-label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin: 1.25rem 0 0.25rem;
+      }
+      /* A numbered sequence with one marked position: call stacks, retry
+         counts, any ranked list. Not one of the numbered families; reach for
+         it when a step in an ordered list is the point. */
+      .frames {
+        list-style: none;
+        padding: 0;
+        margin: 1.25rem 0;
+        max-width: 620px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.82rem;
+      }
+      .frames li {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.45rem 0.7rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+      }
+      .frames li.target {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .frames .n {
+        display: inline-block;
+        min-width: 2.2em;
+        color: var(--muted);
+      }
+      /* Diagram family 3: node/recursion tree (ASTs, nesting, recursion) */
+      .tree {
+        margin: 1.5rem 0;
+        font:
+          0.82rem/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      .tnode {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.3rem 0.55rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+        display: inline-block;
+      }
+      .tnode.leaf {
+        background: var(--bg);
+      }
+      .tnode.kept {
+        border-color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tnode.skipped {
+        border-color: var(--muted);
+        color: var(--muted);
+      }
+      .tchildren {
+        margin-left: 1.4rem;
+        border-left: 2px dotted var(--border);
+        padding-left: 0.9rem;
+      }
+      .tnote {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-left: 0.4rem;
+      }
+
+      /* Optional tabular body for .ui-mockup, when the mocked UI is a table. */
+      .mock-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .mock-table th,
+      .mock-table td {
+        border: 1px solid var(--border);
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+      }
+      .mock-table th {
+        background: var(--surface);
+        font-weight: 600;
+      }
+      .mock-table .col-highlight {
+        background: var(--accent-soft);
+      }
+
+      .mermaid {
+        margin: 1.75rem 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .mermaid .edgeLabel,
+      .mermaid .edgeLabel p,
+      .mermaid .edgeLabel span,
+      .mermaid .edgeLabel foreignObject div {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+      }
+      /* Quiz */
+      .quiz-question {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .quiz-question > p.q {
+        font-weight: 600;
+        margin: 0 0 0.85rem;
+      }
+      .quiz-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 0.5rem;
+        font: inherit;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .quiz-option:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .quiz-option.correct {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .quiz-option.incorrect {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .quiz-option:disabled {
+        cursor: default;
+      }
+      .quiz-feedback {
+        display: none;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 7px;
+        margin-top: 0.3rem;
+      }
+      .quiz-feedback.show {
+        display: block;
+      }
+      .quiz-feedback.ok {
+        background: var(--ok-soft);
+      }
+      .quiz-feedback.bad {
+        background: var(--edge-soft);
+      }
+      a:focus-visible,
+      summary:focus-visible,
+      .quiz-option:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+      table.vals td.yes::before,
+      .dataflow .node.pass::before,
+      .tnode.kept::before,
+      .quiz-option.correct::before {
+        content: "\2713\00a0";
+        font-weight: 700;
+      }
+      table.vals td.no::before,
+      .dataflow .node.fail::before,
+      .quiz-option.incorrect::before {
+        content: "\2717\00a0";
+        font-weight: 700;
+      }
+      table.vals td.warn::before {
+        content: "\25B2\00a0";
+        font-weight: 700;
+      }
+      .tnode.skipped::before {
+        content: "\2013\00a0";
+        font-weight: 700;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 1rem;
+          padding: 1.25rem 1.1rem 4rem;
+        }
+        nav.toc {
+          position: static;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+        }
+        body {
+          font-size: 16px;
+        }
+        main > header h1 {
+          font-size: 1.6rem;
+        }
+        table.vals {
+          display: block;
+          overflow-x: auto;
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <nav class="toc">
+        <strong>목차</strong>
+        <ol>
+          <li><a href="#background">배경</a></li>
+          <li><a href="#intuition">핵심 아이디어</a></li>
+          <li><a href="#code">코드 따라가기</a></li>
+          <li><a href="#quiz">퀴즈</a></li>
+        </ol>
+      </nav>
+
+      <main>
+        <header>
+          <h1>티켓 16: 정보 입력, 후보 제시·선택</h1>
+          <p class="lead">
+            운영자가 정보 입력을 적으면, AI가 명세 작성 전에 슬라이더 구성 후보 2~4개를 업로드한 스윕으로 만든 미리보기와 함께 보여 주고, 운영자가 고른 후보가 명세 작성의 입력이 되게 한 변경이다.
+          </p>
+          <p class="provenance">
+            jun-1993-p/threejs-configurator-ai 티켓 16 (커밋 414ea8d), 2026-11-04에 설명함. References link to this commit.
+          </p>
+        </header>
+
+        <section id="background">
+          <h2>배경</h2>
+          <details class="skippable">
+            <summary>이 프로젝트가 처음이라면: 깊은 배경을 펼치세요.</summary>
+            <p>
+              프로젝트는 Fusion CAD 모델을 쇼핑몰 페이지의 div 안에서 도는 three.js 구성기로 바꾼다. 파이프라인 실행기가 상품 하나를 정해진 순서로 진행한다(ADR-0014). CAD 애드인이 올린 <strong>업로드 묶음</strong>(파라미터, 부품, 기본 형상, 스윕)을 받고, 운영자가 적은 <strong>정보 입력</strong>을 받고, AI가 <strong>명세</strong>(슬라이더를 어떤 범위로 노출할지 적은 JSON)를 쓴다. 이어서 조립·검증을 거쳐 사람이 최종 승인한다.
+            </p>
+            <p>
+              같은 Fusion 모델에서도 슬라이더를 만드는 방법이 여러 가지다. 예를 들어 서랍장에서 전체 폭 하나만 노출할 수도 있고, 폭과 깊이를 함께 노출할 수도 있다. 정면 방향(고객이 가구를 마주하는 방향)을 어느 쪽으로 보느냐에 따라 폭 W·깊이 D·높이 H가 Fusion의 어느 축인지도 달라진다. 정면을 AI가 혼자 정하면 틀려도 드러나지 않는다. 티켓 15 기록에는 정면이 <code>+X</code>인데 <code>axes.W</code>가 X인 명세가 수동 확인에서 제출까지 간 사례가 있다. 이 티켓은 명세 작성 전에 후보를 보이고 사람이 고르게 한다(두 사실을 잇는 것은 내 추정이다).
+            </p>
+          </details>
+
+          <p>
+            이 티켓 전의 <code>chooseCandidate</code>는 후보 목록만 받았고, 정면은 지시문의 "확신이 없으면 후보끼리 정면을 다르게 둔다"는 문장에만 맡겨져 있었다. 후보끼리 다른지 보는 검사도 없었다. 티켓 15에서 AI 모델 포트에 LiteLLM 구현이 생겼고, 이 티켓은 그 위에 정보 입력 화면, 그림을 보는 부품 탐색, 후보끼리 달라야 한다는 검사, 후보 카드를 쌓는다.
+          </p>
+
+          <div class="callout">
+            <span class="label">용어</span>
+            <p>
+              <strong>부품 탐색</strong>은 후보 제시 첫머리에 VLM(그림을 보는 모델)이 기본 형상을 여섯 방향에서 그린 그림을 보고 부품의 역할과 정면 후보, 위쪽 방향을 찾는 일이다. 정면 후보가 여럿이면 정면을 확신하지 못한 것이고, 후보끼리 그 정면을 모두 나눠 쓴다. <strong>후보 카드</strong>는 후보 선택 화면에서 후보 하나를 보여 주는 칸이다. 다른 후보와의 차이 한 줄, 축 대응, 변형 미리보기가 붙는다.
+            </p>
+          </div>
+        </section>
+
+        <section id="intuition">
+          <h2>핵심 아이디어</h2>
+          <p>
+            이 변경은 세 가지를 한다. VLM이 확신하지 못하는 것(정면)은 후보에 펼쳐서 사람이 고르게 한다. 후보가 서로 정말 다른지는 코드가 검사한다. 사람이 고르는 근거를 글이 아니라 그림으로 준다.
+          </p>
+          <p class="flow-label">후보 선택까지의 길</p>
+          <div class="dataflow">
+            <div class="node terminal">정보 입력 (상품명·종류·메모·두께 노출)</div>
+            <div class="step">
+              <div class="arrow"><span class="data">여섯 방향 그림 + 부품 색</span><span class="line"></span></div>
+              <div class="node">부품 탐색 (VLM)</div>
+            </div>
+            <div class="step">
+              <div class="arrow"><span class="data">부품 역할, 정면 후보, 위쪽</span><span class="line"></span></div>
+              <div class="node">후보 제시 (2~4개)</div>
+            </div>
+            <div class="step">
+              <div class="arrow"><span class="data">후보 + 축 대응 + 미리보기</span><span class="line"></span></div>
+              <div class="node pass">운영자가 카드 하나를 고름</div>
+            </div>
+          </div>
+
+          <p>
+            정면이 불확실한 서랍장을 예로 들자. VLM이 정면 후보를 <code>-Y</code>, <code>+X</code> 두 개로 답하면 정면을 확신하지 못한 것이다. 후보 제시는 후보 두 개 이상이 이 두 정면을 모두 나눠 써야 한다. 운영자는 두 카드를 비교한다. 카드에는 정면에 따라 정해지는 축 대응이 적혀 있다.
+          </p>
+          <table class="vals">
+            <thead>
+              <tr><th>후보</th><th>정면</th><th>위쪽</th><th>D 깊이</th><th>H 높이</th><th>W 폭</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>c1</td><td><code>-Y</code></td><td><code>+Z</code></td><td>Y축</td><td>Z축</td><td>X축</td></tr>
+              <tr><td>c2</td><td><code>+X</code></td><td><code>+Z</code></td><td>X축</td><td>Z축</td><td>Y축</td></tr>
+            </tbody>
+          </table>
+          <p>
+            규칙은 하나다. 깊이는 정면 방향의 축이고, 높이는 위쪽의 축이고, 폭은 남은 축이다. 정면 후보가 <code>-Y</code>와 <code>+X</code>로 나뉘는 상황을 가정한 값이고, 정면이 바뀌면 폭과 깊이의 축이 서로 바뀐다.
+          </p>
+
+          <div class="callout edge">
+            <span class="label">경계 사례</span>
+            <p>
+              미리보기에는 두께 후보 그림이 없고, 카드에는 "두께 선택 보이기/숨김"이 글로만 표시된다. 두께 후보의 형상은 명세 작성 뒤에 추가 샘플 요청으로 받기 때문에 후보 제시 때는 아직 없다(티켓 기록). 또 이 티켓은 운영자 화면을 띄우는 호스트를 만들지 않았다. 화면 함수는 HTML 문장을 만들고 양식 값을 읽는 데까지다.
+            </p>
+          </div>
+        </section>
+
+        <section id="code">
+          <h2>코드 따라가기</h2>
+          <p>
+            <strong>흐름:</strong> 정보 입력 양식과 검사 → 여섯 방향 그림 그리기 → 부품 탐색 → 후보 제시와 후보 검사 → 후보 카드 만들기 → 고른 카드가 명세 작성의 입력과 검사 기준이 됨.
+          </p>
+
+          <h3>1. 정보 입력: 양식과 형식 검사</h3>
+          <p>
+            정보 입력은 상품명, 상품 종류(목록), 범위 메모, 두께 선택 노출 여부 네 칸이다. 직업처럼 쓰이지 않는 항목은 받지 않는다(사용자 스토리 18). 형식은 <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/414ea8d67dffe94735eae5502d9c78ca4295f957/configurator/pipeline/schemas.ts#L55"><code>configurator/pipeline/schemas.ts:55</code></a>가 검사한다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/414ea8d67dffe94735eae5502d9c78ca4295f957/configurator/pipeline/schemas.ts#L55-L65">configurator/pipeline/schemas.ts:55-65</a></p>
+<pre><span class="add">export const checkIntake = checker({</span>
+<span class="add">  type: "object",</span>
+<span class="add">  required: ["name", "kind", "memo", "thickness"],</span>
+<span class="add">  additionalProperties: false,</span>
+<span class="add">  properties: {</span>
+<span class="add">    name: { type: "string", minLength: 1 },</span>
+<span class="add">    kind: { enum: PRODUCT_KINDS },</span>
+<span class="add">    memo: { type: "string" },</span>
+<span class="add">    thickness: { enum: THICKNESS_CHOICES },</span>
+<span class="add">  },</span>
+<span class="add">});</span></pre>
+          <p>
+            양식 화면은 <code>intakeFormHtml</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/414ea8d67dffe94735eae5502d9c78ca4295f957/configurator/pipeline/operator-screens.ts#L31"><code>configurator/pipeline/operator-screens.ts:31</code></a>), 보낸 값을 읽는 것은 <code>readIntakeForm</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/414ea8d67dffe94735eae5502d9c78ca4295f957/configurator/pipeline/operator-screens.ts#L47"><code>configurator/pipeline/operator-screens.ts:47</code></a>)다. 두께 노출을 비우면 "AI 판단"(<code>ai</code>)이다. 실행기는 정보 입력 단계에서 같은 검사를 다시 돌려, 틀리면 후보 제시 전에 멈춘다.
+          </p>
+
+          <h3>2. 여섯 방향 그림</h3>
+          <p>
+            VLM에게 보낼 그림은 서버가 그린다. WebGL 없이 직교 투영·깊이 버퍼·면 음영만으로 삼각형을 칠하는 소프트웨어 래스터라이저가 새 파일 <code>render.ts</code>에 있다. 부품마다 색이 달라 VLM이 색으로 부품을 가린다. <code>partViews</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/414ea8d67dffe94735eae5502d9c78ca4295f957/configurator/pipeline/candidate-cards.ts#L64"><code>configurator/pipeline/candidate-cards.ts:64</code></a>)가 기본 형상을 ±X·±Y·±Z 여섯 방향에서 그리고 부품 색 목록을 만든다. X·Y 쪽 그림은 Z가 위, Z 쪽 그림은 Y가 위다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/414ea8d67dffe94735eae5502d9c78ca4295f957/configurator/pipeline/candidate-cards.ts#L64-L73">configurator/pipeline/candidate-cards.ts:64-73</a></p>
+<pre><span class="add">export function partViews(bundle: UploadBundle): { views: PartView[]; colors: PartColor[] } {</span>
+<span class="add">  const colorOf = colorsOf(bundle);</span>
+<span class="add">  const shape = createMorph(sweepSpec(bundle, []), bundle).shape({});</span>
+<span class="add">  const views = FRONTS.map((from) =&gt; {</span>
+<span class="add">    const view: View = { eye: directionOf(from), up: from[1] === "Z" ? [0, 1, 0] : [0, 0, 1] };</span>
+<span class="add">    return { from, image: renderPngs([shape], view, VIEW_SIZE, colorOf)[0].toString("base64") };</span>
+<span class="add">  });</span>
+<span class="add">  const parts = [...new Set(shape.faces.map((f) =&gt; f.part))];</span>
+<span class="add">  return { views, colors: parts.map((name) =&gt; ({ name, color: hex(colorOf(name)) })) };</span>
+<span class="add">}</span></pre>
+          <p>
+            부품 색은 정해 둔 6색 뒤로 색상환을 황금각씩 돌려 만든다. 부품이 많아도 색이 겹치지 않는다(리뷰 반영). 티켓 기록에 따르면 렌더링은 한 실행에 0.3초 안팎이다.
+          </p>
+
+          <h3>3. 부품 탐색</h3>
+          <p>
+            AI 단계가 셋에서 넷이 되었다. 새 단계 <code>parts</code>는 후보 제시 앞에 온다. 새 메서드 <code>findParts</code>는 그림과 부품 색을 받는다. 응답은 JSON Schema(<code>PARTS_SCHEMA</code>)로 검사한다. 부품 목록, 정면 후보(확신 순서, 1~4개), 위쪽이다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/414ea8d67dffe94735eae5502d9c78ca4295f957/configurator/pipeline/schemas.ts#L68-L86">configurator/pipeline/schemas.ts:68-86</a></p>
+<pre><span class="add">export const PARTS_SCHEMA = {</span>
+<span class="add">  type: "object",</span>
+<span class="add">  required: ["parts", "fronts", "up"],</span>
+<span class="add">  additionalProperties: false,</span>
+<span class="add">  properties: {</span>
+<span class="add">    parts: {</span>
+<span class="add">      type: "array",</span>
+<span class="add">      minItems: 1,</span>
+<span class="add">      items: {</span>
+<span class="add">        type: "object",</span>
+<span class="add">        required: ["name", "role"],</span>
+<span class="add">        additionalProperties: false,</span>
+<span class="add">        properties: { name: { type: "string", minLength: 1 }, role: { type: "string", minLength: 1 } },</span>
+<span class="add">      },</span>
+<span class="add">    },</span>
+<span class="add">    fronts: { type: "array", minItems: 1, maxItems: 4, uniqueItems: true, items: { enum: FRONTS } },</span>
+<span class="add">    up: { enum: FRONTS },</span>
+<span class="add">  },</span>
+<span class="add">};</span></pre>
+          <p>
+            실행기는 부품 탐색을 상품마다 한 번만 부른다. 후보 제시로 돌아와도 같은 형상이라 다시 묻지 않는다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/414ea8d67dffe94735eae5502d9c78ca4295f957/configurator/pipeline/runner.ts#L457-L461">configurator/pipeline/runner.ts:457-461</a></p>
+<pre><span class="add">    // 부품 탐색은 상품마다 한 번이다. 후보 제시로 돌아와도 같은 형상이라 다시 묻지 않는다.</span>
+<span class="add">    const { views, colors } = partViews(uploaded);</span>
+<span class="add">    const parts = await askUntilValid&lt;PartsFound&gt;("candidates", checkBundleParts, (schemaErrors, rejected) =&gt;</span>
+<span class="add">      ai.findParts({ intake, views, colors, rejected, schemaErrors }),</span>
+<span class="add">    );</span></pre>
+          <p>
+            LiteLLM 구현은 그림을 OpenAI 호환 조각 목록에 실어 보낸다. 문장 뒤에 <code>image_url</code> 조각(data URI)이 붙고, 문장에는 그림 순서대로 어느 쪽에서 본 것인지만 남긴다. 부품 탐색의 형식 오류는 단계 <code>candidates</code>로 기록된다. 티켓 기록에 따르면 처리 기록의 단계 순서(ADR-0014의 10단계)를 바꾸지 않으려는 것이다. <code>partsReferenceChecker</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/414ea8d67dffe94735eae5502d9c78ca4295f957/configurator/pipeline/schemas.ts#L215"><code>configurator/pipeline/schemas.ts:215</code></a>)는 답의 부품 이름이 업로드 묶음에 있는지, 정면 후보가 위쪽과 같은 축이 아닌지 본다.
+          </p>
+
+          <h3>4. 후보 검사: 서로 달라야 하고 정면은 부품 탐색을 따른다</h3>
+          <p>
+            <code>candidateDiversityChecker</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/414ea8d67dffe94735eae5502d9c78ca4295f957/configurator/pipeline/schemas.ts#L231"><code>configurator/pipeline/schemas.ts:231</code></a>)가 형식 검사를 통과한 후보에 규칙 다섯 가지를 건다. 표의 네 가지와, 위쪽과 같은 축은 정면이 될 수 없다는 규칙이다.
+          </p>
+          <table class="vals">
+            <thead>
+              <tr><th>규칙</th><th>어긋나면</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>두 후보는 정면·부모 파라미터(순서 무관)·두께 노출 중 하나 이상이 다르다</td><td>같은 후보라고 알림</td></tr>
+              <tr><td>정면 후보가 하나면 모든 후보가 그 정면이다</td><td>확신한 정면이어야 한다고 알림</td></tr>
+              <tr><td>정면 후보가 여럿이면 후보에 모두 나온다</td><td>빠진 정면을 알림</td></tr>
+              <tr><td>정보 입력이 두께를 보이기·숨기기로 정했으면 후보가 따른다. "AI 판단"이면 후보마다 달라도 된다</td><td>정해진 값을 알림</td></tr>
+            </tbody>
+          </table>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/414ea8d67dffe94735eae5502d9c78ca4295f957/configurator/pipeline/schemas.ts#L231-L250">configurator/pipeline/schemas.ts:231-250</a></p>
+<pre><span class="add">export function candidateDiversityChecker({ fronts, up }: { fronts: Front[]; up: Front }, thickness: ThicknessExposure) {</span>
+<span class="add">  return (candidates: { id: string; front: Front; parents: string[]; showThickness: boolean }[]): string[] =&gt; {</span>
+<span class="add">    const shape = (c: (typeof candidates)[number]) =&gt; JSON.stringify([c.front, [...c.parents].sort(), c.showThickness]);</span>
+<span class="add">    const errors = candidates.flatMap((c, i) =&gt; [</span>
+<span class="add">      ...frontOnUpAxis(`/${i}/front`, c.front, up),</span>
+<span class="add">      ...(fronts.length === 1 &amp;&amp; c.front !== fronts[0] ? [`/${i}/front: 부품 탐색이 확신한 정면 ${fronts[0]}이어야 합니다`] : []),</span>
+<span class="add">      ...(thickness !== "ai" &amp;&amp; c.showThickness !== (thickness === "show")</span>
+<span class="add">        ? [`/${i}/showThickness: 정보 입력이 두께 선택을 ${thickness === "show" ? "보이기" : "숨기기"}로 정해 ${thickness === "show"}이어야 합니다`]</span>
+<span class="add">        : []),</span>
+<span class="add">      ...candidates</span>
+<span class="add">        .slice(0, i)</span>
+<span class="add">        .filter((other) =&gt; shape(other) === shape(c))</span>
+<span class="add">        .map((other) =&gt; `/${i}: 후보 ${other.id}와 정면·부모 파라미터·두께 선택 노출이 모두 같습니다. 하나 이상을 다르게 하세요`),</span>
+<span class="add">    ]);</span>
+<span class="add">    const missing = fronts.length &gt; 1 ? fronts.filter((f) =&gt; !candidates.some((c) =&gt; c.front === f)) : [];</span>
+<span class="add">    if (missing.length &gt; 0) {</span>
+<span class="add">      errors.push(`${ROOT}: 정면을 확신하지 못해(정면 후보 ${fronts.join("·")}) 후보끼리 정면이 달라야 합니다. 빠진 정면: ${missing.join("·")}`);</span>
+<span class="add">    }</span>
+<span class="add">    return errors;</span>
+<span class="add">  };</span></pre>
+          <p>
+            다섯째 규칙의 검사는 <code>frontOnUpAxis</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/414ea8d67dffe94735eae5502d9c78ca4295f957/configurator/pipeline/schemas.ts#L209"><code>configurator/pipeline/schemas.ts:209</code></a>) 하나로 합쳐 후보 검사와 부품 탐색 검사가 같이 쓴다.
+          </p>
+
+          <h3>5. 후보 카드: 축 대응과 변형 미리보기</h3>
+          <p>
+            <code>axesFor</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/414ea8d67dffe94735eae5502d9c78ca4295f957/configurator/pipeline/candidate-cards.ts#L17"><code>configurator/pipeline/candidate-cards.ts:17</code></a>)가 정면과 위쪽에서 축 대응을 정한다. 같은 축이면 오류다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/414ea8d67dffe94735eae5502d9c78ca4295f957/configurator/pipeline/candidate-cards.ts#L17-L21">configurator/pipeline/candidate-cards.ts:17-21</a></p>
+<pre><span class="add">export function axesFor(front: Front, up: Front): Record&lt;Axis, string&gt; {</span>
+<span class="add">  const [D, H] = [front[1], up[1]];</span>
+<span class="add">  if (D === H) throw new Error(`정면 ${front}과 위쪽 ${up}이 같은 축이라 축 대응을 정할 수 없습니다`);</span>
+<span class="add">  return { W: [..."XYZ"].find((a) =&gt; a !== D &amp;&amp; a !== H)!, D, H };</span>
+<span class="add">}</span></pre>
+          <p>
+            미리보기는 업로드한 스윕으로 만든다. <code>sweepSpec</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/414ea8d67dffe94735eae5502d9c78ca4295f957/configurator/pipeline/candidate-cards.ts#L52"><code>configurator/pipeline/candidate-cards.ts:52</code></a>)가 후보의 부모 파라미터마다 스윕 범위 전체를 슬라이더로 둔 임시 명세를 만들고, 변형 엔진이 그 명세로 형상을 낸다. 위상 묶음도 그대로 탄다(티켓 11). <code>candidateCards</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/414ea8d67dffe94735eae5502d9c78ca4295f957/configurator/pipeline/candidate-cards.ts#L76"><code>configurator/pipeline/candidate-cards.ts:76</code></a>)는 부모 파라미터마다 범위 끝·기본값 세 곳을 그려 카드에 붙인다. 시점은 정면 쪽에서 오른쪽 위로 비켜 본다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/414ea8d67dffe94735eae5502d9c78ca4295f957/configurator/pipeline/candidate-cards.ts#L84-L90">configurator/pipeline/candidate-cards.ts:84-90</a></p>
+<pre><span class="add">    const previews = spec.sliders.map(({ id, min, max, default: value }) =&gt; {</span>
+<span class="add">      const values = [min, value, max];</span>
+<span class="add">      const images = renderPngs(values.map((v) =&gt; morph.shape({ [id]: v })), view, PREVIEW_SIZE, colorOf);</span>
+<span class="add">      return { parameter: id, values, images: images.map((png) =&gt; png.toString("base64")) };</span>
+<span class="add">    });</span>
+<span class="add">    return { ...candidate, axes: axesFor(candidate.front, up), previews };</span>
+<span class="add">  });</span></pre>
+          <p>
+            카드 화면은 <code>candidateCardsHtml</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/414ea8d67dffe94735eae5502d9c78ca4295f957/configurator/pipeline/operator-screens.ts#L79"><code>configurator/pipeline/operator-screens.ts:79</code></a>)이 만들고, 보낸 선택은 <code>readCandidateChoice</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/414ea8d67dffe94735eae5502d9c78ca4295f957/configurator/pipeline/operator-screens.ts#L93"><code>configurator/pipeline/operator-screens.ts:93</code></a>)가 읽는다. 사람 포트 <code>chooseCandidate</code>는 이제 후보 대신 카드를 받는다.
+          </p>
+
+          <h3>6. 고른 후보가 명세 작성의 입력이 된다</h3>
+          <p>
+            명세 작성 입력의 <code>candidate</code>는 카드에서 미리보기 그림과 축 대응을 뺀 후보다. AI 입력과 사례 기록에 그림이 실리지 않게 하려는 것이다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/414ea8d67dffe94735eae5502d9c78ca4295f957/configurator/pipeline/runner.ts#L217">configurator/pipeline/runner.ts:217</a></p>
+<pre><span class="add">const candidateOf = ({ axes: _axes, previews: _previews, ...candidate }: CandidateCard): Candidate =&gt; candidate;</span></pre>
+          <p>
+            명세 검사에는 <code>chosenCandidateChecker</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/414ea8d67dffe94735eae5502d9c78ca4295f957/configurator/pipeline/schemas.ts#L257"><code>configurator/pipeline/schemas.ts:257</code></a>)가 더해졌다. 명세의 정면이 고른 후보의 정면이어야 하고, 축 대응이 카드에 보인 것과 같아야 한다. 카드가 보여 준 축과 다른 명세가 제출되지 않게 하는 검사다. 티켓 15가 더했던 정면·축 검사(<code>axesChecker</code>)는 이 안에 들어가고, 축 대응 자체가 틀렸으면 카드와의 축 비교는 하지 않고 <code>axesChecker</code>의 오류만 더한다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/414ea8d67dffe94735eae5502d9c78ca4295f957/configurator/pipeline/schemas.ts#L257-L268">configurator/pipeline/schemas.ts:257-268</a></p>
+<pre><span class="add">export function chosenCandidateChecker({ front, axes }: { front: Front; axes: Spec["axes"] }) {</span>
+<span class="add">  return (spec: Pick&lt;Spec, "front" | "axes"&gt;): string[] =&gt; {</span>
+<span class="add">    const errors = spec.front === front ? [] : [`/front: 고른 후보의 정면 ${front}이어야 합니다(지금 ${spec.front})`];</span>
+<span class="add">    const axesErrors = axesChecker(spec);</span>
+<span class="add">    if (axesErrors.length &gt; 0) return [...errors, ...axesErrors];</span>
+<span class="add">    if (spec.front === front &amp;&amp; (["W", "D", "H"] as const).some((a) =&gt; spec.axes[a] !== axes[a])) {</span>
+<span class="add">      errors.push(`/axes: 고른 후보 카드의 축 대응(W ${axes.W}, D ${axes.D}, H ${axes.H})이어야 합니다(지금 W ${spec.axes.W}, D ${spec.axes.D}, H ${spec.axes.H})`);</span>
+<span class="add">    }</span>
+<span class="add">    return errors;</span>
+<span class="add">  };</span>
+<span class="add">}</span>
+<span class="add"></span></pre>
+        </section>
+
+        <section id="quiz">
+          <h2>퀴즈</h2>
+
+          <div class="quiz-question">
+            <p class="q">
+              후보끼리 같은지 비교할 때 부모 파라미터 목록을 정렬하지 않고 그대로 비교한다고 하자. 무엇이 통과하게 되는가?
+            </p>
+            <button class="quiz-option">정면만 다른 두 후보가 같은 후보로 걸러져 거절된다</button>
+            <button class="quiz-option">부모 파라미터가 하나뿐인 후보가 모두 거절되어 버린다</button>
+            <button class="quiz-option" data-correct>부모 순서만 다른 두 후보가 다른 후보로 통과한다</button>
+            <div class="quiz-feedback" role="status">
+              검사는 정면·정렬한 부모 목록·두께 노출을 묶어 비교한다. 정렬을 빼면 <code>[body_w, body_d]</code>와 <code>[body_d, body_w]</code>가 다른 값이 되어, 같은 구성이 두 장의 카드로 운영자에게 보인다. 정면이 다른 후보는 어차피 다르다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">
+              부품 탐색이 정면 후보로 <code>-Y</code>와 <code>+X</code>, 위쪽으로 <code>+Z</code>를 냈다. 후보 c1(<code>-Y</code>, 부모 <code>body_w</code>)과 c2(<code>-Y</code>, 부모 <code>body_d</code>)가 제시되면?
+            </p>
+            <button class="quiz-option" data-correct>빠진 정면 <code>+X</code>를 알리는 형식 오류로 다시 만든다</button>
+            <button class="quiz-option">부모가 달라 서로 다른 후보이므로 그대로 통과한다</button>
+            <button class="quiz-option">두 후보가 서로 같다는 형식 오류로 다시 만든다</button>
+            <button class="quiz-option">정면이 위쪽과 같은 축이라는 오류로 다시 만든다</button>
+            <div class="quiz-feedback" role="status">
+              두 후보는 부모가 달라 서로 다르다. 그러나 정면 후보가 둘이면 정면을 확신하지 못한 것이어서 후보끼리 두 정면을 모두 나눠 써야 한다. 두 후보 모두 <code>-Y</code>라 <code>+X</code>가 빠졌다는 오류가 난다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">
+              정면이 <code>+X</code>이고 위쪽이 <code>+Z</code>인 후보 카드에 표시되는 폭 W의 축은?
+            </p>
+            <button class="quiz-option">W는 X축이다</button>
+            <button class="quiz-option" data-correct>W는 Y축이다</button>
+            <button class="quiz-option">W는 Z축이다</button>
+            <button class="quiz-option">W는 정해지지 않는다</button>
+            <div class="quiz-feedback" role="status">
+              깊이 D는 정면 방향의 축이라 X, 높이 H는 위쪽의 축이라 Z다. 폭 W는 남은 축 Y다. 오류는 정면과 위쪽이 같은 축일 때만 난다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">
+              후보 카드의 변형 미리보기에는 두께 후보를 바꾼 그림이 없다. 그 이유로 가장 알맞은 것은?
+            </p>
+            <button class="quiz-option">VLM이 두께 차이는 그림으로 구별하지 못해서이다</button>
+            <button class="quiz-option">미리보기는 부모 파라미터가 하나인 후보에서만 만들어서이다</button>
+            <button class="quiz-option" data-correct>두께 후보 형상은 명세 작성 뒤에야 받아서 아직 없다</button>
+            <div class="quiz-feedback" role="status">
+              티켓 기록의 설명이다. 두께 후보(표준 두께의 앞뒤 한 칸)는 명세 작성에서 정해지고 그 형상은 추가 샘플 요청으로만 받는다. 후보 제시 때는 그 형상이 없어서, 카드에는 두께 선택 보이기·숨김이 글로만 표시된다. 미리보기는 부모 파라미터가 여럿이어도 파라미터마다 만들어진다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">
+              정보 입력에서 운영자가 두께 선택 노출을 "숨기기"로 골랐는데, AI가 낸 후보 하나의 <code>showThickness</code>가 참이다. 어떻게 되는가?
+            </p>
+            <button class="quiz-option" data-correct><code>showThickness</code>는 거짓이어야 한다는 오류로 다시 만든다</button>
+            <button class="quiz-option">후보마다 다르게 정해도 되는 값이라 그대로 통과한다</button>
+            <button class="quiz-option">통과시키되 후보 카드에 경고 문구만 띄워 보여 준다</button>
+            <div class="quiz-feedback" role="status">
+              "보이기"나 "숨기기"는 모든 후보가 따라야 하고, 후보마다 달라도 되는 것은 "AI 판단"일 때뿐이다. 어긋나면 어느 후보의 어느 필드가 틀렸는지 알리는 오류가 나고 후보 제시를 다시 묻는다. 경고만 하고 통과시키는 경로는 없다.
+            </div>
+          </div>
+        </section>
+
+      </main>
+
+      <footer class="colophon">
+        explain-diff-html 스킬로 만든 설명 문서
+      </footer>
+    </div>
+
+    <script>
+      document.querySelectorAll(".quiz-question").forEach(function (question) {
+        var feedback = question.querySelector(".quiz-feedback");
+
+        // Shuffle the options on every load, so the correct answer's position is
+        // random and a reader cannot fall into answering by position. Each option
+        // is re-inserted before the feedback block, which has to stay last.
+        var shuffled = Array.prototype.slice.call(
+          question.querySelectorAll(".quiz-option"),
+        );
+        for (var i = shuffled.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var swap = shuffled[i];
+          shuffled[i] = shuffled[j];
+          shuffled[j] = swap;
+        }
+        shuffled.forEach(function (option) {
+          question.insertBefore(option, feedback);
+        });
+
+        var options = question.querySelectorAll(".quiz-option");
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            var isCorrect = option.hasAttribute("data-correct");
+            options.forEach(function (other) {
+              other.disabled = true;
+              if (other.hasAttribute("data-correct"))
+                other.classList.add("correct");
+            });
+            if (!isCorrect) option.classList.add("incorrect");
+            feedback.classList.add("show", isCorrect ? "ok" : "bad");
+            feedback.insertBefore(
+              document.createTextNode(isCorrect ? "Correct. " : "Not quite. "),
+              feedback.firstChild,
+            );
+          });
+        });
+      });
+    </script>
+    <script>
+      // Mermaid loads without blocking: the page scripts above run first, and a slow
+      // or blocked CDN never holds up the quiz or the rest of the page. This is the
+      // only permitted external request, and it fires only when a .mermaid block is
+      // present. Leave it in place; it is a no-op on pages without a diagram.
+      (function () {
+        var blocks = document.querySelectorAll(".mermaid");
+        if (!blocks.length) return;
+
+        // mermaid.run() replaces each block's text with an SVG, so the source is
+        // gone after the first render. Stash it, because a theme change has to
+        // parse it again.
+        blocks.forEach(function (block) {
+          block.dataset.source = block.textContent;
+        });
+
+        var darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+        function render() {
+          blocks.forEach(function (block) {
+            block.removeAttribute("data-processed");
+            block.textContent = block.dataset.source;
+          });
+          try {
+            window.mermaid.initialize({
+              startOnLoad: false,
+              theme: darkQuery.matches ? "dark" : "default",
+            });
+          } catch (e) {}
+          Promise.resolve(window.mermaid.run({ nodes: blocks })).catch(
+            function () {},
+          );
+        }
+
+        var s = document.createElement("script");
+        s.src =
+          "https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js";
+        s.integrity =
+          "sha384-T/0lMUdJpd2S1ZHtRiofG3htU3xPCrFVeAQ1UUE2TJwlEJSV5NUwn30kP28n238E";
+        s.crossOrigin = "anonymous";
+        s.onload = function () {
+          render();
+          // Re-render when the reader switches system theme, so the diagram does
+          // not stay light on a dark page.
+          if (darkQuery.addEventListener)
+            darkQuery.addEventListener("change", render);
+        };
+        document.head.appendChild(s);
+      })();
+    </script>
+  </body>
+</html>

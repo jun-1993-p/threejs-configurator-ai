@@ -1,0 +1,1005 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>티켓 15: LiteLLM 포트와 실제 명세 작성 설명</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f6f7f9;
+        --text: #1c2024;
+        --muted: #60646c;
+        --border: #d7dbdf;
+        --border-strong: #848c95;
+        --accent: #2f5ee0;
+        --accent-soft: #e8eefc;
+        --edge: #a35608;
+        --edge-soft: #fbefe1;
+        --ok: #1a7f47;
+        --ok-soft: #e4f3ea;
+        --bad: #c62a3b;
+        --bad-soft: #fbe7e9;
+        --measure: 68ch;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181b;
+          --surface: #1f2226;
+          --text: #eceef0;
+          --muted: #9ba1a6;
+          --border: #33383d;
+          --border-strong: #646c75;
+          --accent: #7aa2ff;
+          --accent-soft: #1e2740;
+          --edge: #e08c3a;
+          --edge-soft: #2e2517;
+          --ok: #57c98b;
+          --ok-soft: #17281d;
+          --bad: #f07178;
+          --bad-soft: #2c1a1c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:visited {
+        color: var(--accent);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 2.5rem;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 6rem;
+      }
+      nav.toc {
+        position: sticky;
+        top: 2.5rem;
+        align-self: start;
+        font-size: 0.9rem;
+      }
+      nav.toc strong {
+        display: block;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc li {
+        margin: 0.35rem 0;
+      }
+      nav.toc a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav.toc a:hover {
+        color: var(--accent);
+      }
+      main {
+        min-width: 0;
+      }
+      main > header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1.25rem;
+        margin-bottom: 2rem;
+      }
+      main > header h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.6rem;
+      }
+      main > header .lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: var(--measure);
+      }
+      main > header .provenance {
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        margin: 0.7rem 0 0;
+      }
+      .colophon {
+        grid-column: 1 / -1;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        border-top: 1px solid var(--border);
+        margin: 4rem 0 0;
+        padding: 1.2rem 0 0;
+      }
+      .colophon a {
+        color: inherit;
+      }
+      section {
+        margin-bottom: 3.5rem;
+      }
+      section h2 {
+        font-size: 1.4rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      section h3 {
+        font-size: 1.05rem;
+        margin: 2rem 0 0.6rem;
+      }
+      section p,
+      section ul,
+      section ol {
+        max-width: var(--measure);
+      }
+      li {
+        margin: 0.3rem 0;
+      }
+      /* Code blocks: white-space set here so a filled-in block cannot collapse. */
+      pre,
+      .code-block {
+        white-space: pre-wrap;
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        font:
+          0.86rem/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        tab-size: 2;
+      }
+      pre .del {
+        color: var(--bad);
+      }
+      pre .add {
+        color: var(--ok);
+      }
+      pre .hi {
+        background: var(--accent-soft);
+        border-radius: 3px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--surface);
+        padding: 0.05rem 0.3rem;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      /* A file:line reference linked to the code it names. Wraps a <code> span
+         in prose, or the bare text of a .filename label. */
+      a.srcref {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px solid var(--muted);
+      }
+      a.srcref:hover {
+        border-bottom-color: var(--accent);
+      }
+      a.srcref:hover code {
+        background: var(--accent-soft);
+      }
+      /* Path label for the code block below it. */
+      .filename {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        margin: 1.5rem 0 0.3rem;
+        overflow-wrap: anywhere;
+      }
+      /* Comparison table: one row per case, .yes / .no / .warn on outcome cells. */
+      table.vals {
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.86rem;
+        width: 100%;
+        max-width: 620px;
+      }
+      table.vals th,
+      table.vals td {
+        border: 1px solid var(--border-strong);
+        padding: 0.4rem 0.65rem;
+        text-align: left;
+      }
+      table.vals th {
+        background: var(--surface);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+      table.vals td.yes {
+        background: var(--ok-soft);
+      }
+      table.vals td.no {
+        background: var(--bad-soft);
+      }
+      table.vals td.warn {
+        background: var(--edge-soft);
+      }
+      /* Callouts: .callout for a concept, .callout.edge for a caveat. */
+      .callout {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+        padding: 0.85rem 1.1rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .callout .label {
+        display: block;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+      }
+      .callout.edge {
+        background: var(--edge-soft);
+        border-left-color: var(--edge);
+      }
+      .callout.edge .label {
+        color: var(--edge);
+      }
+      /* Skippable deep-background block. */
+      details.skippable {
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 0.75rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      details.skippable > summary {
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      details.skippable[open] > summary {
+        margin-bottom: 0.75rem;
+      }
+      /* Diagram family 1: simplified app UI mockup. */
+      .ui-mockup {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1.5rem 0;
+        max-width: 560px;
+        font-size: 0.85rem;
+      }
+      .ui-mockup .bar {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0.5rem 0.85rem;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .ui-mockup .body {
+        padding: 1.1rem 0.85rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+      }
+      .mock-caption {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.3rem 0 0;
+        max-width: var(--measure);
+      }
+      /* Diagram family 2: data flow between components, example data on the arrows. */
+      .dataflow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+      /* Each arrow travels with the node it points at. Without this, a flow
+         wider than the column wraps between an arrow and its node, leaving the
+         arrow pointing at nothing and the node stranded on the next line. */
+      .dataflow .step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .dataflow .node {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 175px;
+      }
+      .dataflow .node.terminal {
+        background: var(--surface);
+        border-color: var(--border);
+      }
+      .dataflow .node.pass {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .dataflow .node.fail {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .dataflow .arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.72rem;
+        min-width: 96px;
+      }
+      .dataflow .arrow .line {
+        width: 100%;
+        border-top: 2px solid var(--border);
+        position: relative;
+      }
+      .dataflow .arrow .line::after {
+        content: "\25B6";
+        position: absolute;
+        right: -2px;
+        top: -0.72em;
+        color: var(--border);
+        font-size: 0.7rem;
+      }
+      .dataflow .arrow .data {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.35rem;
+        margin-bottom: 0.2rem;
+        font-family: ui-monospace, monospace;
+      }
+      .flow-label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin: 1.25rem 0 0.25rem;
+      }
+      /* A numbered sequence with one marked position: call stacks, retry
+         counts, any ranked list. Not one of the numbered families; reach for
+         it when a step in an ordered list is the point. */
+      .frames {
+        list-style: none;
+        padding: 0;
+        margin: 1.25rem 0;
+        max-width: 620px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.82rem;
+      }
+      .frames li {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.45rem 0.7rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+      }
+      .frames li.target {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .frames .n {
+        display: inline-block;
+        min-width: 2.2em;
+        color: var(--muted);
+      }
+      /* Diagram family 3: node/recursion tree (ASTs, nesting, recursion) */
+      .tree {
+        margin: 1.5rem 0;
+        font:
+          0.82rem/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      .tnode {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.3rem 0.55rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+        display: inline-block;
+      }
+      .tnode.leaf {
+        background: var(--bg);
+      }
+      .tnode.kept {
+        border-color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tnode.skipped {
+        border-color: var(--muted);
+        color: var(--muted);
+      }
+      .tchildren {
+        margin-left: 1.4rem;
+        border-left: 2px dotted var(--border);
+        padding-left: 0.9rem;
+      }
+      .tnote {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-left: 0.4rem;
+      }
+
+      /* Optional tabular body for .ui-mockup, when the mocked UI is a table. */
+      .mock-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .mock-table th,
+      .mock-table td {
+        border: 1px solid var(--border);
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+      }
+      .mock-table th {
+        background: var(--surface);
+        font-weight: 600;
+      }
+      .mock-table .col-highlight {
+        background: var(--accent-soft);
+      }
+
+      .mermaid {
+        margin: 1.75rem 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .mermaid .edgeLabel,
+      .mermaid .edgeLabel p,
+      .mermaid .edgeLabel span,
+      .mermaid .edgeLabel foreignObject div {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+      }
+      /* Quiz */
+      .quiz-question {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .quiz-question > p.q {
+        font-weight: 600;
+        margin: 0 0 0.85rem;
+      }
+      .quiz-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 0.5rem;
+        font: inherit;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .quiz-option:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .quiz-option.correct {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .quiz-option.incorrect {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .quiz-option:disabled {
+        cursor: default;
+      }
+      .quiz-feedback {
+        display: none;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 7px;
+        margin-top: 0.3rem;
+      }
+      .quiz-feedback.show {
+        display: block;
+      }
+      .quiz-feedback.ok {
+        background: var(--ok-soft);
+      }
+      .quiz-feedback.bad {
+        background: var(--edge-soft);
+      }
+      a:focus-visible,
+      summary:focus-visible,
+      .quiz-option:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+      table.vals td.yes::before,
+      .dataflow .node.pass::before,
+      .tnode.kept::before,
+      .quiz-option.correct::before {
+        content: "\2713\00a0";
+        font-weight: 700;
+      }
+      table.vals td.no::before,
+      .dataflow .node.fail::before,
+      .quiz-option.incorrect::before {
+        content: "\2717\00a0";
+        font-weight: 700;
+      }
+      table.vals td.warn::before {
+        content: "\25B2\00a0";
+        font-weight: 700;
+      }
+      .tnode.skipped::before {
+        content: "\2013\00a0";
+        font-weight: 700;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 1rem;
+          padding: 1.25rem 1.1rem 4rem;
+        }
+        nav.toc {
+          position: static;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+        }
+        body {
+          font-size: 16px;
+        }
+        main > header h1 {
+          font-size: 1.6rem;
+        }
+        table.vals {
+          display: block;
+          overflow-x: auto;
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <nav class="toc">
+        <strong>목차</strong>
+        <ol>
+          <li><a href="#background">배경</a></li>
+          <li><a href="#intuition">핵심 아이디어</a></li>
+          <li><a href="#code">코드 따라가기</a></li>
+          <li><a href="#quiz">퀴즈</a></li>
+        </ol>
+      </nav>
+
+      <main>
+        <header>
+          <h1>티켓 15: LiteLLM 포트와 실제 명세 작성</h1>
+          <p class="lead">
+            각본으로 답하던 가짜 AI 대신 LiteLLM 프록시를 거친 실제 LLM이 명세를 쓰고, 검증 피드백을 받아 고치게 한 변경이다. 형식이 틀린 응답을 다시 묻는 기존 고리에 직전 답(<code>rejected</code>)과 직전 명세(<code>previous</code>)를 싣는다.
+          </p>
+          <p class="provenance">
+            jun-1993-p/threejs-configurator-ai 티켓 15 (커밋 193f777), 2026-11-04에 설명함. References link to this commit.
+          </p>
+        </header>
+
+        <section id="background">
+          <h2>배경</h2>
+          <details class="skippable">
+            <summary>이 프로젝트가 처음이라면: 깊은 배경을 펼치세요.</summary>
+            <p>
+              프로젝트는 Fusion CAD 모델을 쇼핑몰 페이지의 div 안에서 도는 three.js 구성기로 바꾼다. 고정 코어와 변형 엔진은 사람이 관리하는 고정 코드이고, AI가 상품마다 쓰는 것은 <strong>명세</strong>(JSON)와 스타일 선택뿐이다(ADR-0001). 명세는 어떤 슬라이더를 어떤 범위로 노출할지 적은 파일이다. 파이프라인 <strong>실행기</strong>가 상품 하나를 정해진 단계 순서로 진행하며, AI는 단계 안에서 정해진 형식으로만 답한다(ADR-0014).
+            </p>
+            <p>
+              실행기에 넘기는 <code>ports</code>는 Fusion 연결, AI 모델, 저장소 셋이고, 사람 결정은 별도의 <code>HumanPort</code>가 맡는다. 시험에서는 포트를 가짜로 바꿔 끼운다. 이 티켓 전까지(부모 커밋 기준) AI 모델 포트의 구현은 단계마다 정해 둔 답을 차례로 내는 각본 AI(<code>scripted-ai.ts</code>)뿐이었다.
+            </p>
+          </details>
+
+          <p>
+            ADR-0015는 AI 모델을 외부 API(Cerebras의 무료 등급, 예비로 Groq)로 부르고, 외부 API를 쓸 수 없게 되면 로컬 모델로 바꿀 수 있게 하자고 정했다. 이 호출을 LiteLLM이 중계한다. LiteLLM 프록시는 OpenAI 호환 채팅 API 하나로 모델 호출을 중계한다. 그래서 코드가 모델을 직접 알 필요 없이 LiteLLM 설정의 <code>model_name</code>만 안다. ADR는 특정 외부 API나 로컬 환경에만 있는 기능에 기대지 말라고 요구한다.
+          </p>
+          <p>
+            AI 모델 포트에는 단계가 셋 있다. 후보 제시(<code>candidates</code>), UI 스타일 고르기(<code>style</code>), 명세 작성(<code>spec</code>). 이 티켓의 중심은 명세 작성이지만, 포트를 통째로 바꿔 끼우려면 세 메서드가 모두 있어야 하므로 후보 제시와 스타일 지시문도 함께 넣었다고 티켓 기록에 적혀 있다.
+          </p>
+
+          <div class="callout">
+            <span class="label">용어</span>
+            <p>
+              <strong>형식 검사</strong>는 AI 응답을 JSON Schema와 명세 검사(상품명, 참조, 범위, 두께, 정면·축 대응)로 검사하는 일이다. 실패하면 오류 문장(<code>schemaErrors</code>)을 붙여 다시 묻는다. <strong>검증 피드백</strong>은 형식은 맞는 명세를 조립해 재 본 뒤, 틀린 곳(<code>path</code>)과 고칠 값을 알리는 것이다. 둘은 단계가 다르다.
+            </p>
+          </div>
+        </section>
+
+        <section id="intuition">
+          <h2>핵심 아이디어</h2>
+          <p>
+            실제 모델은 JSON을 코드 블록으로 감싸거나 <code>{"$ref": …}</code>를 값처럼 옮겨 적기도 했다(코드 주석, 티켓 기록). 이 변경의 핵심은 LiteLLM 포트가 모델의 문장을 JSON으로 읽기만 해서 실행기에 돌려주고, 판단은 모두 실행기의 형식 검사와 다시 묻기에 맡기는 것이다. 포트는 형식 검사와 다시 묻기를 하지 않는다. 입력을 요약해 지시문과 함께 묻고, 답을 JSON으로 읽어 돌려줄 뿐이다.
+          </p>
+          <p class="flow-label">명세 작성 한 번의 길</p>
+          <div class="dataflow">
+            <div class="node terminal">실행기 <code>writeSpec</code> 호출</div>
+            <div class="step">
+              <div class="arrow"><span class="data">bundle 요약, intake, candidate, rules, previous, feedback, rejected</span><span class="line"></span></div>
+              <div class="node">LiteLLM 프록시 (<code>v1/chat/completions</code>)</div>
+            </div>
+            <div class="step">
+              <div class="arrow"><span class="data">모델이 낸 문장</span><span class="line"></span></div>
+              <div class="node">포트: 코드 블록을 벗기고 JSON으로 읽음</div>
+            </div>
+            <div class="step">
+              <div class="arrow"><span class="data">객체 또는 읽을 수 없는 문장</span><span class="line"></span></div>
+              <div class="node pass">실행기: 형식 검사, 틀리면 다시 묻기</div>
+            </div>
+          </div>
+
+          <p>
+            티켓 기록은 직전 명세가 없으면 실제 모델이 <code>path</code>가 가리키는 곳을 고칠 수 없다고 적었다. 그래서 입력에 <code>previous</code>와 <code>rejected</code>가 더해졌다. <code>rejected</code>를 더한 까닭은 기록에 없고, 지시문이 "rejected가 형식 검사에 걸린 직전 답이니 오류 위치를 고쳐 전체 답을 다시 낸다"고 안내하는 것으로 보아 같은 목적으로 보인다(내 추정).
+          </p>
+          <table class="vals">
+            <thead>
+              <tr><th>입력 이름</th><th>뜻</th><th>어느 단계</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>rejected</code></td><td>형식 검사에 걸린 직전 답</td><td>세 단계 모두</td></tr>
+              <tr><td><code>previous</code></td><td>검증 피드백을 받은 직전 명세</td><td>명세 작성만</td></tr>
+            </tbody>
+          </table>
+          <p>
+            형식 재요청이 끼어도 <code>previous</code>는 피드백을 받은 명세 그대로다. 형식이 틀린 답은 <code>rejected</code>에만 들어간다.
+          </p>
+
+          <div class="callout edge">
+            <span class="label">수동 확인과 한계</span>
+            <p>
+              티켓 기록에 따르면 합성 서랍장 녹화본과 로컬 Ollama의 <code>qwen2.5:7b</code>(LiteLLM 프록시 뒤)로 돌려 보았다. 7b 모델은 메모를 무시하고 슬라이더 여러 개짜리 후보만 내거나, 정면을 <code>+X</code>로 잡고 축 오류를 세 번 다시 물어도 못 고쳐 명세 단계에서 멈췄다. 형식 오류는 매번 다음 단계로 새지 않았다. 실제 상품과 실제 모델로 수치 검증까지 통과하는지 보는 확인은 이 커밋 시점에는 되어 있지 않다. 티켓 15의 마지막 체크박스가 비어 있고 상태는 사람 확인 대기(<code>ready-for-human</code>)다.
+            </p>
+          </div>
+        </section>
+
+        <section id="code">
+          <h2>코드 따라가기</h2>
+          <p>
+            <strong>흐름:</strong> 실행기가 입력을 만듦 → LiteLLM 포트가 지시문과 함께 요청 → 모델의 문장을 JSON으로 읽음 → 실행기가 형식 검사 → 틀리면 직전 답과 오류를 붙여 다시 묻기 → 명세 검사에 정면·축 검사 추가.
+          </p>
+
+          <h3>1. 포트의 계약: 직전 응답을 입력에 싣는다</h3>
+          <p>
+            <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/193f777ee9592980e7868719d3bebb416636de1f/configurator/pipeline/runner.ts#L140"><code>configurator/pipeline/runner.ts:140</code></a> 계약에 <code>rejected</code>와 <code>previous</code>가 더해졌다. 모델이 낸 문장을 JSON으로 읽을 수 없으면 포트는 그 문장(<code>string</code>)을 그대로 돌려주는데, 단계마다 응답은 객체나 배열이라 문자열은 늘 형식 오류다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/193f777ee9592980e7868719d3bebb416636de1f/configurator/pipeline/runner.ts#L149-L160">configurator/pipeline/runner.ts:149-160</a></p>
+<pre><span class="add">  writeSpec(input: {</span>
+<span class="add">    bundle: unknown;</span>
+<span class="add">    intake: Intake;</span>
+<span class="add">    candidate: Candidate;</span>
+<span class="add">    /** 정보 입력의 상품 종류로 거른 치수 규칙. 슬라이더 범위와 source는 여기서 고른다(ADR-0009). */</span>
+<span class="add">    rules: DimensionRule[];</span>
+<span class="add">    /** 검증 피드백(feedback)을 받은 명세. 처음 쓰는 것이면 null이다. 형식 재요청 중에도 그대로다. */</span>
+<span class="add">    previous: Spec | null;</span>
+<span class="add">    feedback: Feedback[];</span>
+<span class="add">    rejected: unknown;</span>
+<span class="add">    schemaErrors: string[];</span>
+<span class="add">  }): Promise&lt;unknown&gt;;</span></pre>
+
+          <h3>2. 실행기: 다시 묻기 고리</h3>
+          <p>
+            <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/193f777ee9592980e7868719d3bebb416636de1f/configurator/pipeline/runner.ts#L213"><code>configurator/pipeline/runner.ts:213</code></a>가 한 단계의 고리다. 호출할 때 직전 오류와 직전 답을 넘기고, 응답이 문자열이면 "읽을 수 없는 답" 오류로 바로 센다. 끝내 통과하지 못하면 그 단계에서 멈추며 다음 단계로 가지 않는다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/193f777ee9592980e7868719d3bebb416636de1f/configurator/pipeline/runner.ts#L214-L223">configurator/pipeline/runner.ts:214-223</a></p>
+<pre>    let errors: string[] = [];
+    let rejected: unknown = null;
+    for (let attempt = 0; attempt &lt;= SCHEMA_RETRIES; attempt++) {
+      const answer = await call(errors, structuredClone(rejected));
+      rejected = answer;
+      errors = typeof answer === "string" ? [UNREADABLE_ANSWER] : check(answer);
+      if (errors.length === 0) return answer as T;
+      await log(stage, { schemaErrors: errors });
+    }
+    throw new PipelineStop(stage, `AI 응답이 ${SCHEMA_RETRIES}번 다시 물어도 형식 검사를 통과하지 못했습니다: ${errors.join("; ")}`);</pre>
+          <p>
+            명세 작성에서 이 고리를 쓰는 곳은 <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/193f777ee9592980e7868719d3bebb416636de1f/configurator/pipeline/runner.ts#L347"><code>configurator/pipeline/runner.ts:347</code></a>다. <code>previous</code>는 고리 밖(검증 시도마다 바뀜)에서 갱신하므로 형식 재요청이 몇 번이든 값이 같다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/193f777ee9592980e7868719d3bebb416636de1f/configurator/pipeline/runner.ts#L347-L350">configurator/pipeline/runner.ts:347-350</a></p>
+<pre><span class="add">      const spec: Spec = await askUntilValid("spec", checkProductSpec, (schemaErrors, rejected) =&gt;</span>
+<span class="add">        ai.writeSpec({ bundle, intake, candidate, rules: structuredClone(rules), previous: structuredClone(previous), feedback, rejected, schemaErrors }),</span>
+<span class="add">      );</span>
+<span class="add">      previous = spec;</span></pre>
+
+          <h3>3. 형식 오류 문장을 고칠 수 있게 쓴다</h3>
+          <p>
+            오류 문장 만드는 <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/193f777ee9592980e7868719d3bebb416636de1f/configurator/pipeline/schemas.ts#L26"><code>configurator/pipeline/schemas.ts:26</code></a>에서, 값 목록(<code>enum</code>) 밖이면 고를 수 있는 값을 괄호로 붙인다. 실제 모델이 값 목록을 모른 채 같은 오류를 되풀이했기 때문이다(티켓 기록). 읽을 수 없는 답의 문장 <code>UNREADABLE_ANSWER</code>도 이 파일에 모았다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/193f777ee9592980e7868719d3bebb416636de1f/configurator/pipeline/schemas.ts#L26-L36">configurator/pipeline/schemas.ts:26-36</a></p>
+<pre>function checker(schema: object): Check {
+  const validate = ajv.compile(schema);
+  return (value) =&gt;
+    validate(value)
+      ? []
+      : (validate.errors ?? []).map((e) =&gt; {
+          // 값 목록 밖이면 고칠 수 있게 고를 수 있는 값을 붙인다
+          const allowed = e.keyword === "enum" ? ` (${(e.params as { allowedValues: unknown[] }).allowedValues.join(", ")})` : "";
+          return `${e.instancePath || ROOT}: ${e.message}${allowed}`;
+        });
+}</pre>
+
+          <h3>4. LiteLLM 포트: 묻고, 읽고, 돌려준다</h3>
+          <p>
+            <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/193f777ee9592980e7868719d3bebb416636de1f/configurator/pipeline/litellm-ai.ts#L105"><code>configurator/pipeline/litellm-ai.ts:105</code></a>는 OpenAI 호환 채팅 API 하나만 부른다. 단계마다 LiteLLM 설정의 <code>model_name</code>을 받는다. 주소에 경로가 붙어도(예: <code>/litellm</code>) 그 아래 채팅 API를 부르도록 주소 끝을 <code>/</code>로 맞춘다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/193f777ee9592980e7868719d3bebb416636de1f/configurator/pipeline/litellm-ai.ts#L105-L123">configurator/pipeline/litellm-ai.ts:105-123</a></p>
+<pre><span class="add">export function liteLlmAi({ baseUrl, apiKey, models }: LiteLlmOptions): AiPort {</span>
+<span class="add">  // 주소에 붙은 경로(예: /litellm) 아래의 채팅 API를 부르도록 끝을 /로 맞춘다</span>
+<span class="add">  const chat = new URL("v1/chat/completions", baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`);</span>
+<span class="add">  async function ask(stage: AiStage, instructions: string, input: unknown): Promise&lt;unknown&gt; {</span>
+<span class="add">    const response = await fetch(chat, {</span>
+<span class="add">      method: "POST",</span>
+<span class="add">      headers: { "content-type": "application/json", ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}) },</span>
+<span class="add">      body: JSON.stringify({</span>
+<span class="add">        model: models[stage],</span>
+<span class="add">        messages: [</span>
+<span class="add">          { role: "system", content: instructions },</span>
+<span class="add">          { role: "user", content: JSON.stringify(input) },</span>
+<span class="add">        ],</span>
+<span class="add">      }),</span>
+<span class="add">    });</span>
+<span class="add">    if (!response.ok) throw new Error(`LiteLLM 호출 실패(${models[stage]}): ${response.status} ${await response.text()}`);</span>
+<span class="add">    const body = (await response.json()) as { choices: { message: { content: string } }[] };</span>
+<span class="add">    return readJson(body.choices[0].message.content);</span>
+<span class="add">  }</span></pre>
+          <p>
+            지시문은 단계마다 있고(후보 제시, 스타일, 명세 작성) 공통 출력 규칙이 뒤에 붙는다. 출력 규칙은 JSON Schema를 지시문 안에 적어 알린다. JSON 모드 같은 특정 API 기능에 기대지 않기 위해서다(ADR-0015). 스키마의 <code>$ref</code>는 풀어서 넣는다. <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/193f777ee9592980e7868719d3bebb416636de1f/configurator/pipeline/litellm-ai.ts#L44"><code>configurator/pipeline/litellm-ai.ts:44</code></a>가 같은 스키마 안의 참조를 값으로 바꾸고 <code>$defs</code>를 뺀다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/193f777ee9592980e7868719d3bebb416636de1f/configurator/pipeline/litellm-ai.ts#L44-L54">configurator/pipeline/litellm-ai.ts:44-54</a></p>
+<pre><span class="add">function inlineRefs(schema: object): object {</span>
+<span class="add">  const defs = (schema as { $defs?: Record&lt;string, unknown&gt; }).$defs ?? {};</span>
+<span class="add">  const inline = (node: unknown): unknown =&gt; {</span>
+<span class="add">    if (Array.isArray(node)) return node.map(inline);</span>
+<span class="add">    if (node === null || typeof node !== "object") return node;</span>
+<span class="add">    const ref = (node as { $ref?: string }).$ref?.match(/^#\/\$defs\/(.+)$/);</span>
+<span class="add">    if (ref) return defs[ref[1]];</span>
+<span class="add">    return Object.fromEntries(Object.entries(node).filter(([key]) =&gt; key !== "$defs").map(([key, value]) =&gt; [key, inline(value)]));</span>
+<span class="add">  };</span>
+<span class="add">  return inline(schema) as object;</span>
+<span class="add">}</span></pre>
+
+          <h3>5. 업로드 묶음은 줄여서 보낸다</h3>
+          <p>
+            업로드 묶음은 4MB라 그대로 보내지 않는다. <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/193f777ee9592980e7868719d3bebb416636de1f/configurator/pipeline/litellm-ai.ts#L21"><code>configurator/pipeline/litellm-ai.ts:21</code></a>가 파라미터(이름·값·수식·사용자/개수형 여부), 부품별 기본 형상 바운딩 박스, 스윕 범위와 범위 축소 기록, 위상 묶음 수만 남긴다. 티켓 기록은 서랍장 녹화본 요청이 20KB 아래라고 적었다. 위상 묶음 수의 <code>groups.length + 1</code>은 <code>groups</code>가 기본 묶음 밖의 묶음이라서 기본 묶음 몫을 더한 것이다(코드 주석).
+          </p>
+
+          <h3>6. 모델의 문장을 JSON으로 읽는다</h3>
+          <p>
+            지시해도 답을 코드 블록으로 감싸는 모델이 있어, <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/193f777ee9592980e7868719d3bebb416636de1f/configurator/pipeline/litellm-ai.ts#L97"><code>configurator/pipeline/litellm-ai.ts:97</code></a>는 감싼 것을 벗긴다. 읽을 수 없으면 문장 그대로 돌려주어, 실행기의 형식 검사에 걸려 다시 묻게 한다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/193f777ee9592980e7868719d3bebb416636de1f/configurator/pipeline/litellm-ai.ts#L97-L103">configurator/pipeline/litellm-ai.ts:97-103</a></p>
+<pre><span class="add">function readJson(content: string): unknown {</span>
+<span class="add">  try {</span>
+<span class="add">    return JSON.parse(content.match(CODE_BLOCK)?.[1] ?? content);</span>
+<span class="add">  } catch {</span>
+<span class="add">    return content;</span>
+<span class="add">  }</span>
+<span class="add">}</span></pre>
+
+          <h3>7. 명세 검사: 정면과 축 대응</h3>
+          <p>
+            수동 확인에서 정면이 <code>+X</code>인데 <code>axes.W</code>가 X인 명세가 제출까지 갔다. 축 반응 검증은 명세의 <code>axes</code>로 재기 때문에 어긋난 대응도 스스로 통과한다. 그래서 <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/193f777ee9592980e7868719d3bebb416636de1f/configurator/pipeline/schemas.ts#L136"><code>configurator/pipeline/schemas.ts:136</code></a>를 명세 검사에 더했다. 깊이(D)는 정면 방향의 축이고, W·D·H는 서로 다른 축이어야 한다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/193f777ee9592980e7868719d3bebb416636de1f/configurator/pipeline/schemas.ts#L136-L141">configurator/pipeline/schemas.ts:136-141</a></p>
+<pre><span class="add">export function axesChecker(spec: Pick&lt;Spec, "front" | "axes"&gt;): string[] {</span>
+<span class="add">  const { W, D, H } = spec.axes;</span>
+<span class="add">  if (new Set([W, D, H]).size &lt; 3) return [`/axes: W·D·H는 서로 다른 축이어야 합니다(W ${W}, D ${D}, H ${H})`];</span>
+<span class="add">  const frontAxis = spec.front.slice(1);</span>
+<span class="add">  return D === frontAxis ? [] : [`/axes/D: 정면 ${spec.front} 쪽에서 보면 깊이는 ${frontAxis}축입니다(지금 ${D})`];</span>
+<span class="add">}</span></pre>
+
+          <h3>8. 시험과 수동 실행 도구</h3>
+          <p>
+            시험은 AI 모델 포트만 LiteLLM 구현으로 바꾸고 OpenAI 호환 가짜 HTTP 서버를 둔다. 서버는 단계별로 정해 둔 문장을 차례로 내고 받은 요청을 남긴다. 제출까지, 요청 내용, 읽을 수 없는 답, 검증 피드백, 피드백 중 형식 오류, 주소 경로, 코드 블록, LiteLLM 오류를 본다. 수동 실행은 <code>node scripts/run-pipeline.ts</code>에 환경 변수 <code>LITELLM_URL</code>·<code>LITELLM_API_KEY</code>·<code>LITELLM_MODEL</code>을 주어 돌린다.
+          </p>
+        </section>
+
+        <section id="quiz">
+          <h2>퀴즈</h2>
+
+          <div class="quiz-question">
+            <p class="q">
+              LiteLLM 포트는 지시문에 넣을 JSON Schema에서 <code>$ref</code>를 풀어 값으로 바꾸고 <code>$defs</code>를 뺀다. 이렇게 하는 이유로 가장 알맞은 것은?
+            </p>
+            <button class="quiz-option">프록시가 <code>$ref</code>를 지원하지 않아 요청을 거절하기 때문이다</button>
+            <button class="quiz-option" data-correct>작은 모델이 참조를 값의 모양으로 옮겨 적었기 때문이다</button>
+            <button class="quiz-option">스키마가 짧을수록 응답이 빨라진다는 측정 결과 때문이다</button>
+            <div class="quiz-feedback" role="status">
+              코드 주석과 티켓 기록의 설명이다. 작은 모델은 <code>{"$ref": …}</code>를 그 자리의 값 모양인 것처럼 답에 옮겨 적었다. 프록시가 거절한다는 근거나 속도 측정은 기록에 없다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">
+              모델이 JSON 앞뒤에 마크다운 코드 블록 표시를 붙여 답했다. 내용은 스키마에 맞는다. 어떻게 처리되는가?
+            </p>
+            <button class="quiz-option">형식 오류로 세어 오류 문장을 붙인 채 다시 묻게 된다</button>
+            <button class="quiz-option">답을 버리고 다른 모델 이름으로 바꿔 다시 호출하게 된다</button>
+            <button class="quiz-option" data-correct>포트가 코드 블록을 벗겨 읽어 다시 묻지 않고 통과한다</button>
+            <div class="quiz-feedback" role="status">
+              <code>readJson</code>이 답 전체를 감싼 코드 블록을 벗기고 JSON으로 읽는다. 읽은 결과가 스키마에 맞으면 실행기의 형식 검사도 통과한다. 읽을 수 없는 문장이어야만 문자열로 돌아가 다시 묻게 된다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">
+              검증 피드백을 받은 뒤 AI가 새 명세를 냈는데 형식 검사에 걸려 다시 묻는다. 이때 <code>writeSpec</code> 입력의 <code>previous</code>와 <code>rejected</code>는 무엇인가?
+            </p>
+            <button class="quiz-option">previous와 rejected가 둘 다 방금 걸린 답이다</button>
+            <button class="quiz-option">previous는 비어 있고 rejected는 방금 걸린 답이다</button>
+            <button class="quiz-option">previous는 방금 걸린 답이고 rejected는 비어 있다</button>
+            <button class="quiz-option" data-correct>previous는 피드백 받은 명세, rejected는 걸린 답</button>
+            <div class="quiz-feedback" role="status">
+              <code>previous</code>는 검증 피드백을 받은 명세로 고정되어 있다. 형식 재요청 중에도 바뀌지 않는다. <code>rejected</code>는 형식 검사에 걸린 직전 답이다. 티켓 기록은 직전 명세(<code>previous</code>)가 있어야 모델이 <code>path</code>가 가리키는 곳을 고칠 수 있다고 적었다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">
+              축 반응 검증이 있는데도 명세 검사에 정면과 축 대응(<code>axesChecker</code>)을 따로 더한 이유는?
+            </p>
+            <button class="quiz-option">축 반응 검증은 슬라이더가 하나인 명세에서는 실행되지 않는다</button>
+            <button class="quiz-option">정면 방향은 업로드 묶음에서 알 수 없어 AI만 알 수 있다</button>
+            <button class="quiz-option" data-correct>축 반응 검증은 명세의 <code>axes</code>로 재서 틀린 대응도 통과한다</button>
+            <div class="quiz-feedback" role="status">
+              축 반응 검증은 명세에 적힌 <code>axes</code>를 기준으로 형상을 잰다. 그래서 정면과 맞지 않는 <code>axes</code>도 그 기준으로 자기 일관되게 통과한다. 수동 확인에서 정면 <code>+X</code>인데 W가 X인 명세가 제출까지 갔고, 그 사례가 검사를 더하게 했다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">
+              포트가 JSON Schema를 지시문에 적는 대신 한 제공자만 지원하는 JSON 모드로 출력을 강제한다고 하자. ADR-0015의 목적에 비추어 가장 큰 문제는?
+            </p>
+            <button class="quiz-option">JSON 모드에서는 스키마를 지시문에 쓸 수 없어 필드 뜻을 모른다</button>
+            <button class="quiz-option" data-correct>모델을 바꿀 때 그 기능이 없는 쪽에서 형식이 보장되지 않는다</button>
+            <button class="quiz-option">형식 검사가 필요 없어져 실행기의 다시 묻기가 사라진다</button>
+            <div class="quiz-feedback" role="status">
+              ADR는 특정 외부 API나 로컬 환경에만 있는 기능에 기대지 말고, LiteLLM 뒤에서 모델을 바꿔도 단계별 입출력 형식이 유지되게 하라고 한다. 한 제공자의 기능에 기대면 로컬 모델로 바꾸는 순간 보장이 사라진다. 형식 검사는 어떤 경우에도 실행기가 한다.
+            </div>
+          </div>
+        </section>
+
+      </main>
+
+      <footer class="colophon">
+        explain-diff-html 스킬로 만든 설명 문서
+      </footer>
+    </div>
+
+    <script>
+      document.querySelectorAll(".quiz-question").forEach(function (question) {
+        var feedback = question.querySelector(".quiz-feedback");
+
+        // Shuffle the options on every load, so the correct answer's position is
+        // random and a reader cannot fall into answering by position. Each option
+        // is re-inserted before the feedback block, which has to stay last.
+        var shuffled = Array.prototype.slice.call(
+          question.querySelectorAll(".quiz-option"),
+        );
+        for (var i = shuffled.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var swap = shuffled[i];
+          shuffled[i] = shuffled[j];
+          shuffled[j] = swap;
+        }
+        shuffled.forEach(function (option) {
+          question.insertBefore(option, feedback);
+        });
+
+        var options = question.querySelectorAll(".quiz-option");
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            var isCorrect = option.hasAttribute("data-correct");
+            options.forEach(function (other) {
+              other.disabled = true;
+              if (other.hasAttribute("data-correct"))
+                other.classList.add("correct");
+            });
+            if (!isCorrect) option.classList.add("incorrect");
+            feedback.classList.add("show", isCorrect ? "ok" : "bad");
+            feedback.insertBefore(
+              document.createTextNode(isCorrect ? "Correct. " : "Not quite. "),
+              feedback.firstChild,
+            );
+          });
+        });
+      });
+    </script>
+    <script>
+      // Mermaid loads without blocking: the page scripts above run first, and a slow
+      // or blocked CDN never holds up the quiz or the rest of the page. This is the
+      // only permitted external request, and it fires only when a .mermaid block is
+      // present. Leave it in place; it is a no-op on pages without a diagram.
+      (function () {
+        var blocks = document.querySelectorAll(".mermaid");
+        if (!blocks.length) return;
+
+        // mermaid.run() replaces each block's text with an SVG, so the source is
+        // gone after the first render. Stash it, because a theme change has to
+        // parse it again.
+        blocks.forEach(function (block) {
+          block.dataset.source = block.textContent;
+        });
+
+        var darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+        function render() {
+          blocks.forEach(function (block) {
+            block.removeAttribute("data-processed");
+            block.textContent = block.dataset.source;
+          });
+          try {
+            window.mermaid.initialize({
+              startOnLoad: false,
+              theme: darkQuery.matches ? "dark" : "default",
+            });
+          } catch (e) {}
+          Promise.resolve(window.mermaid.run({ nodes: blocks })).catch(
+            function () {},
+          );
+        }
+
+        var s = document.createElement("script");
+        s.src =
+          "https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js";
+        s.integrity =
+          "sha384-T/0lMUdJpd2S1ZHtRiofG3htU3xPCrFVeAQ1UUE2TJwlEJSV5NUwn30kP28n238E";
+        s.crossOrigin = "anonymous";
+        s.onload = function () {
+          render();
+          // Re-render when the reader switches system theme, so the diagram does
+          // not stay light on a dark page.
+          if (darkQuery.addEventListener)
+            darkQuery.addEventListener("change", render);
+        };
+        document.head.appendChild(s);
+      })();
+    </script>
+  </body>
+</html>

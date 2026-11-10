@@ -1,0 +1,863 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>티켓 09: 격자 보강</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f6f7f9;
+        --text: #1c2024;
+        --muted: #60646c;
+        --border: #d7dbdf;
+        --border-strong: #848c95;
+        --accent: #2f5ee0;
+        --accent-soft: #e8eefc;
+        --edge: #a35608;
+        --edge-soft: #fbefe1;
+        --ok: #1a7f47;
+        --ok-soft: #e4f3ea;
+        --bad: #c62a3b;
+        --bad-soft: #fbe7e9;
+        --measure: 68ch;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181b;
+          --surface: #1f2226;
+          --text: #eceef0;
+          --muted: #9ba1a6;
+          --border: #33383d;
+          --border-strong: #646c75;
+          --accent: #7aa2ff;
+          --accent-soft: #1e2740;
+          --edge: #e08c3a;
+          --edge-soft: #2e2517;
+          --ok: #57c98b;
+          --ok-soft: #17281d;
+          --bad: #f07178;
+          --bad-soft: #2c1a1c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:visited {
+        color: var(--accent);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 2.5rem;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 6rem;
+      }
+      nav.toc {
+        position: sticky;
+        top: 2.5rem;
+        align-self: start;
+        font-size: 0.9rem;
+      }
+      nav.toc strong {
+        display: block;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc li {
+        margin: 0.35rem 0;
+      }
+      nav.toc a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav.toc a:hover {
+        color: var(--accent);
+      }
+      main {
+        min-width: 0;
+      }
+      main > header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1.25rem;
+        margin-bottom: 2rem;
+      }
+      main > header h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.6rem;
+      }
+      main > header .lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: var(--measure);
+      }
+      main > header .provenance {
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        margin: 0.7rem 0 0;
+      }
+      .colophon {
+        grid-column: 1 / -1;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        border-top: 1px solid var(--border);
+        margin: 4rem 0 0;
+        padding: 1.2rem 0 0;
+      }
+      .colophon a {
+        color: inherit;
+      }
+      section {
+        margin-bottom: 3.5rem;
+      }
+      section h2 {
+        font-size: 1.4rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      section h3 {
+        font-size: 1.05rem;
+        margin: 2rem 0 0.6rem;
+      }
+      section p,
+      section ul,
+      section ol {
+        max-width: var(--measure);
+      }
+      li {
+        margin: 0.3rem 0;
+      }
+      /* Code blocks: white-space set here so a filled-in block cannot collapse. */
+      pre,
+      .code-block {
+        white-space: pre-wrap;
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        font:
+          0.86rem/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        tab-size: 2;
+      }
+      pre .del {
+        color: var(--bad);
+      }
+      pre .add {
+        color: var(--ok);
+      }
+      pre .hi {
+        background: var(--accent-soft);
+        border-radius: 3px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--surface);
+        padding: 0.05rem 0.3rem;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      /* A file:line reference linked to the code it names. Wraps a <code> span
+         in prose, or the bare text of a .filename label. */
+      a.srcref {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px solid var(--muted);
+      }
+      a.srcref:hover {
+        border-bottom-color: var(--accent);
+      }
+      a.srcref:hover code {
+        background: var(--accent-soft);
+      }
+      /* Path label for the code block below it. */
+      .filename {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        margin: 1.5rem 0 0.3rem;
+        overflow-wrap: anywhere;
+      }
+      /* Comparison table: one row per case, .yes / .no / .warn on outcome cells. */
+      table.vals {
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.86rem;
+        width: 100%;
+        max-width: 620px;
+      }
+      table.vals th,
+      table.vals td {
+        border: 1px solid var(--border-strong);
+        padding: 0.4rem 0.65rem;
+        text-align: left;
+      }
+      table.vals th {
+        background: var(--surface);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+      table.vals td.yes {
+        background: var(--ok-soft);
+      }
+      table.vals td.no {
+        background: var(--bad-soft);
+      }
+      table.vals td.warn {
+        background: var(--edge-soft);
+      }
+      /* Callouts: .callout for a concept, .callout.edge for a caveat. */
+      .callout {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+        padding: 0.85rem 1.1rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .callout .label {
+        display: block;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+      }
+      .callout.edge {
+        background: var(--edge-soft);
+        border-left-color: var(--edge);
+      }
+      .callout.edge .label {
+        color: var(--edge);
+      }
+      /* Skippable deep-background block. */
+      details.skippable {
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 0.75rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      details.skippable > summary {
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      details.skippable[open] > summary {
+        margin-bottom: 0.75rem;
+      }
+      /* Diagram family 1: simplified app UI mockup. */
+      .ui-mockup {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1.5rem 0;
+        max-width: 560px;
+        font-size: 0.85rem;
+      }
+      .ui-mockup .bar {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0.5rem 0.85rem;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .ui-mockup .body {
+        padding: 1.1rem 0.85rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+      }
+      .mock-caption {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.3rem 0 0;
+        max-width: var(--measure);
+      }
+      /* Diagram family 2: data flow between components, example data on the arrows. */
+      .dataflow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+      /* Each arrow travels with the node it points at. Without this, a flow
+         wider than the column wraps between an arrow and its node, leaving the
+         arrow pointing at nothing and the node stranded on the next line. */
+      .dataflow .step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .dataflow .node {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 175px;
+      }
+      .dataflow .node.terminal {
+        background: var(--surface);
+        border-color: var(--border);
+      }
+      .dataflow .node.pass {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .dataflow .node.fail {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .dataflow .arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.72rem;
+        min-width: 96px;
+      }
+      .dataflow .arrow .line {
+        width: 100%;
+        border-top: 2px solid var(--border);
+        position: relative;
+      }
+      .dataflow .arrow .line::after {
+        content: "\25B6";
+        position: absolute;
+        right: -2px;
+        top: -0.72em;
+        color: var(--border);
+        font-size: 0.7rem;
+      }
+      .dataflow .arrow .data {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.35rem;
+        margin-bottom: 0.2rem;
+        font-family: ui-monospace, monospace;
+      }
+      .flow-label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin: 1.25rem 0 0.25rem;
+      }
+      /* A numbered sequence with one marked position: call stacks, retry
+         counts, any ranked list. Not one of the numbered families; reach for
+         it when a step in an ordered list is the point. */
+      .frames {
+        list-style: none;
+        padding: 0;
+        margin: 1.25rem 0;
+        max-width: 620px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.82rem;
+      }
+      .frames li {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.45rem 0.7rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+      }
+      .frames li.target {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .frames .n {
+        display: inline-block;
+        min-width: 2.2em;
+        color: var(--muted);
+      }
+      /* Diagram family 3: node/recursion tree (ASTs, nesting, recursion) */
+      .tree {
+        margin: 1.5rem 0;
+        font:
+          0.82rem/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      .tnode {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.3rem 0.55rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+        display: inline-block;
+      }
+      .tnode.leaf {
+        background: var(--bg);
+      }
+      .tnode.kept {
+        border-color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tnode.skipped {
+        border-color: var(--muted);
+        color: var(--muted);
+      }
+      .tchildren {
+        margin-left: 1.4rem;
+        border-left: 2px dotted var(--border);
+        padding-left: 0.9rem;
+      }
+      .tnote {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-left: 0.4rem;
+      }
+
+      /* Optional tabular body for .ui-mockup, when the mocked UI is a table. */
+      .mock-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .mock-table th,
+      .mock-table td {
+        border: 1px solid var(--border);
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+      }
+      .mock-table th {
+        background: var(--surface);
+        font-weight: 600;
+      }
+      .mock-table .col-highlight {
+        background: var(--accent-soft);
+      }
+
+      .mermaid {
+        margin: 1.75rem 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .mermaid .edgeLabel,
+      .mermaid .edgeLabel p,
+      .mermaid .edgeLabel span,
+      .mermaid .edgeLabel foreignObject div {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+      }
+      /* Quiz */
+      .quiz-question {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .quiz-question > p.q {
+        font-weight: 600;
+        margin: 0 0 0.85rem;
+      }
+      .quiz-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 0.5rem;
+        font: inherit;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .quiz-option:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .quiz-option.correct {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .quiz-option.incorrect {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .quiz-option:disabled {
+        cursor: default;
+      }
+      .quiz-feedback {
+        display: none;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 7px;
+        margin-top: 0.3rem;
+      }
+      .quiz-feedback.show {
+        display: block;
+      }
+      .quiz-feedback.ok {
+        background: var(--ok-soft);
+      }
+      .quiz-feedback.bad {
+        background: var(--edge-soft);
+      }
+      a:focus-visible,
+      summary:focus-visible,
+      .quiz-option:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+      table.vals td.yes::before,
+      .dataflow .node.pass::before,
+      .tnode.kept::before,
+      .quiz-option.correct::before {
+        content: "\2713\00a0";
+        font-weight: 700;
+      }
+      table.vals td.no::before,
+      .dataflow .node.fail::before,
+      .quiz-option.incorrect::before {
+        content: "\2717\00a0";
+        font-weight: 700;
+      }
+      table.vals td.warn::before {
+        content: "\25B2\00a0";
+        font-weight: 700;
+      }
+      .tnode.skipped::before {
+        content: "\2013\00a0";
+        font-weight: 700;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 1rem;
+          padding: 1.25rem 1.1rem 4rem;
+        }
+        nav.toc {
+          position: static;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+        }
+        body {
+          font-size: 16px;
+        }
+        main > header h1 {
+          font-size: 1.6rem;
+        }
+        table.vals {
+          display: block;
+          overflow-x: auto;
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <nav class="toc">
+        <strong>목차</strong>
+        <ol>
+          <li><a href="#background">배경</a></li>
+          <li><a href="#intuition">핵심 아이디어</a></li>
+          <li><a href="#code">코드 따라가기</a></li>
+          <li><a href="#quiz">퀴즈</a></li>
+        </ol>
+      </nav>
+
+      <main>
+<header><h1>티켓 09: 격자 보강</h1><p class="lead">명세를 고쳐 다시 써도 덧셈이 틀리는 슬라이더 쌍만 3x3 격자 샘플로 보강하고, 변형 엔진이 그 쌍을 격자의 나머지를 쌍선형으로 섞어 맞추는 변경이다. 보강한 쌍은 명세가 아니라 결과물의 스윕 데이터에 담긴다.</p><p class="provenance">jun-1993-p/threejs-configurator-ai 티켓 09 (fe3a8bd) at fe3a8bd, explained 2026-11-04. References link to this commit.</p></header>
+<section id="background">
+<h2>배경</h2>
+<details class="skippable">
+<summary>이 영역이 처음이면 펼쳐서 읽는 깊은 배경</summary>
+<p>변형 엔진은 슬라이더마다 <strong>단독 스윕</strong>의 꼭짓점 이동량을 기본 형상에 더해 형상을 만든다(ADR-0004). 슬라이더 둘이 서로 영향을 주지 않으면 합이 Fusion과 맞는다. 하지만 한 파라미터가 Fusion 수식으로 다른 파라미터를 따라가는 쌍(예: 서랍 깊이 <code>drawer_d = body_d - 20 mm</code>)은 둘을 함께 움직일 때 덧셈이 틀린다. 앞 티켓의 <strong>교차 검증</strong>은 쌍마다 범위 모서리 4곳에서 Fusion 형상을 받아 덧셈과 비교해 이런 쌍을 찾는다.</p>
+<p>ADR-0008은 이 쌍을 두 단계로 다룬다. 먼저 AI가 명세를 고쳐 다시 쓰게 한다(한쪽을 다른 쪽의 자식으로 바꾸거나 범위를 줄임). 그래도 넘으면 그 쌍만 작은 격자 스윕(3x3)으로 보강하고, 변형 엔진이 그 쌍을 격자 보간으로 섞는다. 전체 폭과 서랍 폭처럼 서로 영향을 주는 쌍은 가구에서 흔해서 명세 수정만으로는 상품이 막히므로, 고정 코어에 격자 보간을 하나 더 넣는 비용을 받아들였다고 ADR이 밝힌다. 상품당 2쌍까지만 허용한다.</p>
+</details>
+
+<p>이 문서의 이름을 먼저 정리한다. 마디는 3x3 격자의 점 9개, 칸은 마디 네 개가 이루는 사각형, 기본값 줄은 한 슬라이더가 기본값에 있는 선, 쌍선형은 두 축 방향으로 차례로 선형 보간하는 방식이다.</p>
+<ul>
+<li><strong>격자 보강</strong>: 쌍을 이루는 두 슬라이더의 min, default, max를 엇걸어 뽑은 3x3 샘플. default가 범위 끝이면 그 축은 값이 둘이다. 명세가 아니라 결과물 <code>sweeps.json</code>의 <code>grids</code>에 담긴다.</li>
+<li><strong>나머지(residual)</strong>: 격자 마디의 Fusion 샘플 이동량에서 두 단독 스윕 이동량의 합을 뺀 값. 덧셈이 못 맞추는 몫이다.</li>
+<li><code>GridTrack</code>: 엔진 안에서 격자 보강 쌍 하나를 담는 구조. 마디마다 나머지를 갖는다.</li>
+<li><code>Pair</code>: 슬라이더 쌍(두 부모 파라미터 이름, 명세 순서).</li>
+<li><code>verifyCross</code>, <code>gridValues</code>, <code>verifyGrid</code>, <code>checkGridSamples</code>: 교차 검증, 격자 요청 값 만들기, 격자 검증점 비교, 격자 샘플 사용 가능 여부 검사.</li>
+<li><code>GRID_PAIR_LIMIT</code>: 상품당 격자 보강 쌍 상한(2).</li>
+</ul>
+
+<div class="callout">
+<span class="label">핵심 개념: 나머지를 더한다</span>
+엔진은 격자를 따로 섞지 않는다. 먼저 평소처럼 두 단독 스윕 이동량을 더하고, 덧셈이 틀리는 만큼인 나머지를 격자 마디 네 개에서 쌍선형으로 섞어 그 위에 더한다. 그래서 격자 마디에서는 덧셈과 나머지의 합이 Fusion 샘플과 정확히 같아진다.
+</div>
+</section>
+
+<section id="intuition">
+<h2>핵심 아이디어</h2>
+<p>덧셈이 틀리는 쌍은 단독 스윕을 더한 뒤, 틀린 만큼(나머지)을 격자 마디에서 쌍선형으로 섞어 더한다. 작은 예시는 티켓 파일이 쓴 합성 서랍장의 전체 깊이 x 서랍 깊이 쌍이다. 전체 깊이는 300, 450, 600, 서랍 깊이는 300, 430, 600을 엇걸어 격자 9곳을 만든다. 서랍장 합성 모델에는 서랍 폭 파라미터가 없어서 같은 성격의 이 쌍으로 시험했다고 티켓 파일이 적는다.</p>
+<table class="vals">
+<tr><th>구분</th><th>개수</th><th>쓰임</th></tr>
+<tr><td>격자 샘플</td><td>9 (3x3)</td><td>마디마다 나머지를 만든다</td></tr>
+<tr><td>격자 칸 가운데</td><td>4</td><td>검증점</td></tr>
+<tr><td>기본값 줄 위 마디 사이</td><td>4</td><td>검증점</td></tr>
+</table>
+<p>한 번의 격자 요청은 격자 9곳과 검증점 8곳을 합쳐 값 묶음 17개를 보낸다. 검증점이 8곳인 것은 <code>gridValues</code>가 칸 가운데 2x2, 기본값 줄의 두 방향 각 2개를 만들기 때문이다.</p>
+
+<p class="flow-label">어느 쌍이 격자로 가는가</p>
+<pre class="mermaid">flowchart TD
+    A["명세 작성과 교차 검증"] --&gt; B{"쌍이 덧셈 검증에 실패했나"}
+    B --&gt;|아니오| P["통과"]
+    B --&gt;|예| C{"앞선 명세에서도 이 쌍이 실패했나"}
+    C --&gt;|아니오| F1["피드백으로 명세 다시 쓰기"]
+    C --&gt;|예| D{"재계산 실패나 위상 변화인가"}
+    D --&gt;|예| F2["격자로 섞을 수 없어 피드백만"]
+    D --&gt;|아니오| E{"보강할 쌍이 2쌍을 넘는가"}
+    E --&gt;|예| F3["grid_limit 피드백"]
+    E --&gt;|아니오| G["3x3 격자와 검증점 8곳을 요청해 보강"]
+    G --&gt; H["같은 명세를 격자로 다시 검증"]
+    classDef ok fill:#e4f3ea,stroke:#1a7f47,color:#16181b
+    classDef bad fill:#fbe7e9,stroke:#c62a3b,color:#16181b
+    classDef touch fill:#e8eefc,stroke:#3b6cf6,color:#16181b
+    class P ok
+    class F1,F2,F3 bad
+    class G,H touch</pre>
+
+<div class="callout edge">
+<span class="label">설계 판단: 고정되는 값</span>
+티켓 파일의 설계 판단에 따르면, 서랍 깊이가 수식으로 전체 깊이를 따르는 쌍이라도 두 치수를 모두 슬라이더로 내놓으면 값이 고정된다. 애드인은 수식이 있는 파라미터도 값을 직접 넣어 스윕하기 때문이다. 격자를 쓰면 전체 깊이만 움직여도 서랍 깊이는 슬라이더 값(430)에 머문다. 단독 스윕에서는 서랍이 따라갔으므로 둘은 다르다. 그래서 수치 검증은 격자 보강 쌍의 단독 스윕 검증점을 건너뛰고, 기본값 줄 위 검증점은 격자 요청에 넣어 잰다. 티켓 파일은 이 쌍은 격자가 아니라 자식으로 두는 명세 수정이 맞다는 리뷰 지적을 반영하지 않은 이유도 적었다(ADR-0008이 이런 쌍을 격자 대상으로 든다는 점, 명세 수정을 먼저 시도하는 순서는 지킨다는 점).
+</div>
+</section>
+
+<section id="code">
+<h2>코드 따라가기</h2>
+<p><strong>흐름:</strong> 실행기가 실패한 쌍을 추려 격자를 요청 → 받은 격자를 결과물의 스윕 데이터에 담아 조립 → 엔진이 나머지를 만들어 덧셈 위에 더함 → 격자 검증점으로 확인.</p>
+
+<h3>1. 검증기: 실패를 쌍 단위로 돌려준다</h3>
+<p><code>verifyCross</code>는 이전에는 피드백 목록 하나를 돌려줬지만 이제 쌍별 실패(<code>PairFailure</code>)를 돌려준다. 실행기가 어느 쌍이 실패했는지 알아야 하기 때문이다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/fe3a8bd1756b2a9275d3c77abaa316d3abb0d4e6/configurator/pipeline/verify-cross.ts#L113"><code>configurator/pipeline/verify-cross.ts:113</code></a>). 격자를 쓸 수 없는 실패도 구분한다. 재계산 실패와 위상 변화는 격자로 섞을 수 없다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/fe3a8bd1756b2a9275d3c77abaa316d3abb0d4e6/configurator/pipeline/verify-cross.ts#L129">configurator/pipeline/verify-cross.ts:129</a></p>
+<pre>export const fixableByGrid = ({ feedback }: PairFailure) =&gt; feedback.every((f) =&gt; !UNMIXABLE.has(f.kind));</pre>
+<p><code>gridValues</code>가 격자 9곳과 검증점 8곳의 값 묶음을 만든다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/fe3a8bd1756b2a9275d3c77abaa316d3abb0d4e6/configurator/pipeline/verify-cross.ts#L66"><code>configurator/pipeline/verify-cross.ts:66</code></a>). 쌍이 아닌 슬라이더는 default다. 격자를 받은 뒤에는 <code>checkGridSamples</code>가 재계산 실패나 위상 변화를 검사해, 있으면 보강하지 않고 그 피드백을 낸다. <code>verifyGrid</code>는 격자를 넣은 엔진으로 검증점을 수치 검증과 같은 측정과 합격선으로 재고, 쌍이 상한을 넘으면 <code>gridLimitFeedback</code>이 <code>grid_limit</code> 종류의 피드백을 만든다. 이 피드백은 한 슬라이더나 부품의 실패가 아니라서 <code>slider</code>와 <code>part</code>가 빈 문자열이다.</p>
+
+<h3>2. 실행기: 두 번째 실패에서 격자</h3>
+<p><code>writeVerifiedSpec</code>가 쌍마다 지난 명세에서 실패했는지 기억한다(<code>pairsFailedBefore</code>). 처음 실패한 쌍은 피드백으로 명세를 다시 쓰게 하고, 다음 명세에서도 실패하면서, 아직 격자가 없고, 격자로 고칠 수 있는 쌍만 <code>toReinforce</code>에 든다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/fe3a8bd1756b2a9275d3c77abaa316d3abb0d4e6/configurator/pipeline/runner.ts#L291-L299">configurator/pipeline/runner.ts:291-299</a></p>
+<pre>const toReinforce = verified.failedPairs
+  .filter((f) =&gt; failedBefore(f.pair) &amp;&amp; fixableByGrid(f) &amp;&amp; !grids.some((r) =&gt; samePair(r.pair, f.pair)))
+  .map((f) =&gt; f.pair);
+pairsFailedBefore.push(...verified.failedPairs.map((f) =&gt; f.pair).filter((pair) =&gt; !failedBefore(pair)));
+
+if (toReinforce.length &gt; 0) {
+  const needed = [...grids.map((r) =&gt; r.pair), ...toReinforce];
+  if (needed.length &gt; GRID_PAIR_LIMIT) {
+    feedback.push(gridLimitFeedback(needed));</pre>
+<p>이미 보강한 쌍까지 세어 2쌍을 넘으면 요청하지 않고 <code>grid_limit</code>를 낸다. 티켓 파일은 처음부터 세 쌍이 실패해도 상한 피드백은 다음 명세에서 나온다고 적는다. 처음 실패한 쌍은 아직 보강이 필요한 쌍이 아니라 명세 수정 대상이기 때문이다. 넘지 않으면 <code>reinforce</code>가 쌍마다 <code>kind: "grid"</code> 요청을 보낸다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/fe3a8bd1756b2a9275d3c77abaa316d3abb0d4e6/configurator/pipeline/runner.ts#L323"><code>configurator/pipeline/runner.ts:323</code></a>). 같은 요청은 다시 보내지 않도록 응답을 <code>answered</code> 맵에 캐시한다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/fe3a8bd1756b2a9275d3c77abaa316d3abb0d4e6/configurator/pipeline/runner.ts#L191"><code>configurator/pipeline/runner.ts:191</code></a>). 받은 격자는 요청한 값 묶음(범위와 기본값)이 지금 명세와 같을 때만 쓴다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/fe3a8bd1756b2a9275d3c77abaa316d3abb0d4e6/configurator/pipeline/runner.ts#L242"><code>configurator/pipeline/runner.ts:242</code></a>). 범위가 바뀌면 격자 마디가 슬라이더 범위 끝과 어긋나기 때문이다.</p>
+<p>보강 뒤 같은 명세를 <code>assembleAndVerify</code>로 다시 조립해 검증한다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/fe3a8bd1756b2a9275d3c77abaa316d3abb0d4e6/configurator/pipeline/runner.ts#L249"><code>configurator/pipeline/runner.ts:249</code></a>). 이 함수가 조립, 수치 검증, 축 반응 검증, 교차 검증, 격자 검증점을 차례로 부른다.</p>
+
+<h3>3. 조립: 격자는 명세가 아니라 스윕 데이터에</h3>
+<p><code>sweepDataFor</code>가 명세의 슬라이더에 모두 속하는 격자만 남겨 <code>sweeps.json</code>의 <code>grids</code>로 넣는다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/fe3a8bd1756b2a9275d3c77abaa316d3abb0d4e6/configurator/pipeline/assemble.ts#L32"><code>configurator/pipeline/assemble.ts:32</code></a>). 엔진이 쓰는 면 필드만 남기는 <code>engineFaces</code>도 샘플과 격자가 함께 쓰도록 분리되었다.</p>
+
+<h3>4. 엔진: 나머지를 만들고 쌍선형으로 섞는다</h3>
+<p><code>createMorph</code>는 <code>data.grids</code>에서 명세의 두 슬라이더를 잇는 격자마다 <code>GridTrack</code>을 만든다. 마디마다 샘플의 기본 형상 대비 이동량(<code>deltaOf</code>)에서 두 단독 스윕 이동량을 <code>addDelta</code>로 더한 값을 빼 나머지를 얻는다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/fe3a8bd1756b2a9275d3c77abaa316d3abb0d4e6/configurator/src/engine.ts#L186"><code>configurator/src/engine.ts:186</code></a>). 주석은 서로 독립이면 기본값 줄의 나머지가 0이고, 한쪽이 수식으로 다른 쪽을 따르면 기본값 줄에도 나머지가 남는다고 설명한다. 샘플이 재계산에 실패했거나 면 구성이 다르면 예외를 던진다.</p>
+<p>이어서 <code>positions</code>가 단독 스윕을 모두 더한 뒤 격자 쌍마다 <code>addResidual</code>을 부른다. 값이 격자 밖이면 가장자리 마디에 붙는다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/fe3a8bd1756b2a9275d3c77abaa316d3abb0d4e6/configurator/src/engine.ts#L223-L230">configurator/src/engine.ts:223-230</a></p>
+<pre>function addResidual(out: Float64Array, grid: GridTrack, [va, vb]: [number, number]) {
+  const u = bracket(grid.values[0], va);
+  const v = bracket(grid.values[1], vb);
+  const r = grid.residuals;
+  const [r00, r01, r10, r11] = [r[u.lo][v.lo], r[u.lo][v.hi], r[u.hi][v.lo], r[u.hi][v.hi]];
+  const [w00, w01, w10, w11] = [(1 - u.t) * (1 - v.t), (1 - u.t) * v.t, u.t * (1 - v.t), u.t * v.t];
+  for (let i = 0; i &lt; out.length; i++) out[i] += r00[i] * w00 + r01[i] * w01 + r10[i] * w10 + r11[i] * w11;
+}</pre>
+<p>값을 감싸는 두 샘플 번호와 비율을 구하는 일은 <code>bracket</code>으로 빠져 <code>addDelta</code>와 <code>addResidual</code>이 함께 쓴다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/fe3a8bd1756b2a9275d3c77abaa316d3abb0d4e6/configurator/src/engine.ts#L206"><code>configurator/src/engine.ts:206</code></a>). 샘플의 이동량을 계산하는 <code>deltaOf</code>도 단독 스윕과 격자가 같이 쓰도록 안쪽 함수로 분리되었다.</p>
+
+<h3>5. 수치 검증: 격자 보강 쌍의 슬라이더는 단독 검증점을 건너뛴다</h3>
+<p>격자에 속한 슬라이더를 모아(<code>gridded</code>) 단독 스윕 검증점 검사를 통째로 건너뛴다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/fe3a8bd1756b2a9275d3c77abaa316d3abb0d4e6/configurator/pipeline/verify-numeric.ts#L72"><code>configurator/pipeline/verify-numeric.ts:72</code></a>). 앞의 설계 판단이 그 이유다.</p>
+
+<h3>6. 시험</h3>
+<p>엔진 시험은 덧셈이 틀리는 쌍이 격자 마디 사이 8곳에서 합격선 안에서 맞는지, 격자 마디에서 녹화 샘플과 일치하는지, 격자 쌍이 아닌 슬라이더는 덧셈 그대로인지 본다. 실행기 시험은 처음 실패는 피드백만, 두 번째 실패에서 격자를 요청하고 제출, 격자에는 명세가 아닌 스윕 데이터에 담김, 격자 검증점 실패, 격자 샘플 재계산 실패, 세 쌍이면 <code>grid_limit</code>를 확인한다. 서버와 애드인은 바꾸지 않았다. 앞 티켓에서 요청 종류에 <code>grid</code>를 미리 두었고 애드인은 종류와 무관하게 값 묶음마다 교차 검증 샘플로 답하기 때문이다.</p>
+</section>
+
+<section id="quiz">
+<h2>퀴즈</h2>
+<div class="quiz-question"><p class="q">같은 후보의 첫 명세에서 쌍 하나가 교차 검증에 처음 실패했다. 실행기는 무엇을 하는가?</p>
+<button class="quiz-option" data-correct>격자를 요청하지 않고 피드백으로 명세를 다시 쓰게 한다</button>
+<button class="quiz-option">곧바로 3x3 격자와 검증점을 애드인에 요청한다</button>
+<button class="quiz-option">후보 제시로 돌아가 후보를 다시 고르게 한다</button>
+<button class="quiz-option">그 쌍의 슬라이더 범위를 자동으로 줄여 저장한다</button>
+<div class="quiz-feedback" role="status">격자는 앞선 명세에서도 실패한 쌍에만 쓴다(pairsFailedBefore). 처음 실패한 쌍은 ADR-0008의 순서대로 명세 수정을 먼저 시도하고, 처음 실패 기록만 남긴다.</div></div>
+<div class="quiz-question"><p class="q">격자 마디에서 엔진 결과가 녹화된 격자 샘플과 일치하는 까닭은?</p>
+<button class="quiz-option">격자 마디에서는 단독 스윕을 더하지 않기 때문이다</button>
+<button class="quiz-option">격자 샘플을 엔진 입력으로 따로 한 번 더 더하기 때문이다</button>
+<button class="quiz-option">보간 비율이 항상 0.5이기 때문이다</button>
+<button class="quiz-option" data-correct>나머지가 샘플에서 덧셈 몫을 뺀 값이기 때문이다</button>
+<div class="quiz-feedback" role="status">나머지는 샘플 이동량에서 두 단독 스윕 이동량을 뺀 값이다. 엔진은 덧셈을 하고 나머지를 더하므로 마디에서 합이 샘플이 된다. 마디 사이는 쌍선형으로 섞는다.</div></div>
+<div class="quiz-question"><p class="q">한 상품에서 세 쌍이 처음부터 모두 교차 검증에 실패한 첫 명세는 어떻게 처리되는가?</p>
+<button class="quiz-option">세 쌍 모두 곧바로 격자 요청을 받는다</button>
+<button class="quiz-option">두 쌍만 골라 격자 요청을 먼저 보낸다</button>
+<button class="quiz-option" data-correct>피드백만 받고 상한은 다음 명세에서 나온다</button>
+<button class="quiz-option">후보 제시로 곧바로 돌아가 다시 고른다</button>
+<div class="quiz-feedback" role="status">처음 실패한 쌍은 보강이 필요한 쌍으로 세지 않는다. 세 쌍이 다음 명세에서도 실패하면 그때 보강할 쌍이 상한 2를 넘어 grid_limit 피드백이 난다.</div></div>
+<div class="quiz-question"><p class="q">수치 검증이 격자 보강 쌍의 슬라이더에는 단독 스윕 검증점을 재지 않는 까닭은?</p>
+<button class="quiz-option">격자 쪽 검증점이 더 많아 중복이기 때문이다</button>
+<button class="quiz-option">단독 스윕 샘플이 격자에 포함되어 삭제되기 때문이다</button>
+<button class="quiz-option">단독 스윕이 Fusion 재계산에 실패하기 때문이다</button>
+<button class="quiz-option" data-correct>단독 스윕에서는 짝이 수식으로 따라가기 때문이다</button>
+<div class="quiz-feedback" role="status">주석의 설명이다. 짝 슬라이더가 수식으로 따라가는 단독 스윕은 짝 값을 고정한 구성기 상태가 아니다. 그래서 이 쌍은 교차 검증에서 격자 칸 가운데와 기본값 줄 위 검증점으로 잰다.</div></div>
+<div class="quiz-question"><p class="q">격자를 받은 뒤 명세가 슬라이더 범위를 바꿔 다시 쓰이면 그 격자는 어떻게 되는가?</p>
+<button class="quiz-option">새 범위에 맞춰 마디 값을 잘라 그대로 쓴다</button>
+<button class="quiz-option" data-correct>요청한 값 묶음이 달라져 쓰지 않고 다시 요청한다</button>
+<button class="quiz-option">모든 격자가 영구히 버려진다</button>
+<button class="quiz-option">범위와 무관하게 마디 값을 다시 계산한다</button>
+<div class="quiz-feedback" role="status">gridKey는 요청한 값 묶음이고 gridsFor는 지금 범위와 기본값에서 만든 키와 같을 때만 격자를 쓴다. 격자 마디가 슬라이더 범위 끝과 맞아야 보간 범위가 맞기 때문이다.</div></div>
+</section>
+
+</main>
+
+      <footer class="colophon">
+        Generated with
+        <a href="https://github.com/malav2110/explain-diff-html"
+          >explain-diff-html</a
+        >
+      </footer>
+    </div>
+
+    <script>
+      document.querySelectorAll(".quiz-question").forEach(function (question) {
+        var feedback = question.querySelector(".quiz-feedback");
+
+        // Shuffle the options on every load, so the correct answer's position is
+        // random and a reader cannot fall into answering by position. Each option
+        // is re-inserted before the feedback block, which has to stay last.
+        var shuffled = Array.prototype.slice.call(
+          question.querySelectorAll(".quiz-option"),
+        );
+        for (var i = shuffled.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var swap = shuffled[i];
+          shuffled[i] = shuffled[j];
+          shuffled[j] = swap;
+        }
+        shuffled.forEach(function (option) {
+          question.insertBefore(option, feedback);
+        });
+
+        var options = question.querySelectorAll(".quiz-option");
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            var isCorrect = option.hasAttribute("data-correct");
+            options.forEach(function (other) {
+              other.disabled = true;
+              if (other.hasAttribute("data-correct"))
+                other.classList.add("correct");
+            });
+            if (!isCorrect) option.classList.add("incorrect");
+            feedback.classList.add("show", isCorrect ? "ok" : "bad");
+            feedback.insertBefore(
+              document.createTextNode(isCorrect ? "Correct. " : "Not quite. "),
+              feedback.firstChild,
+            );
+          });
+        });
+      });
+    </script>
+    <script>
+      // Mermaid loads without blocking: the page scripts above run first, and a slow
+      // or blocked CDN never holds up the quiz or the rest of the page. This is the
+      // only permitted external request, and it fires only when a .mermaid block is
+      // present. Leave it in place; it is a no-op on pages without a diagram.
+      (function () {
+        var blocks = document.querySelectorAll(".mermaid");
+        if (!blocks.length) return;
+
+        // mermaid.run() replaces each block's text with an SVG, so the source is
+        // gone after the first render. Stash it, because a theme change has to
+        // parse it again.
+        blocks.forEach(function (block) {
+          block.dataset.source = block.textContent;
+        });
+
+        var darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+        function render() {
+          blocks.forEach(function (block) {
+            block.removeAttribute("data-processed");
+            block.textContent = block.dataset.source;
+          });
+          try {
+            window.mermaid.initialize({
+              startOnLoad: false,
+              theme: darkQuery.matches ? "dark" : "default",
+            });
+          } catch (e) {}
+          Promise.resolve(window.mermaid.run({ nodes: blocks })).catch(
+            function () {},
+          );
+        }
+
+        var s = document.createElement("script");
+        s.src =
+          "https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js";
+        s.integrity =
+          "sha384-T/0lMUdJpd2S1ZHtRiofG3htU3xPCrFVeAQ1UUE2TJwlEJSV5NUwn30kP28n238E";
+        s.crossOrigin = "anonymous";
+        s.onload = function () {
+          render();
+          // Re-render when the reader switches system theme, so the diagram does
+          // not stay light on a dark page.
+          if (darkQuery.addEventListener)
+            darkQuery.addEventListener("change", render);
+        };
+        document.head.appendChild(s);
+      })();
+    </script>
+  </body>
+</html>

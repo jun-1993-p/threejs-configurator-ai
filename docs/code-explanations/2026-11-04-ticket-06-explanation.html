@@ -1,0 +1,863 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>티켓 06: 축 반응 검증</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f6f7f9;
+        --text: #1c2024;
+        --muted: #60646c;
+        --border: #d7dbdf;
+        --border-strong: #848c95;
+        --accent: #2f5ee0;
+        --accent-soft: #e8eefc;
+        --edge: #a35608;
+        --edge-soft: #fbefe1;
+        --ok: #1a7f47;
+        --ok-soft: #e4f3ea;
+        --bad: #c62a3b;
+        --bad-soft: #fbe7e9;
+        --measure: 68ch;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181b;
+          --surface: #1f2226;
+          --text: #eceef0;
+          --muted: #9ba1a6;
+          --border: #33383d;
+          --border-strong: #646c75;
+          --accent: #7aa2ff;
+          --accent-soft: #1e2740;
+          --edge: #e08c3a;
+          --edge-soft: #2e2517;
+          --ok: #57c98b;
+          --ok-soft: #17281d;
+          --bad: #f07178;
+          --bad-soft: #2c1a1c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:visited {
+        color: var(--accent);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 2.5rem;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 6rem;
+      }
+      nav.toc {
+        position: sticky;
+        top: 2.5rem;
+        align-self: start;
+        font-size: 0.9rem;
+      }
+      nav.toc strong {
+        display: block;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc li {
+        margin: 0.35rem 0;
+      }
+      nav.toc a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav.toc a:hover {
+        color: var(--accent);
+      }
+      main {
+        min-width: 0;
+      }
+      main > header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1.25rem;
+        margin-bottom: 2rem;
+      }
+      main > header h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.6rem;
+      }
+      main > header .lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: var(--measure);
+      }
+      main > header .provenance {
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        margin: 0.7rem 0 0;
+      }
+      .colophon {
+        grid-column: 1 / -1;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        border-top: 1px solid var(--border);
+        margin: 4rem 0 0;
+        padding: 1.2rem 0 0;
+      }
+      .colophon a {
+        color: inherit;
+      }
+      section {
+        margin-bottom: 3.5rem;
+      }
+      section h2 {
+        font-size: 1.4rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      section h3 {
+        font-size: 1.05rem;
+        margin: 2rem 0 0.6rem;
+      }
+      section p,
+      section ul,
+      section ol {
+        max-width: var(--measure);
+      }
+      li {
+        margin: 0.3rem 0;
+      }
+      /* Code blocks: white-space set here so a filled-in block cannot collapse. */
+      pre,
+      .code-block {
+        white-space: pre-wrap;
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        font:
+          0.86rem/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        tab-size: 2;
+      }
+      pre .del {
+        color: var(--bad);
+      }
+      pre .add {
+        color: var(--ok);
+      }
+      pre .hi {
+        background: var(--accent-soft);
+        border-radius: 3px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--surface);
+        padding: 0.05rem 0.3rem;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      /* A file:line reference linked to the code it names. Wraps a <code> span
+         in prose, or the bare text of a .filename label. */
+      a.srcref {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px solid var(--muted);
+      }
+      a.srcref:hover {
+        border-bottom-color: var(--accent);
+      }
+      a.srcref:hover code {
+        background: var(--accent-soft);
+      }
+      /* Path label for the code block below it. */
+      .filename {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        margin: 1.5rem 0 0.3rem;
+        overflow-wrap: anywhere;
+      }
+      /* Comparison table: one row per case, .yes / .no / .warn on outcome cells. */
+      table.vals {
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.86rem;
+        width: 100%;
+        max-width: 620px;
+      }
+      table.vals th,
+      table.vals td {
+        border: 1px solid var(--border-strong);
+        padding: 0.4rem 0.65rem;
+        text-align: left;
+      }
+      table.vals th {
+        background: var(--surface);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+      table.vals td.yes {
+        background: var(--ok-soft);
+      }
+      table.vals td.no {
+        background: var(--bad-soft);
+      }
+      table.vals td.warn {
+        background: var(--edge-soft);
+      }
+      /* Callouts: .callout for a concept, .callout.edge for a caveat. */
+      .callout {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+        padding: 0.85rem 1.1rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .callout .label {
+        display: block;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+      }
+      .callout.edge {
+        background: var(--edge-soft);
+        border-left-color: var(--edge);
+      }
+      .callout.edge .label {
+        color: var(--edge);
+      }
+      /* Skippable deep-background block. */
+      details.skippable {
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 0.75rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      details.skippable > summary {
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      details.skippable[open] > summary {
+        margin-bottom: 0.75rem;
+      }
+      /* Diagram family 1: simplified app UI mockup. */
+      .ui-mockup {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1.5rem 0;
+        max-width: 560px;
+        font-size: 0.85rem;
+      }
+      .ui-mockup .bar {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0.5rem 0.85rem;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .ui-mockup .body {
+        padding: 1.1rem 0.85rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+      }
+      .mock-caption {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.3rem 0 0;
+        max-width: var(--measure);
+      }
+      /* Diagram family 2: data flow between components, example data on the arrows. */
+      .dataflow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+      /* Each arrow travels with the node it points at. Without this, a flow
+         wider than the column wraps between an arrow and its node, leaving the
+         arrow pointing at nothing and the node stranded on the next line. */
+      .dataflow .step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .dataflow .node {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 175px;
+      }
+      .dataflow .node.terminal {
+        background: var(--surface);
+        border-color: var(--border);
+      }
+      .dataflow .node.pass {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .dataflow .node.fail {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .dataflow .arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.72rem;
+        min-width: 96px;
+      }
+      .dataflow .arrow .line {
+        width: 100%;
+        border-top: 2px solid var(--border);
+        position: relative;
+      }
+      .dataflow .arrow .line::after {
+        content: "\25B6";
+        position: absolute;
+        right: -2px;
+        top: -0.72em;
+        color: var(--border);
+        font-size: 0.7rem;
+      }
+      .dataflow .arrow .data {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.35rem;
+        margin-bottom: 0.2rem;
+        font-family: ui-monospace, monospace;
+      }
+      .flow-label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin: 1.25rem 0 0.25rem;
+      }
+      /* A numbered sequence with one marked position: call stacks, retry
+         counts, any ranked list. Not one of the numbered families; reach for
+         it when a step in an ordered list is the point. */
+      .frames {
+        list-style: none;
+        padding: 0;
+        margin: 1.25rem 0;
+        max-width: 620px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.82rem;
+      }
+      .frames li {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.45rem 0.7rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+      }
+      .frames li.target {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .frames .n {
+        display: inline-block;
+        min-width: 2.2em;
+        color: var(--muted);
+      }
+      /* Diagram family 3: node/recursion tree (ASTs, nesting, recursion) */
+      .tree {
+        margin: 1.5rem 0;
+        font:
+          0.82rem/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      .tnode {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.3rem 0.55rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+        display: inline-block;
+      }
+      .tnode.leaf {
+        background: var(--bg);
+      }
+      .tnode.kept {
+        border-color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tnode.skipped {
+        border-color: var(--muted);
+        color: var(--muted);
+      }
+      .tchildren {
+        margin-left: 1.4rem;
+        border-left: 2px dotted var(--border);
+        padding-left: 0.9rem;
+      }
+      .tnote {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-left: 0.4rem;
+      }
+
+      /* Optional tabular body for .ui-mockup, when the mocked UI is a table. */
+      .mock-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .mock-table th,
+      .mock-table td {
+        border: 1px solid var(--border);
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+      }
+      .mock-table th {
+        background: var(--surface);
+        font-weight: 600;
+      }
+      .mock-table .col-highlight {
+        background: var(--accent-soft);
+      }
+
+      .mermaid {
+        margin: 1.75rem 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .mermaid .edgeLabel,
+      .mermaid .edgeLabel p,
+      .mermaid .edgeLabel span,
+      .mermaid .edgeLabel foreignObject div {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+      }
+      /* Quiz */
+      .quiz-question {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .quiz-question > p.q {
+        font-weight: 600;
+        margin: 0 0 0.85rem;
+      }
+      .quiz-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 0.5rem;
+        font: inherit;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .quiz-option:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .quiz-option.correct {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .quiz-option.incorrect {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .quiz-option:disabled {
+        cursor: default;
+      }
+      .quiz-feedback {
+        display: none;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 7px;
+        margin-top: 0.3rem;
+      }
+      .quiz-feedback.show {
+        display: block;
+      }
+      .quiz-feedback.ok {
+        background: var(--ok-soft);
+      }
+      .quiz-feedback.bad {
+        background: var(--edge-soft);
+      }
+      a:focus-visible,
+      summary:focus-visible,
+      .quiz-option:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+      table.vals td.yes::before,
+      .dataflow .node.pass::before,
+      .tnode.kept::before,
+      .quiz-option.correct::before {
+        content: "\2713\00a0";
+        font-weight: 700;
+      }
+      table.vals td.no::before,
+      .dataflow .node.fail::before,
+      .quiz-option.incorrect::before {
+        content: "\2717\00a0";
+        font-weight: 700;
+      }
+      table.vals td.warn::before {
+        content: "\25B2\00a0";
+        font-weight: 700;
+      }
+      .tnode.skipped::before {
+        content: "\2013\00a0";
+        font-weight: 700;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 1rem;
+          padding: 1.25rem 1.1rem 4rem;
+        }
+        nav.toc {
+          position: static;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+        }
+        body {
+          font-size: 16px;
+        }
+        main > header h1 {
+          font-size: 1.6rem;
+        }
+        table.vals {
+          display: block;
+          overflow-x: auto;
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <nav class="toc">
+        <strong>목차</strong>
+        <ol>
+          <li><a href="#background">배경</a></li>
+          <li><a href="#intuition">핵심 아이디어</a></li>
+          <li><a href="#code">코드 따라가기</a></li>
+          <li><a href="#quiz">퀴즈</a></li>
+        </ol>
+      </nav>
+
+      <main>
+<header><h1>티켓 06: 축 반응 검증</h1><p class="lead">슬라이더가 움직일 때 각 부품이 명세에 선언한 대로 움직이는지(형태가 바뀌는지, 자리만 옮겨지는지, 가만히 있는지)를 단독 스윕의 Fusion 형상에서 재고, 어긋나면 부품 이름과 고칠 명세 위치를 담은 피드백으로 돌려보내는 변경이다.</p><p class="provenance">jun-1993-p/threejs-configurator-ai 티켓 06 (ec8ee0d) at ec8ee0d, explained 2026-11-04. References link to this commit.</p></header>
+<section id="background">
+<h2>배경</h2>
+<details class="skippable">
+<summary>이 영역이 처음이면 펼쳐서 읽는 깊은 배경</summary>
+<p>구성기의 <strong>명세(JSON)</strong>는 AI가 쓰는 산출물이다. 슬라이더마다 어느 축(W 폭, D 깊이, H 높이)을 움직이는지와, 그 슬라이더가 어느 <strong>부품</strong>에 어떻게 영향을 주는지를 선언한다. 부품은 Fusion 컴포넌트 하나에 해당하는 상품의 구성 단위이고(서랍, 문, 선반 등), 컴포넌트가 없는 모델에서는 바디 하나다(ADR-0006).</p>
+<p>티켓 04의 <strong>수치 검증</strong>은 변형 엔진의 결과가 Fusion 형상과 합격선 안에서 맞는지만 본다. 엔진이 Fusion을 그대로 따라 해도, 명세가 "이 슬라이더는 서랍 폭을 바꾼다"고 틀리게 적었다면 수치 검증은 통과한다. 선언과 실제의 일치는 다른 검증이 맡아야 하고, 그것이 이 티켓이다.</p>
+</details>
+
+<p>명세의 슬라이더에는 두 목록이 있다. <code>affects.shape</code>는 <strong>형태 변경 부품</strong>, 곧 슬라이더를 움직이면 해당 축 치수가 바뀌어야 하는 부품이다. <code>affects.move</code>는 <strong>위치 이동 부품</strong>, 곧 치수는 그대로이고 자리만 옮겨지는 부품이다(예: 서랍 폭이 늘 때 밀려나는 칸막이). 어느 목록에도 없는 부품은 변하지 않아야 한다. 이렇게 단독 스윕에서 슬라이더 하나가 부품들을 어느 축으로 어떻게 움직이는지를 <strong>축 반응</strong>이라 부르고, 선언과 실제 축 반응의 비교가 이 변경의 일이다.</p>
+
+<p>이 문서의 코드 이름을 먼저 정리한다.</p>
+<ul>
+<li><code>verifyAxisResponse</code>: 축 반응 검증의 진입 함수.</li>
+<li><code>AXIS_RULES</code>: 판정 규칙을 담은 표. 부품의 선언된 역할마다 앞에서부터 보고, 처음 걸린 규칙 하나만 알린다.</li>
+<li><code>CHANGE_THRESHOLD</code>: "바뀌었다"고 보는 문턱. 0.2 mm.</li>
+<li><code>specReferenceChecker</code>: 명세가 업로드 묶음의 이름을 맞게 가리키는지 보는 검사.</li>
+<li><code>measure.ts</code>: 수치 검증기와 축 반응 검증기가 함께 쓰는 측정 도우미 모음.</li>
+</ul>
+
+<div class="callout">
+<span class="label">핵심 개념: 치수와 가운데 위치</span>
+부품의 축 반응은 두 양으로 잰다. 치수는 그 축 방향 바운딩 박스 길이이고, 가운데 위치는 바운딩 박스 중심 좌표다. 형태가 바뀌면 치수가 바뀌고, 자리만 옮겨지면 가운데 위치만 바뀐다.
+</div>
+</section>
+
+<section id="intuition">
+<h2>핵심 아이디어</h2>
+<p>샘플마다 기본 형상 대비 각 부품의 W·D·H 치수와 가운데 위치가 얼마나 변했는지를 잰 뒤, 선언된 역할이 기대하는 모습과 비교한다. 비교 규칙은 표 하나로 정리된다.</p>
+<table class="vals">
+<tr><th>부품의 선언</th><th>슬라이더 축에서 기대</th><th>어기면 kind</th></tr>
+<tr><td>affects.shape</td><td>치수가 바뀐다</td><td class="no">missing_axis_change</td></tr>
+<tr><td>affects.move</td><td>치수는 그대로, 자리가 옮겨진다</td><td class="no">치수가 바뀌면 unexpected_shape_change, 자리가 그대로면 missing_axis_change</td></tr>
+<tr><td>선언 없음</td><td>그대로</td><td class="no">치수가 바뀌면 unexpected_shape_change, 자리가 옮겨지면 unexpected_move</td></tr>
+<tr><td>모든 부품</td><td>다른 축의 치수와 위치가 그대로</td><td class="no">off_axis_change</td></tr>
+</table>
+<p>표는 <code>docs/spec-schema.md</code>의 "축 반응" 표와 같고, 코드 주석에 따르면 <code>AXIS_RULES</code>도 이 표와 같다.</p>
+
+<p class="flow-label">작은 예시: 깊이 슬라이더 두 개가 한 축을 나눠 쓸 때</p>
+<table class="vals">
+<tr><th>슬라이더 (D축)</th><th>맡은 부품</th><th>기대하는 반응</th></tr>
+<tr><td>body_d (전체 깊이)</td><td>몸통, 서랍</td><td>두 부품 모두 D 치수가 바뀐다</td></tr>
+<tr><td>drawer_d (서랍 깊이)</td><td>서랍</td><td>서랍만 D 치수가 바뀌고, 몸통은 그대로</td></tr>
+</table>
+<p>이 구성은 티켓의 시험이 쓰는 합성 서랍장과 같다(티켓 파일). 한 축에 슬라이더가 여러 개여도 슬라이더마다 따로 보기 때문에, drawer_d를 움직였을 때 몸통이 같이 변했다면 그 슬라이더의 선언이 틀린 것으로 잡힌다.</p>
+
+<p class="flow-label">검증이 도는 순서</p>
+<div class="dataflow">
+<div class="node terminal">명세 작성</div>
+<div class="step"><div class="arrow"><span class="data">명세</span><span class="line"></span></div><div class="node">이름 검사 specReferenceChecker</div></div>
+<div class="step"><div class="arrow"><span class="data">조립 결과</span><span class="line"></span></div><div class="node">수치 검증 (티켓 04)</div></div>
+<div class="step"><div class="arrow"><span class="data">피드백 없음</span><span class="line"></span></div><div class="node">축 반응 검증</div></div>
+<div class="step"><div class="arrow"><span class="data">부품, 고칠 위치</span><span class="line"></span></div><div class="node fail">피드백으로 명세 다시</div></div>
+</div>
+<div class="callout edge">
+<span class="label">경계 사례: 문턱 이하의 변화는 "안 바뀐 것"</span>
+치수나 위치가 0.2 mm 이하로 달라진 것은 바뀐 것으로 치지 않는다. 치수 오차 합격선(ADR-0012)과 같은 값을 쓴 이유를 코드 주석이 설명한다. 합격선 안의 차이는 고객에게 같은 치수로 보이기 때문이다. "바뀌지 않는다"는 범위 안에서 가장 크게 바뀐 샘플도 문턱 이하라는 뜻이다.
+</div>
+</section>
+
+<section id="code">
+<h2>코드 따라가기</h2>
+<p><strong>흐름:</strong> 명세가 이름 검사를 통과 → 실행기가 수치 검증 뒤에 축 반응 검증을 호출 → 검증기가 샘플별 변화량을 모음 → 규칙 표로 판정 → 피드백이 명세 다시 쓰기로.</p>
+
+<h3>1. 명세의 이름과 목록 모순을 먼저 거른다</h3>
+<p><code>specReferenceChecker</code>는 JSON Schema 검사를 통과한 명세에 쓰는 두 번째 검사다. 슬라이더 id가 스윕한 파라미터인지, <code>affects</code>의 부품이 업로드 묶음의 부품인지, 한 부품이 형태 변경과 위치 이동에 함께 들어 있지 않은지 본다. 실행기의 <code>checkProductSpec</code>에서 불리므로, 위반하면 형식 오류와 같은 방식으로 이유를 붙여 AI에게 다시 묻는다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/ec8ee0d3b43e3b0e3630b6b95d445a7d2fa5bdf0/configurator/pipeline/runner.ts#L166"><code>configurator/pipeline/runner.ts:166</code></a>).</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/ec8ee0d3b43e3b0e3630b6b95d445a7d2fa5bdf0/configurator/pipeline/schemas.ts#L62-L73">configurator/pipeline/schemas.ts:62-73</a></p>
+<pre>export function specReferenceChecker(bundle: { parts: { name: string }[]; sweeps: { parameter: string }[] }) {
+  const parts = new Set(bundle.parts.map((p) =&gt; p.name));
+  const swept = new Set(bundle.sweeps.map((s) =&gt; s.parameter));
+  return (spec: { sliders: { id: string; affects: { shape: string[]; move: string[] } }[] }): string[] =&gt;
+    spec.sliders.flatMap(({ id, affects }, i) =&gt; [
+      ...(swept.has(id) ? [] : [`/sliders/${i}/id: ${id}는 스윕한 파라미터가 아닙니다`]),
+      // elided: affects.shape와 affects.move의 부품 이름이 업로드 묶음에 있는지 보는 검사
+      ...affects.shape.filter((part) =&gt; affects.move.includes(part)).map((part) =&gt; `/sliders/${i}/affects: ${part}가 shape와 move에 함께 있습니다`),
+    ]);
+}</pre>
+
+<h3>2. 실행기: 수치 검증이 피드백을 내지 않았을 때만 축 반응을 본다</h3>
+<p>수치 검증 피드백이 있으면 축 반응 검증은 건너뛴다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/ec8ee0d3b43e3b0e3630b6b95d445a7d2fa5bdf0/configurator/pipeline/runner.ts#L188-L190">configurator/pipeline/runner.ts:188-190</a></p>
+<pre>feedback = verifyNumeric(spec, JSON.parse(files["sweeps.json"]), bundle as UploadBundle);
+<span class="add">if (feedback.length === 0) feedback = verifyAxisResponse(spec, bundle as UploadBundle);</span>
+await log("verification", { attempt, feedback });</pre>
+
+<h3>3. 검증기: 샘플마다 기본 형상 대비 변화량을 모은다</h3>
+<p><code>verifyAxisResponse</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/ec8ee0d3b43e3b0e3630b6b95d445a7d2fa5bdf0/configurator/pipeline/verify-axis.ts#L83"><code>configurator/pipeline/verify-axis.ts:83</code></a>)는 부품이 어느 바디들로 이루어졌는지 먼저 정한다. 부품은 그 부품에 속한 바디 전체의 면으로 재므로(ADR-0006) 샘플의 면 구성이 기본 형상과 달라도 잴 수 있다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/ec8ee0d3b43e3b0e3630b6b95d445a7d2fa5bdf0/configurator/pipeline/verify-axis.ts#L85"><code>configurator/pipeline/verify-axis.ts:85</code></a>). 그다음 슬라이더마다 보는 샘플을 고른다. 재계산에 성공했고, 슬라이더 범위 안이며, 기본값이 아닌 샘플과 검증점이 모두 대상이다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/ec8ee0d3b43e3b0e3630b6b95d445a7d2fa5bdf0/configurator/pipeline/verify-axis.ts#L98"><code>configurator/pipeline/verify-axis.ts:98</code></a>).</p>
+<p>샘플 하나에서 부품 하나의 변화는 W·D·H별 치수 변화와 가운데 위치 변화로 이루어진 <code>Change</code>가 된다. 같은 슬라이더와 부품의 <code>Change</code>를 모은 <code>PartResponse</code>가 <code>onAxisFeedback</code>과 <code>offAxisFeedback</code>으로 넘어간다.</p>
+
+<h3>4. 규칙 표로 판정한다</h3>
+<p><code>onAxisFeedback</code>는 부품의 선언(shape, move, 없음)을 정하고, <code>AXIS_RULES</code>에서 그 선언의 규칙을 위에서부터 훑는다. 규칙마다 치수 또는 위치(<code>amount</code>) 중 어느 쪽을 보고, 바뀌었을 때 실패인지(<code>changed</code>) 바뀌지 않았을 때 실패인지(<code>unchanged</code>)를 갖는다. 알리는 샘플은 그 양이 가장 크게 바뀐 하나다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/ec8ee0d3b43e3b0e3630b6b95d445a7d2fa5bdf0/configurator/pipeline/verify-axis.ts#L124-L130">configurator/pipeline/verify-axis.ts:124-130</a></p>
+<pre>const role: Role = slider.affects.shape.includes(part) ? "shape" : slider.affects.move.includes(part) ? "move" : "none";
+for (const rule of AXIS_RULES.filter((r) =&gt; r.role === role)) {
+  const sample = largest(changes, (c) =&gt; c[rule.amount][axis]);
+  if (!sample) continue;
+  const amount = sample[rule.amount][axis];
+  const changed = Math.abs(amount) &gt; CHANGE_THRESHOLD;
+  if (changed !== (rule.failsWhen === "changed")) continue;</pre>
+<p>마지막 줄이 핵심이다. 샘플이 실제로 바뀌었는지가 규칙의 실패 조건(<code>failsWhen</code>)과 다르면 다음 규칙으로 넘어간다. 같으면 그 규칙의 <code>kind</code>, <code>path</code>, 힌트로 피드백을 만든다. <code>path</code>는 규칙의 <code>field</code>(affects.shape 또는 affects.move)에 슬라이더 번호를 붙인 <code>sliders[i].affects.shape</code> 같은 값이다. 힌트는 부품을 어느 목록에 넣거나 빼라고 하고 자식 수식을 확인하라고 한다.</p>
+<p>이어서 <code>offAxisFeedback</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/ec8ee0d3b43e3b0e3630b6b95d445a7d2fa5bdf0/configurator/pipeline/verify-axis.ts#L149"><code>configurator/pipeline/verify-axis.ts:149</code></a>)가 슬라이더 축이 아닌 두 축의 치수와 위치를 본다. 문턱을 넘은 것 중 가장 큰 변화 하나를 <code>off_axis_change</code>로 알리고, 고칠 곳은 <code>sliders[i].axis</code>다.</p>
+
+<h3>5. 새 실패 종류와 공용 측정 도우미</h3>
+<p>기존 12개 종류에는 "선언한 반응이 없다"와 "선언 없는 부품이 옮겨졌다"가 없어서 <code>missing_axis_change</code>와 <code>unexpected_move</code>를 <code>FEEDBACK_KINDS</code>에 더했다. 또 수치 검증기에 들어 있던 W·D·H 목록, 축 이름의 좌표 번호 대응, 반올림, 바운딩 박스 계산을 <code>pipeline/measure.ts</code>로 옮겨 두 검증기가 같이 쓴다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/ec8ee0d3b43e3b0e3630b6b95d445a7d2fa5bdf0/configurator/pipeline/measure.ts#L17"><code>configurator/pipeline/measure.ts:17</code></a>). <code>verify-numeric.ts</code>는 그만큼 줄었다.</p>
+<div class="callout edge">
+<span class="label">리뷰에서 반영하지 않은 것</span>
+<code>Feedback.measured</code>를 종류별 타입으로 나누지 않았다. 수치 검증도 자유 형식으로 쓰고 형식은 <code>docs/spec-schema.md</code>가 정하며, 종류별 타입은 모든 검증기를 같이 바꿔야 해서 이 티켓 범위 밖이라고 티켓 파일이 적었다.
+</div>
+</section>
+
+<section id="quiz">
+<h2>퀴즈</h2>
+<div class="quiz-question"><p class="q">위치 이동 부품(affects.move)으로 선언한 칸막이의 폭(W) 치수가 슬라이더(W축)를 움직이자 0.5 mm 바뀌었다. 피드백의 kind와 path는?</p>
+<button class="quiz-option">missing_axis_change, sliders[i].affects.move</button>
+<button class="quiz-option" data-correct>unexpected_shape_change, sliders[i].affects.move</button>
+<button class="quiz-option">unexpected_move, sliders[i].affects.shape</button>
+<button class="quiz-option">off_axis_change, sliders[i].axis</button>
+<div class="quiz-feedback" role="status">위치 이동 부품은 치수가 그대로여야 한다. 치수가 바뀌었으므로 규칙 표의 이 행에 걸려 unexpected_shape_change가 나고, path는 그 부품이 선언된 affects.move다. 힌트는 affects.shape로 옮기라고 한다.</div></div>
+<div class="quiz-question"><p class="q">위치 이동 부품으로 선언한 서랍이 범위 안에서 가장 크게 움직인 샘플에서도 0.15 mm만 옮겨졌다면 어떤 일이 생기는가?</p>
+<button class="quiz-option">문턱 이하이므로 위치 이동으로 인정되어 통과한다</button>
+<button class="quiz-option">치수가 바뀌지 않아 unexpected_move가 난다</button>
+<button class="quiz-option">수치 검증이 먼저 실패해 축 반응은 보지 않는다</button>
+<button class="quiz-option" data-correct>바뀌지 않은 것으로 보아 missing_axis_change가 난다</button>
+<div class="quiz-feedback" role="status">문턱은 0.2 mm이고 0.15는 그 이하라 "안 움직였다"로 본다. 위치 이동 부품은 움직여야 하므로 선언한 반응이 없다는 missing_axis_change가 된다.</div></div>
+<div class="quiz-question"><p class="q">한 부품을 affects.shape와 affects.move 양쪽에 적은 명세는 어느 단계에서 걸러지는가?</p>
+<button class="quiz-option">규칙 표가 두 역할을 모두 평가해 피드백 둘을 낸다</button>
+<button class="quiz-option">수치 검증이 두 목록을 겹쳐 보고 오차로 낸다</button>
+<button class="quiz-option" data-correct>명세 검사가 형식 오류처럼 이유를 붙여 다시 묻는다</button>
+<button class="quiz-option">최종 승인에서 사람이 겹침을 발견해 고친다</button>
+<div class="quiz-feedback" role="status">specReferenceChecker가 shape와 move에 함께 있는 부품을 이유와 함께 알려, 축 반응 검증이 돌기 전에 AI에게 다시 묻는다. 코드의 role 판정은 shape를 먼저 보기 때문에, 이 검사가 없으면 move 쪽 선언이 조용히 무시될 것이다.</div></div>
+<div class="quiz-question"><p class="q">판정 규칙을 if 연쇄가 아니라 AXIS_RULES 표 데이터로 둔 것은 무엇에 도움이 되는가?</p>
+<button class="quiz-option" data-correct>문서의 규칙 표와 한 줄씩 맞춰 읽고 고치기 쉽다</button>
+<button class="quiz-option">부품마다 서로 다른 알고리즘을 고르기 쉽다</button>
+<button class="quiz-option">AI가 실행 중에 규칙을 바꿀 수 있다</button>
+<button class="quiz-option">샘플이 많아도 계산이 빨라진다</button>
+<div class="quiz-feedback" role="status">코드 주석은 표가 docs/spec-schema.md의 "축 반응" 표와 같다고 적는다. 표 한 줄이 문서 표 한 줄에 대응하므로 둘을 맞춰 두기 쉽다는 것이 이 문서의 추론이고, 코드는 속도나 AI의 변경 권한을 말하지 않는다.</div></div>
+<div class="quiz-question"><p class="q">슬라이더 축이 D인데 서랍의 높이(H) 치수가 0.4 mm 바뀌었다. 어느 path의 어떤 힌트가 나오는가?</p>
+<button class="quiz-option">sliders[i].affects.shape, 목록에서 빼라는 힌트</button>
+<button class="quiz-option">sliders[i].affects.move, 위치 이동으로 옮기라는 힌트</button>
+<button class="quiz-option" data-correct>sliders[i].axis, 축과 자식 수식을 확인하라는 힌트</button>
+<button class="quiz-option">sliders[i].min, 범위를 좁히라는 힌트</button>
+<div class="quiz-feedback" role="status">슬라이더 축이 아닌 축의 변화는 부품이 어느 목록에 있든 off_axis_change이고, 고칠 곳은 axis다. 서랍이 D의 형태 변경 부품이어도 H 변화는 별도로 알려진다.</div></div>
+</section>
+
+</main>
+
+      <footer class="colophon">
+        Generated with
+        <a href="https://github.com/malav2110/explain-diff-html"
+          >explain-diff-html</a
+        >
+      </footer>
+    </div>
+
+    <script>
+      document.querySelectorAll(".quiz-question").forEach(function (question) {
+        var feedback = question.querySelector(".quiz-feedback");
+
+        // Shuffle the options on every load, so the correct answer's position is
+        // random and a reader cannot fall into answering by position. Each option
+        // is re-inserted before the feedback block, which has to stay last.
+        var shuffled = Array.prototype.slice.call(
+          question.querySelectorAll(".quiz-option"),
+        );
+        for (var i = shuffled.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var swap = shuffled[i];
+          shuffled[i] = shuffled[j];
+          shuffled[j] = swap;
+        }
+        shuffled.forEach(function (option) {
+          question.insertBefore(option, feedback);
+        });
+
+        var options = question.querySelectorAll(".quiz-option");
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            var isCorrect = option.hasAttribute("data-correct");
+            options.forEach(function (other) {
+              other.disabled = true;
+              if (other.hasAttribute("data-correct"))
+                other.classList.add("correct");
+            });
+            if (!isCorrect) option.classList.add("incorrect");
+            feedback.classList.add("show", isCorrect ? "ok" : "bad");
+            feedback.insertBefore(
+              document.createTextNode(isCorrect ? "Correct. " : "Not quite. "),
+              feedback.firstChild,
+            );
+          });
+        });
+      });
+    </script>
+    <script>
+      // Mermaid loads without blocking: the page scripts above run first, and a slow
+      // or blocked CDN never holds up the quiz or the rest of the page. This is the
+      // only permitted external request, and it fires only when a .mermaid block is
+      // present. Leave it in place; it is a no-op on pages without a diagram.
+      (function () {
+        var blocks = document.querySelectorAll(".mermaid");
+        if (!blocks.length) return;
+
+        // mermaid.run() replaces each block's text with an SVG, so the source is
+        // gone after the first render. Stash it, because a theme change has to
+        // parse it again.
+        blocks.forEach(function (block) {
+          block.dataset.source = block.textContent;
+        });
+
+        var darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+        function render() {
+          blocks.forEach(function (block) {
+            block.removeAttribute("data-processed");
+            block.textContent = block.dataset.source;
+          });
+          try {
+            window.mermaid.initialize({
+              startOnLoad: false,
+              theme: darkQuery.matches ? "dark" : "default",
+            });
+          } catch (e) {}
+          Promise.resolve(window.mermaid.run({ nodes: blocks })).catch(
+            function () {},
+          );
+        }
+
+        var s = document.createElement("script");
+        s.src =
+          "https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js";
+        s.integrity =
+          "sha384-T/0lMUdJpd2S1ZHtRiofG3htU3xPCrFVeAQ1UUE2TJwlEJSV5NUwn30kP28n238E";
+        s.crossOrigin = "anonymous";
+        s.onload = function () {
+          render();
+          // Re-render when the reader switches system theme, so the diagram does
+          // not stay light on a dark page.
+          if (darkQuery.addEventListener)
+            darkQuery.addEventListener("change", render);
+        };
+        document.head.appendChild(s);
+      })();
+    </script>
+  </body>
+</html>

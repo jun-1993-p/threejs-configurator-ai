@@ -1,0 +1,997 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>티켓 12: 두께 선택 설명</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f6f7f9;
+        --text: #1c2024;
+        --muted: #60646c;
+        --border: #d7dbdf;
+        --border-strong: #848c95;
+        --accent: #2f5ee0;
+        --accent-soft: #e8eefc;
+        --edge: #a35608;
+        --edge-soft: #fbefe1;
+        --ok: #1a7f47;
+        --ok-soft: #e4f3ea;
+        --bad: #c62a3b;
+        --bad-soft: #fbe7e9;
+        --measure: 68ch;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181b;
+          --surface: #1f2226;
+          --text: #eceef0;
+          --muted: #9ba1a6;
+          --border: #33383d;
+          --border-strong: #646c75;
+          --accent: #7aa2ff;
+          --accent-soft: #1e2740;
+          --edge: #e08c3a;
+          --edge-soft: #2e2517;
+          --ok: #57c98b;
+          --ok-soft: #17281d;
+          --bad: #f07178;
+          --bad-soft: #2c1a1c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:visited {
+        color: var(--accent);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 2.5rem;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 6rem;
+      }
+      nav.toc {
+        position: sticky;
+        top: 2.5rem;
+        align-self: start;
+        font-size: 0.9rem;
+      }
+      nav.toc strong {
+        display: block;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc li {
+        margin: 0.35rem 0;
+      }
+      nav.toc a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav.toc a:hover {
+        color: var(--accent);
+      }
+      main {
+        min-width: 0;
+      }
+      main > header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1.25rem;
+        margin-bottom: 2rem;
+      }
+      main > header h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.6rem;
+      }
+      main > header .lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: var(--measure);
+      }
+      main > header .provenance {
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        margin: 0.7rem 0 0;
+      }
+      .colophon {
+        grid-column: 1 / -1;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        border-top: 1px solid var(--border);
+        margin: 4rem 0 0;
+        padding: 1.2rem 0 0;
+      }
+      .colophon a {
+        color: inherit;
+      }
+      section {
+        margin-bottom: 3.5rem;
+      }
+      section h2 {
+        font-size: 1.4rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      section h3 {
+        font-size: 1.05rem;
+        margin: 2rem 0 0.6rem;
+      }
+      section p,
+      section ul,
+      section ol {
+        max-width: var(--measure);
+      }
+      li {
+        margin: 0.3rem 0;
+      }
+      /* Code blocks: white-space set here so a filled-in block cannot collapse. */
+      pre,
+      .code-block {
+        white-space: pre-wrap;
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        font:
+          0.86rem/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        tab-size: 2;
+      }
+      pre .del {
+        color: var(--bad);
+      }
+      pre .add {
+        color: var(--ok);
+      }
+      pre .hi {
+        background: var(--accent-soft);
+        border-radius: 3px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--surface);
+        padding: 0.05rem 0.3rem;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      /* A file:line reference linked to the code it names. Wraps a <code> span
+         in prose, or the bare text of a .filename label. */
+      a.srcref {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px solid var(--muted);
+      }
+      a.srcref:hover {
+        border-bottom-color: var(--accent);
+      }
+      a.srcref:hover code {
+        background: var(--accent-soft);
+      }
+      /* Path label for the code block below it. */
+      .filename {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        margin: 1.5rem 0 0.3rem;
+        overflow-wrap: anywhere;
+      }
+      /* Comparison table: one row per case, .yes / .no / .warn on outcome cells. */
+      table.vals {
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.86rem;
+        width: 100%;
+        max-width: 620px;
+      }
+      table.vals th,
+      table.vals td {
+        border: 1px solid var(--border-strong);
+        padding: 0.4rem 0.65rem;
+        text-align: left;
+      }
+      table.vals th {
+        background: var(--surface);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+      table.vals td.yes {
+        background: var(--ok-soft);
+      }
+      table.vals td.no {
+        background: var(--bad-soft);
+      }
+      table.vals td.warn {
+        background: var(--edge-soft);
+      }
+      /* Callouts: .callout for a concept, .callout.edge for a caveat. */
+      .callout {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+        padding: 0.85rem 1.1rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .callout .label {
+        display: block;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+      }
+      .callout.edge {
+        background: var(--edge-soft);
+        border-left-color: var(--edge);
+      }
+      .callout.edge .label {
+        color: var(--edge);
+      }
+      /* Skippable deep-background block. */
+      details.skippable {
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 0.75rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      details.skippable > summary {
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      details.skippable[open] > summary {
+        margin-bottom: 0.75rem;
+      }
+      /* Diagram family 1: simplified app UI mockup. */
+      .ui-mockup {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1.5rem 0;
+        max-width: 560px;
+        font-size: 0.85rem;
+      }
+      .ui-mockup .bar {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0.5rem 0.85rem;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .ui-mockup .body {
+        padding: 1.1rem 0.85rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+      }
+      .mock-caption {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.3rem 0 0;
+        max-width: var(--measure);
+      }
+      /* Diagram family 2: data flow between components, example data on the arrows. */
+      .dataflow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+      /* Each arrow travels with the node it points at. Without this, a flow
+         wider than the column wraps between an arrow and its node, leaving the
+         arrow pointing at nothing and the node stranded on the next line. */
+      .dataflow .step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .dataflow .node {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 175px;
+      }
+      .dataflow .node.terminal {
+        background: var(--surface);
+        border-color: var(--border);
+      }
+      .dataflow .node.pass {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .dataflow .node.fail {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .dataflow .arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.72rem;
+        min-width: 96px;
+      }
+      .dataflow .arrow .line {
+        width: 100%;
+        border-top: 2px solid var(--border);
+        position: relative;
+      }
+      .dataflow .arrow .line::after {
+        content: "\25B6";
+        position: absolute;
+        right: -2px;
+        top: -0.72em;
+        color: var(--border);
+        font-size: 0.7rem;
+      }
+      .dataflow .arrow .data {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.35rem;
+        margin-bottom: 0.2rem;
+        font-family: ui-monospace, monospace;
+      }
+      .flow-label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin: 1.25rem 0 0.25rem;
+      }
+      /* A numbered sequence with one marked position: call stacks, retry
+         counts, any ranked list. Not one of the numbered families; reach for
+         it when a step in an ordered list is the point. */
+      .frames {
+        list-style: none;
+        padding: 0;
+        margin: 1.25rem 0;
+        max-width: 620px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.82rem;
+      }
+      .frames li {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.45rem 0.7rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+      }
+      .frames li.target {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .frames .n {
+        display: inline-block;
+        min-width: 2.2em;
+        color: var(--muted);
+      }
+      /* Diagram family 3: node/recursion tree (ASTs, nesting, recursion) */
+      .tree {
+        margin: 1.5rem 0;
+        font:
+          0.82rem/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      .tnode {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.3rem 0.55rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+        display: inline-block;
+      }
+      .tnode.leaf {
+        background: var(--bg);
+      }
+      .tnode.kept {
+        border-color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tnode.skipped {
+        border-color: var(--muted);
+        color: var(--muted);
+      }
+      .tchildren {
+        margin-left: 1.4rem;
+        border-left: 2px dotted var(--border);
+        padding-left: 0.9rem;
+      }
+      .tnote {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-left: 0.4rem;
+      }
+
+      /* Optional tabular body for .ui-mockup, when the mocked UI is a table. */
+      .mock-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .mock-table th,
+      .mock-table td {
+        border: 1px solid var(--border);
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+      }
+      .mock-table th {
+        background: var(--surface);
+        font-weight: 600;
+      }
+      .mock-table .col-highlight {
+        background: var(--accent-soft);
+      }
+
+      .mermaid {
+        margin: 1.75rem 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .mermaid .edgeLabel,
+      .mermaid .edgeLabel p,
+      .mermaid .edgeLabel span,
+      .mermaid .edgeLabel foreignObject div {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+      }
+      /* Quiz */
+      .quiz-question {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .quiz-question > p.q {
+        font-weight: 600;
+        margin: 0 0 0.85rem;
+      }
+      .quiz-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 0.5rem;
+        font: inherit;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .quiz-option:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .quiz-option.correct {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .quiz-option.incorrect {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .quiz-option:disabled {
+        cursor: default;
+      }
+      .quiz-feedback {
+        display: none;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 7px;
+        margin-top: 0.3rem;
+      }
+      .quiz-feedback.show {
+        display: block;
+      }
+      .quiz-feedback.ok {
+        background: var(--ok-soft);
+      }
+      .quiz-feedback.bad {
+        background: var(--edge-soft);
+      }
+      a:focus-visible,
+      summary:focus-visible,
+      .quiz-option:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+      table.vals td.yes::before,
+      .dataflow .node.pass::before,
+      .tnode.kept::before,
+      .quiz-option.correct::before {
+        content: "\2713\00a0";
+        font-weight: 700;
+      }
+      table.vals td.no::before,
+      .dataflow .node.fail::before,
+      .quiz-option.incorrect::before {
+        content: "\2717\00a0";
+        font-weight: 700;
+      }
+      table.vals td.warn::before {
+        content: "\25B2\00a0";
+        font-weight: 700;
+      }
+      .tnode.skipped::before {
+        content: "\2013\00a0";
+        font-weight: 700;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 1rem;
+          padding: 1.25rem 1.1rem 4rem;
+        }
+        nav.toc {
+          position: static;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+        }
+        body {
+          font-size: 16px;
+        }
+        main > header h1 {
+          font-size: 1.6rem;
+        }
+        table.vals {
+          display: block;
+          overflow-x: auto;
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <nav class="toc">
+        <strong>목차</strong>
+        <ol>
+          <li><a href="#background">배경</a></li>
+          <li><a href="#intuition">핵심 아이디어</a></li>
+          <li><a href="#code">코드 따라가기</a></li>
+          <li><a href="#quiz">퀴즈</a></li>
+        </ol>
+      </nav>
+
+      <main>
+        <header>
+          <h1>티켓 12: 두께 선택</h1>
+          <p class="lead">
+            명세에 두께 선택을 쓸 수 있게 하고, 고객이 구성기의 두께 슬롯에서 표준 두께 목록의 앞뒤 한 칸 중 하나를 고르면 형상이 그 두께로 바뀌게 한 변경이다.
+          </p>
+          <p class="provenance">
+            jun-1993-p/threejs-configurator-ai 티켓 12 (커밋 6c05d18), 2026-11-04에 설명함. References link to this commit.
+          </p>
+        </header>
+
+        <section id="background">
+          <h2>배경</h2>
+          <details class="skippable">
+            <summary>이 프로젝트가 처음이라면: 깊은 배경을 펼치세요.</summary>
+            <p>
+              프로젝트는 Fusion CAD 모델을 쇼핑몰 페이지의 div 안에서 도는 three.js 구성기로 바꾼다. CAD 애드인이 업로드 때 파라미터 값을 바꿔 가며 형상을 미리 뽑아 두고(<strong>스윕</strong>), 구성기의 <strong>변형 엔진</strong>은 그 샘플들 사이의 꼭짓점 이동량을 슬라이더 값에 맞춰 섞는다. 슬라이더 둘을 함께 움직이면 각 단독 스윕의 이동량을 더한다(ADR-0004).
+            </p>
+            <p>
+              파이프라인은 업로드 뒤에 <strong>명세</strong>(어떤 슬라이더를 어떤 범위로 노출할지 적은 JSON)를 AI가 쓰게 하고, 명세 검사와 수치 검증을 거친다. 검증 중에 서버가 연결된 애드인에 형상을 더 요청할 수 있다. 이것이 <strong>추가 샘플 요청</strong>이다(티켓 08). 요청은 파라미터 이름과 값을 짝지은 값 묶음 여러 개이고, 애드인은 값 묶음마다 형상을 돌려준다.
+            </p>
+          </details>
+
+          <p>
+            판재 두께는 처음에 완전히 고정이었다(두께 고정). 그러나 두께를 고르고 싶다는 고객 요구가 있어 ADR-0010이 <strong>두께 선택</strong>을 더했다. 두께 선택은 슬라이더가 아니다. 고객은 연속 값을 끌지 않고 목록에서 후보 하나를 고른다. 후보는 기본 두께의 ±3 mm가 아니다. ADR이 든 까닭은 이렇다. 18t에서 3 mm를 더하면 21 mm인데 주문할 수 없는 두께다. 그래서 고정 코어에 한국 표준 두께 목록(3·6·9·12·15·18·24·30 mm)을 두고, 기본 두께의 앞뒤 한 칸을 후보로 삼는다. 목록 끝(3t, 30t)은 후보가 2개다.
+          </p>
+
+          <div class="callout">
+            <span class="label">용어</span>
+            <p>
+              <strong>기본 두께</strong>는 업로드한 모델에 들어 있는 판재 두께 파라미터의 값이다. <strong>두께 후보</strong>는 표준 두께 목록에서 기본 두께와 그 앞뒤 한 칸이다. <strong>두께 후보 형상</strong>은 다른 파라미터는 그대로 두고 두께만 후보로 바꾼 Fusion 형상이다. 몸통 판재 여러 장이 같은 두께를 쓰면 한 두께 선택에 <code>ids</code>로 묶는다.
+            </p>
+          </div>
+
+          <p>
+            이 티켓은 티켓 11이 만든 위상 묶음 위에 선다. 폭을 움직이면 칸막이 수가 바뀌는 선반에서는 면 구성이 묶음마다 다르다. 그래서 두께 후보 형상도 묶음마다 필요하다.
+          </p>
+        </section>
+
+        <section id="intuition">
+          <h2>핵심 아이디어</h2>
+          <p>
+            두께 후보 하나는 "기준 형상에서 두께만 바꾼 형상"으로 쓰인다. 이 형상과 기준 형상의 꼭짓점 차이가 그 후보의 이동량이다. 고객이 후보를 고르면 엔진은 기준 위치에 슬라이더 이동량을 더하고, 고른 후보의 이동량도 더한다. 후보 사이 값은 없으므로 보간하지 않는다. 기본 두께를 고르면 더할 것이 없다.
+          </p>
+
+          <p class="flow-label">칸막이 선반, 판재 두께 <code>t</code>(기본 18 mm)</p>
+          <table class="vals">
+            <thead>
+              <tr><th>두께 선택</th><th>후보</th><th>기본이 아닌 후보</th><th>위상 묶음(기준 값)</th><th>받는 형상</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>t</code></td><td>15, 18, 24</td><td>15, 24</td><td>기본, 2칸(전체 폭 675), 4칸(1200.04)</td><td>2 × 3 = 6개</td></tr>
+            </tbody>
+          </table>
+          <p>
+            합성 녹화본의 선반이 이 경우다. 받을 형상 수는 곱셈이다. (기본 묶음 1개와 슬라이더 범위가 닿는 위상 묶음 수)에 기본이 아닌 후보 수를 곱하고, 두께 선택이 여럿이면 선택마다 더한다.
+          </p>
+
+          <p class="flow-label">두께 후보 형상이 화면까지 가는 길</p>
+          <div class="dataflow">
+            <div class="node terminal">명세의 <code>thickness[0]</code></div>
+            <div class="step">
+              <div class="arrow"><span class="data">{t: 24}, {t: 24, shelf_w: 675}</span><span class="line"></span></div>
+              <div class="node">서버가 애드인에 요청</div>
+            </div>
+            <div class="step">
+              <div class="arrow"><span class="data">형상 6개</span><span class="line"></span></div>
+              <div class="node">결과물 <code>sweeps.json</code>의 <code>thickness</code></div>
+            </div>
+            <div class="step">
+              <div class="arrow"><span class="data">후보 이동량</span><span class="line"></span></div>
+              <div class="node pass">두께 슬롯에서 고르면 형상 교체</div>
+            </div>
+          </div>
+
+          <div class="callout edge">
+            <span class="label">경계 사례</span>
+            <p>
+              고객이 24t를 고른 채 폭을 위상 경계 너머로 옮겨도 두께가 유지되어야 한다. 티켓 기록은 기본 묶음에서만 후보 형상을 받으면 이 순간 두께가 기본으로 돌아간다고 적었다. 격자 보강(덧셈이 틀리는 슬라이더 쌍을 3×3 격자 샘플로 보강하는 일)은 기본 묶음에서만 쓰는데, 두께 후보 형상은 위상 묶음마다 받는다는 점이 다르다. 이 티켓은 후보 형상을 위상 묶음마다 받는 쪽을 택했다.
+            </p>
+          </div>
+        </section>
+
+        <section id="code">
+          <h2>코드 따라가기</h2>
+          <p>
+            <strong>흐름:</strong> 표준 두께 목록 → 명세 검사 → 받을 형상의 계획 → 실행기가 요청해 조립 → 받은 형상 검사 → 엔진이 후보 이동량을 더함 → 구성기의 두께 슬롯.
+          </p>
+
+          <h3>1. 고정 코어: 표준 두께 목록과 후보 계산</h3>
+          <p>
+            고정 코어(AI가 바꾸지 않는 구성기·엔진·검증기 코드) 중 구성기와 검증기가 같이 쓰는 파일에 목록과 후보 계산이 들어가므로, 명세 검사도 같은 목록을 쓴다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/6c05d1859ec8fe30b71b8e74ff329271c60d67f1/configurator/src/engine.ts#L26">configurator/src/engine.ts:26</a></p>
+<pre><span class="add">export const STANDARD_THICKNESSES = [3, 6, 9, 12, 15, 18, 24, 30] as const;</span></pre>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/6c05d1859ec8fe30b71b8e74ff329271c60d67f1/configurator/src/engine.ts#L29-L32">configurator/src/engine.ts:29-32</a></p>
+<pre><span class="add">export function thicknessOptions(base: number): number[] {</span>
+<span class="add">  const i = STANDARD_THICKNESSES.findIndex((t) =&gt; t === base);</span>
+<span class="add">  return i === -1 ? [] : STANDARD_THICKNESSES.slice(Math.max(0, i - 1), i + 2);</span>
+<span class="add">}</span></pre>
+          <p>
+            끝에 있으면 <code>Math.max(0, i - 1)</code>이 앞쪽을 0에서 막고, <code>slice</code>가 뒤쪽을 목록 길이에서 막으므로 후보가 2개가 된다. 목록에 없는 값은 빈 목록이다.
+          </p>
+
+          <h3>2. 명세 검사: 두께 선택이 규칙에 맞는지</h3>
+          <p>
+            형식 검사를 통과한 명세에 <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/6c05d1859ec8fe30b71b8e74ff329271c60d67f1/configurator/pipeline/schemas.ts#L90"><code>configurator/pipeline/schemas.ts:90</code></a>를 돌린다. 틀린 곳마다 JSON 경로를 붙인 문장이 나오고, 파이프라인은 이를 AI에게 돌려 명세를 다시 쓰게 한다. <code>ids</code>가 업로드 묶음의 파라미터인지, 묶인 파라미터의 기본 두께가 서로 같고 <code>default</code>와 같은지, <code>default</code>가 표준 두께 목록 안인지, <code>options</code>가 <code>thicknessOptions(default)</code>와 같은지 본다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/6c05d1859ec8fe30b71b8e74ff329271c60d67f1/configurator/pipeline/schemas.ts#L103-L108">configurator/pipeline/schemas.ts:103-108</a></p>
+<pre><span class="add">      const options = thicknessOptions(choice.default);</span>
+<span class="add">      if (options.length === 0) {</span>
+<span class="add">        errors.push(`${at}/default: ${choice.default} mm는 표준 두께 목록(${dotted(STANDARD_THICKNESSES)})에 없습니다`);</span>
+<span class="add">      } else if (dotted([...choice.options].sort((a, b) =&gt; a - b)) !== dotted(options)) {</span>
+<span class="add">        errors.push(`${at}/options: 기본 두께 ${choice.default}의 앞뒤 한 칸(${dotted(options)})이어야 합니다`);</span>
+<span class="add">      }</span></pre>
+          <p>
+            Fusion 값은 cm에서 바꾼 부동소수라서, 업로드한 모델의 두께와 명세의 두께는 1e-6 mm 안이면 같다고 본다(<code>SAME_THICKNESS_MM</code>). 두께를 슬라이더 이동 중에 움직이지 않게 하는 <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/6c05d1859ec8fe30b71b8e74ff329271c60d67f1/configurator/pipeline/schemas.ts#L117"><code>configurator/pipeline/schemas.ts:117</code></a>도 함께 돈다. 고정 두께나 두께 선택에 든 파라미터가 어떤 슬라이더의 <code>children</code>에 있으면 거절한다. 코드 주석이 밝힌 까닭은 슬라이더를 움직이는 동안 두께가 변하지 않게 하려는 것이다.
+          </p>
+
+          <h3>3. 받을 형상의 계획</h3>
+          <p>
+            받을 형상은 <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/6c05d1859ec8fe30b71b8e74ff329271c60d67f1/configurator/src/engine.ts#L218"><code>configurator/src/engine.ts:218</code></a> 하나가 정한다. 기본 묶음과, 슬라이더 범위가 닿는 위상 묶음마다 기준 값(<code>anchor</code>)을 붙여 목록을 만들고, 거기에 두께 선택과 기본 두께가 아닌 후보를 곱한다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/6c05d1859ec8fe30b71b8e74ff329271c60d67f1/configurator/src/engine.ts#L218-L234">configurator/src/engine.ts:218-234</a></p>
+<pre><span class="add">export function thicknessSamplePlan(spec: Spec, data: SweepData): ThicknessSample[] {</span>
+<span class="add">  const groups = [</span>
+<span class="add">    { baseline: data.baseline, anchor: undefined as GroupAnchor | undefined },</span>
+<span class="add">    ...spec.sliders.flatMap((slider) =&gt;</span>
+<span class="add">      (data.sweeps.find((s) =&gt; s.parameter === slider.id)?.groups ?? [])</span>
+<span class="add">        .filter((g) =&gt; reaches(slider, g))</span>
+<span class="add">        .map((g) =&gt; ({ baseline: g.baseline, anchor: { slider: slider.id, value: g.anchor } })),</span>
+<span class="add">    ),</span>
+<span class="add">  ];</span>
+<span class="add">  return groups.flatMap(({ baseline, anchor }) =&gt;</span>
+<span class="add">    spec.thickness.flatMap((choice, i) =&gt;</span>
+<span class="add">      choice.options</span>
+<span class="add">        .filter((o) =&gt; o !== choice.default)</span>
+<span class="add">        .map((option) =&gt; ({ choice: i, option, ...(anchor ? { anchor } : {}), baseline, values: thicknessValues(choice, option, anchor) })),</span>
+<span class="add">    ),</span>
+<span class="add">  );</span>
+<span class="add">}</span></pre>
+          <p>
+            요청 값 묶음(이 함수가 만들어 서버가 애드인에 보내는 것)과 엔진이 찾는 값 묶음(<code>createGroupMorph</code>가 만드는 것)이 어긋나지 않도록 둘 다 <code>thicknessValues</code>로 값 묶음을 만든다. 티켓 기록은 값 묶음을 이 계획 하나로 정해 어긋나지 않게 했다고 적었고, 파이프라인이 쓰는 이 함수가 엔진 파일에 있는 것도 그 때문이다.
+          </p>
+
+          <h3>4. 실행기: 조립 전에 요청하고, 받은 형상을 거른다</h3>
+          <p>
+            <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/6c05d1859ec8fe30b71b8e74ff329271c60d67f1/configurator/pipeline/runner.ts#L272"><code>configurator/pipeline/runner.ts:272</code></a>에서 계획을 세우고 <code>kind: "thickness"</code>로 요청한다. 같은 요청은 <code>requestSamples</code>가 다시 보내지 않으므로, 두께 선택과 슬라이더 범위가 그대로인 명세 재작성은 애드인을 부르지 않는다(코드 주석이 적은 내용이다).
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/6c05d1859ec8fe30b71b8e74ff329271c60d67f1/configurator/pipeline/runner.ts#L272-L277">configurator/pipeline/runner.ts:272-277</a></p>
+<pre><span class="add">    const plan = thicknessSamplePlan(spec, uploaded);</span>
+<span class="add">    const thickness = plan.length === 0 ? [] : await requestSamples({ kind: "thickness", values: plan.map((p) =&gt; p.values) });</span>
+<span class="add">    const files = await assembleProduct(spec, { ...uploaded, grids: grids.map((r) =&gt; r.sweep), thickness });</span>
+<span class="add">    await log("assembly");</span>
+<span class="add">    const thicknessProblems = checkThicknessSamples(plan, thickness);</span>
+<span class="add">    if (thicknessProblems.length &gt; 0) return { files, feedback: thicknessProblems, failedPairs: [] };</span></pre>
+          <p>
+            받은 형상은 <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/6c05d1859ec8fe30b71b8e74ff329271c60d67f1/configurator/pipeline/verify-thickness.ts#L15"><code>configurator/pipeline/verify-thickness.ts:15</code></a>가 하나씩 본다. 재계산 실패는 <code>recompute_failed</code>, 기준 형상과 면 구성이 다르면 <code>topology_change</code>다. 판정은 격자 보강과 같은 <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/6c05d1859ec8fe30b71b8e74ff329271c60d67f1/configurator/pipeline/verify-cross.ts#L156"><code>configurator/pipeline/verify-cross.ts:156</code></a>이다. 피드백의 <code>path</code>는 <code>thickness[i].options</code>이고, 힌트는 그 두께 선택을 빼고 고정 두께로 두거나 모델의 두께 수식을 확인하라고 한다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/6c05d1859ec8fe30b71b8e74ff329271c60d67f1/configurator/pipeline/verify-thickness.ts#L15-L19">configurator/pipeline/verify-thickness.ts:15-19</a></p>
+<pre><span class="add">export function checkThicknessSamples(plan: ThicknessSample[], samples: CrossSample[]): Feedback[] {</span>
+<span class="add">  return plan.flatMap(({ choice, baseline, values }, n) =&gt;</span>
+<span class="add">    unusableSample(samples[n], baseline, { path: `thickness[${choice}].options`, slider: "", part: "", measured: { values } }, placeOf(values), FIX_THICKNESS),</span>
+<span class="add">  );</span>
+<span class="add">}</span></pre>
+
+          <h3>5. 변형 엔진: 후보 이동량을 위상 묶음마다 만들어 더한다</h3>
+          <p>
+            <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/6c05d1859ec8fe30b71b8e74ff329271c60d67f1/configurator/src/engine.ts#L240"><code>configurator/src/engine.ts:240</code></a>가 묶음 하나를 만들 때 두께 선택마다 <code>ThicknessTrack</code>을 만든다. 기본 두께가 아닌 후보마다 같은 값 묶음의 샘플을 찾아 그 묶음 기준 형상에서의 이동량으로 저장한다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/6c05d1859ec8fe30b71b8e74ff329271c60d67f1/configurator/src/engine.ts#L329-L342">configurator/src/engine.ts:329-342</a></p>
+<pre><span class="add">  const thicknessTracks: ThicknessTrack[] = spec.thickness.map((choice) =&gt; {</span>
+<span class="add">    const deltas = new Map&lt;number, Float64Array&gt;();</span>
+<span class="add">    for (const option of choice.options.filter((o) =&gt; o !== choice.default)) {</span>
+<span class="add">      const values = thicknessValues(choice, option, thickness.anchor);</span>
+<span class="add">      const place = placeOf(values);</span>
+<span class="add">      const sample = thickness.samples.find((s) =&gt; sameValues(s.values, values));</span>
+<span class="add">      if (!sample) throw new Error(`두께 선택 ${choice.ids[0]}: ${name}에 ${place} 형상이 없습니다`);</span>
+<span class="add">      if (sample.status !== "ok") throw new Error(`두께 선택 ${choice.ids[0]}: ${place}에서 재계산에 실패한 형상입니다`);</span>
+<span class="add">      const delta = deltaOf(sample.faces);</span>
+<span class="add">      if (!delta) throw new Error(`두께 선택 ${choice.ids[0]}: ${place}의 형상이 ${name}의 기준 형상과 면 구성이 다릅니다`);</span>
+<span class="add">      deltas.set(option, delta);</span>
+<span class="add">    }</span>
+<span class="add">    return { choice, deltas };</span>
+<span class="add">  });</span></pre>
+          <p>
+            고를 때는 <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/6c05d1859ec8fe30b71b8e74ff329271c60d67f1/configurator/src/engine.ts#L443"><code>configurator/src/engine.ts:443</code></a>가 이동량을 더한다. 후보가 아닌 값은 보간하지 않고 오류다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/6c05d1859ec8fe30b71b8e74ff329271c60d67f1/configurator/src/engine.ts#L443-L448">configurator/src/engine.ts:443-448</a></p>
+<pre><span class="add">function addThickness(out: Float64Array, { choice, deltas }: ThicknessTrack, value: number) {</span>
+<span class="add">  if (value === choice.default) return;</span>
+<span class="add">  const delta = deltas.get(value);</span>
+<span class="add">  if (!delta) throw new Error(`두께 선택 ${choice.ids[0]}: ${value} mm는 후보(${choice.options.join("·")})가 아닙니다`);</span>
+<span class="add">  for (let i = 0; i &lt; out.length; i++) out[i] += delta[i];</span>
+<span class="add">}</span></pre>
+          <p>
+            <code>shape</code>는 <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/6c05d1859ec8fe30b71b8e74ff329271c60d67f1/configurator/src/engine.ts#L418"><code>configurator/src/engine.ts:418</code></a>에서 이 함수를 부른다. 두께 선택 값은 <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/6c05d1859ec8fe30b71b8e74ff329271c60d67f1/configurator/src/engine.ts#L200"><code>configurator/src/engine.ts:200</code></a>가 묶인 파라미터 중 <code>values</code>에 있는 첫 이름에서 읽는다. 처음 구현은 <code>ids[0]</code>만 읽었다가 리뷰에서 고쳤다고 티켓 기록에 적혀 있다.
+          </p>
+
+          <h3>6. 구성기: 두께 슬롯</h3>
+          <p>
+            두께 선택마다 <code>&lt;select&gt;</code> 하나가 생긴다. 고르면 <code>configurator.set</code>이 불리고, 묶인 파라미터 중 아무 이름이든 두께 선택으로 처리해 묶인 파라미터를 모두 같은 값으로 바꾼다. 후보가 아닌 값은 예외를 던진다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/6c05d1859ec8fe30b71b8e74ff329271c60d67f1/configurator/src/core.ts#L178-L185">configurator/src/core.ts:178-185</a></p>
+<pre><span class="add">    set(id, value) {</span>
+<span class="add">      const choice = spec.thickness.find((t) =&gt; t.ids.includes(id));</span>
+<span class="add">      if (choice) {</span>
+<span class="add">        if (!choice.options.includes(value)) throw new Error(`두께 선택 ${choice.name}에 ${value} mm 후보가 없습니다`);</span>
+<span class="add">        for (const board of choice.ids) values[board] = value;</span>
+<span class="add">        slots.get(choice)!.value = String(value);</span>
+<span class="add">        update();</span>
+<span class="add">        return;</span></pre>
+          <p>
+            티켓 기록은 Chrome에서 슬롯에 15·18·24 mm가 뜨고, 24t와 15t에서 판이 두꺼워지고 얇아지며, 24t를 고른 채 폭을 600(2칸 묶음)으로 옮겨도 두께가 유지됨을 확인했다고 적었다.
+          </p>
+        </section>
+
+        <section id="quiz">
+          <h2>퀴즈</h2>
+
+          <div class="quiz-question">
+            <p class="q">
+              ADR-0010은 두께 후보를 기본 두께 ±3 mm가 아니라 표준 두께 목록의 앞뒤 한 칸으로 정했다. 반대로 ±3 mm 계산이 더 맞았을 상황은?
+            </p>
+            <button class="quiz-option" data-correct>판재를 3 mm 단위로 아무 두께나 맞춰 주문하는 상품</button>
+            <button class="quiz-option">두께가 변하면 위상 묶음이 바뀌어 엔진이 섞지 못하는 상품</button>
+            <button class="quiz-option">두께 선택을 슬라이더처럼 연속 값으로 보여 주려는 상품</button>
+            <div class="quiz-feedback" role="status">
+              ADR의 근거는 주문할 수 없는 두께(18t에서 21 mm)가 나온다는 점이다. 임의의 두께를 3 mm 단위로 맞출 수 있다면 그 근거가 사라진다. 연속 값은 후보 사이를 보간하지 않는 이 설계와 맞지 않고, 두께를 바꿔 면 구성이 달라지는 경우는 파이프라인이 <code>topology_change</code>로 거르는 별개의 문제다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">
+              선반 명세에 두께 선택이 하나 있고 후보가 15·18·24, 기본 두께가 18이다. 슬라이더 범위가 닿는 위상 묶음이 기본 묶음을 포함해 2개다. 서버가 애드인에 요청하는 값 묶음은 모두 몇 개인가?
+            </p>
+            <button class="quiz-option">2개</button>
+            <button class="quiz-option">3개</button>
+            <button class="quiz-option" data-correct>4개</button>
+            <button class="quiz-option">6개</button>
+            <div class="quiz-feedback" role="status">
+              계획은 위상 묶음마다 두께 선택마다 기본 두께가 아닌 후보마다 하나다. 기본 두께 18은 요청하지 않고 15와 24만 남으므로 2 × 1 × 2 = 4개다. 묶음이 3개였다면 6개가 된다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">
+              고객이 두께를 24로 고르고 폭을 1250(4칸 묶음)으로 두었다. 엔진은 어떤 이동량들을 기준 위치에 더하는가?
+            </p>
+            <button class="quiz-option">기본 형상 기준에서 뽑은 폭 이동량과, 기본 형상 기준의 24t 이동량</button>
+            <button class="quiz-option" data-correct>4칸 묶음 기준에서 뽑은 폭 이동량과, 같은 묶음 기준의 24t 이동량</button>
+            <button class="quiz-option">4칸 묶음 기준에서 뽑은 폭 이동량과, 기본 형상 기준의 24t 이동량</button>
+            <div class="quiz-feedback" role="status">
+              묶음은 면 구성이 다르므로 이동량은 같은 묶음의 기준 형상에서 잰 것끼리만 더할 수 있다. 폭 1250은 4칸 묶음 안이라 폭 이동량도 24t 이동량도 4칸 묶음의 기준 형상에서 뽑은 것이어야 한다. 그래서 후보 형상을 묶음마다 받는다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">
+              엔진이 두께 선택 값을 <code>ids[0]</code> 이름으로만 읽는다고 하자. 호출하는 쪽이 판재가 둘 묶인 선택에서 둘째 판재 이름으로 24를 주면 결과는?
+            </p>
+            <button class="quiz-option">후보가 아닌 값이라는 오류가 나서 형상 계산이 멈춘다</button>
+            <button class="quiz-option">둘째 판재만 24 mm가 되고 첫째 판재는 그대로 남는다</button>
+            <button class="quiz-option" data-correct>값이 무시되어 기본 두께로 계산되고 판은 두꺼워지지 않는다</button>
+            <div class="quiz-feedback" role="status">
+              엔진은 첫째 이름의 값이 없으면 기본 두께로 보고, 둘째 이름의 값은 읽지 않는다. 그래서 두께가 바뀌지 않는다. 지금의 <code>thicknessValueOf</code>는 묶인 이름 중 값이 있는 첫 이름을 읽어 이 문제를 없앴다. 오류는 값이 읽혔는데 후보가 아닐 때만 난다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">
+              명세 검사는 한 두께 선택에 묶인 파라미터의 기본 두께가 서로 다르면 명세를 거절한다. 이 규칙이 필요한 가장 직접적인 이유는?
+            </p>
+            <button class="quiz-option">Fusion은 서로 다른 두께의 파라미터를 한 컴포넌트에 둘 수 없어 재계산이 실패한다</button>
+            <button class="quiz-option" data-correct>요청이 묶인 파라미터 전부를 같은 값으로 바꾸므로 한쪽은 앞뒤 한 칸이 아니게 된다</button>
+            <button class="quiz-option">구성기의 슬롯이 한 번에 한 파라미터의 값만 표시할 수 있어서 하나로 맞춰야 한다</button>
+            <div class="quiz-feedback" role="status">
+              <code>thicknessValues</code>는 <code>ids</code>의 모든 파라미터를 같은 후보 값으로 채워 요청한다. 기본 두께가 12와 18로 묶여 있으면 둘을 15로 바꾸는 요청이 12에게는 한 칸 위, 18에게는 한 칸 아래라서 후보를 하나의 <code>default</code>로 정할 수 없다. Fusion 제약이나 슬롯 표시는 이유가 아니다.
+            </div>
+          </div>
+        </section>
+
+      </main>
+
+      <footer class="colophon">
+        explain-diff-html 스킬로 만든 설명 문서
+      </footer>
+    </div>
+
+    <script>
+      document.querySelectorAll(".quiz-question").forEach(function (question) {
+        var feedback = question.querySelector(".quiz-feedback");
+
+        // Shuffle the options on every load, so the correct answer's position is
+        // random and a reader cannot fall into answering by position. Each option
+        // is re-inserted before the feedback block, which has to stay last.
+        var shuffled = Array.prototype.slice.call(
+          question.querySelectorAll(".quiz-option"),
+        );
+        for (var i = shuffled.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var swap = shuffled[i];
+          shuffled[i] = shuffled[j];
+          shuffled[j] = swap;
+        }
+        shuffled.forEach(function (option) {
+          question.insertBefore(option, feedback);
+        });
+
+        var options = question.querySelectorAll(".quiz-option");
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            var isCorrect = option.hasAttribute("data-correct");
+            options.forEach(function (other) {
+              other.disabled = true;
+              if (other.hasAttribute("data-correct"))
+                other.classList.add("correct");
+            });
+            if (!isCorrect) option.classList.add("incorrect");
+            feedback.classList.add("show", isCorrect ? "ok" : "bad");
+            feedback.insertBefore(
+              document.createTextNode(isCorrect ? "Correct. " : "Not quite. "),
+              feedback.firstChild,
+            );
+          });
+        });
+      });
+    </script>
+    <script>
+      // Mermaid loads without blocking: the page scripts above run first, and a slow
+      // or blocked CDN never holds up the quiz or the rest of the page. This is the
+      // only permitted external request, and it fires only when a .mermaid block is
+      // present. Leave it in place; it is a no-op on pages without a diagram.
+      (function () {
+        var blocks = document.querySelectorAll(".mermaid");
+        if (!blocks.length) return;
+
+        // mermaid.run() replaces each block's text with an SVG, so the source is
+        // gone after the first render. Stash it, because a theme change has to
+        // parse it again.
+        blocks.forEach(function (block) {
+          block.dataset.source = block.textContent;
+        });
+
+        var darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+        function render() {
+          blocks.forEach(function (block) {
+            block.removeAttribute("data-processed");
+            block.textContent = block.dataset.source;
+          });
+          try {
+            window.mermaid.initialize({
+              startOnLoad: false,
+              theme: darkQuery.matches ? "dark" : "default",
+            });
+          } catch (e) {}
+          Promise.resolve(window.mermaid.run({ nodes: blocks })).catch(
+            function () {},
+          );
+        }
+
+        var s = document.createElement("script");
+        s.src =
+          "https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js";
+        s.integrity =
+          "sha384-T/0lMUdJpd2S1ZHtRiofG3htU3xPCrFVeAQ1UUE2TJwlEJSV5NUwn30kP28n238E";
+        s.crossOrigin = "anonymous";
+        s.onload = function () {
+          render();
+          // Re-render when the reader switches system theme, so the diagram does
+          // not stay light on a dark page.
+          if (darkQuery.addEventListener)
+            darkQuery.addEventListener("change", render);
+        };
+        document.head.appendChild(s);
+      })();
+    </script>
+  </body>
+</html>

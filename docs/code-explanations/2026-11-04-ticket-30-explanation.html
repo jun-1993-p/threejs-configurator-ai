@@ -1,0 +1,772 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>티켓 30: 지시문의 개수를 응답 스키마에서 가져오기</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f6f7f9;
+        --text: #1c2024;
+        --muted: #60646c;
+        --border: #d7dbdf;
+        --border-strong: #848c95;
+        --accent: #2f5ee0;
+        --accent-soft: #e8eefc;
+        --edge: #a35608;
+        --edge-soft: #fbefe1;
+        --ok: #1a7f47;
+        --ok-soft: #e4f3ea;
+        --bad: #c62a3b;
+        --bad-soft: #fbe7e9;
+        --measure: 68ch;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181b;
+          --surface: #1f2226;
+          --text: #eceef0;
+          --muted: #9ba1a6;
+          --border: #33383d;
+          --border-strong: #646c75;
+          --accent: #7aa2ff;
+          --accent-soft: #1e2740;
+          --edge: #e08c3a;
+          --edge-soft: #2e2517;
+          --ok: #57c98b;
+          --ok-soft: #17281d;
+          --bad: #f07178;
+          --bad-soft: #2c1a1c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:visited {
+        color: var(--accent);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 2.5rem;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 6rem;
+      }
+      nav.toc {
+        position: sticky;
+        top: 2.5rem;
+        align-self: start;
+        font-size: 0.9rem;
+      }
+      nav.toc strong {
+        display: block;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc li {
+        margin: 0.35rem 0;
+      }
+      nav.toc a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav.toc a:hover {
+        color: var(--accent);
+      }
+      main {
+        min-width: 0;
+      }
+      main > header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1.25rem;
+        margin-bottom: 2rem;
+      }
+      main > header h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.6rem;
+      }
+      main > header .lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: var(--measure);
+      }
+      main > header .provenance {
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        margin: 0.7rem 0 0;
+      }
+      .colophon {
+        grid-column: 1 / -1;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        border-top: 1px solid var(--border);
+        margin: 4rem 0 0;
+        padding: 1.2rem 0 0;
+      }
+      .colophon a {
+        color: inherit;
+      }
+      section {
+        margin-bottom: 3.5rem;
+      }
+      section h2 {
+        font-size: 1.4rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      section h3 {
+        font-size: 1.05rem;
+        margin: 2rem 0 0.6rem;
+      }
+      section p,
+      section ul,
+      section ol {
+        max-width: var(--measure);
+      }
+      li {
+        margin: 0.3rem 0;
+      }
+      /* Code blocks: white-space set here so a filled-in block cannot collapse. */
+      pre,
+      .code-block {
+        white-space: pre-wrap;
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        font:
+          0.86rem/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        tab-size: 2;
+      }
+      pre .del {
+        color: var(--bad);
+      }
+      pre .add {
+        color: var(--ok);
+      }
+      pre .hi {
+        background: var(--accent-soft);
+        border-radius: 3px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--surface);
+        padding: 0.05rem 0.3rem;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      /* A file:line reference linked to the code it names. Wraps a <code> span
+         in prose, or the bare text of a .filename label. */
+      a.srcref {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px solid var(--muted);
+      }
+      a.srcref:hover {
+        border-bottom-color: var(--accent);
+      }
+      a.srcref:hover code {
+        background: var(--accent-soft);
+      }
+      /* Path label for the code block below it. */
+      .filename {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        margin: 1.5rem 0 0.3rem;
+        overflow-wrap: anywhere;
+      }
+      /* Comparison table: one row per case, .yes / .no / .warn on outcome cells. */
+      table.vals {
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.86rem;
+        width: 100%;
+        max-width: 620px;
+      }
+      table.vals th,
+      table.vals td {
+        border: 1px solid var(--border-strong);
+        padding: 0.4rem 0.65rem;
+        text-align: left;
+      }
+      table.vals th {
+        background: var(--surface);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+      table.vals td.yes {
+        background: var(--ok-soft);
+      }
+      table.vals td.no {
+        background: var(--bad-soft);
+      }
+      table.vals td.warn {
+        background: var(--edge-soft);
+      }
+      /* Callouts: .callout for a concept, .callout.edge for a caveat. */
+      .callout {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+        padding: 0.85rem 1.1rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .callout .label {
+        display: block;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+      }
+      .callout.edge {
+        background: var(--edge-soft);
+        border-left-color: var(--edge);
+      }
+      .callout.edge .label {
+        color: var(--edge);
+      }
+      /* Skippable deep-background block. */
+      details.skippable {
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 0.75rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      details.skippable > summary {
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      details.skippable[open] > summary {
+        margin-bottom: 0.75rem;
+      }
+      /* Diagram family 1: simplified app UI mockup. */
+      .ui-mockup {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1.5rem 0;
+        max-width: 560px;
+        font-size: 0.85rem;
+      }
+      .ui-mockup .bar {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0.5rem 0.85rem;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .ui-mockup .body {
+        padding: 1.1rem 0.85rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+      }
+      .mock-caption {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.3rem 0 0;
+        max-width: var(--measure);
+      }
+      /* Diagram family 2: data flow between components, example data on the arrows. */
+      .dataflow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+      /* Each arrow travels with the node it points at. Without this, a flow
+         wider than the column wraps between an arrow and its node, leaving the
+         arrow pointing at nothing and the node stranded on the next line. */
+      .dataflow .step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .dataflow .node {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 175px;
+      }
+      .dataflow .node.terminal {
+        background: var(--surface);
+        border-color: var(--border);
+      }
+      .dataflow .node.pass {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .dataflow .node.fail {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .dataflow .arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.72rem;
+        min-width: 96px;
+      }
+      .dataflow .arrow .line {
+        width: 100%;
+        border-top: 2px solid var(--border);
+        position: relative;
+      }
+      .dataflow .arrow .line::after {
+        content: "\25B6";
+        position: absolute;
+        right: -2px;
+        top: -0.72em;
+        color: var(--border);
+        font-size: 0.7rem;
+      }
+      .dataflow .arrow .data {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.35rem;
+        margin-bottom: 0.2rem;
+        font-family: ui-monospace, monospace;
+      }
+      .flow-label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin: 1.25rem 0 0.25rem;
+      }
+      /* A numbered sequence with one marked position: call stacks, retry
+         counts, any ranked list. Not one of the numbered families; reach for
+         it when a step in an ordered list is the point. */
+      .frames {
+        list-style: none;
+        padding: 0;
+        margin: 1.25rem 0;
+        max-width: 620px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.82rem;
+      }
+      .frames li {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.45rem 0.7rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+      }
+      .frames li.target {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .frames .n {
+        display: inline-block;
+        min-width: 2.2em;
+        color: var(--muted);
+      }
+      /* Diagram family 3: node/recursion tree (ASTs, nesting, recursion) */
+      .tree {
+        margin: 1.5rem 0;
+        font:
+          0.82rem/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      .tnode {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.3rem 0.55rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+        display: inline-block;
+      }
+      .tnode.leaf {
+        background: var(--bg);
+      }
+      .tnode.kept {
+        border-color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tnode.skipped {
+        border-color: var(--muted);
+        color: var(--muted);
+      }
+      .tchildren {
+        margin-left: 1.4rem;
+        border-left: 2px dotted var(--border);
+        padding-left: 0.9rem;
+      }
+      .tnote {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-left: 0.4rem;
+      }
+
+      /* Optional tabular body for .ui-mockup, when the mocked UI is a table. */
+      .mock-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .mock-table th,
+      .mock-table td {
+        border: 1px solid var(--border);
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+      }
+      .mock-table th {
+        background: var(--surface);
+        font-weight: 600;
+      }
+      .mock-table .col-highlight {
+        background: var(--accent-soft);
+      }
+
+      .mermaid {
+        margin: 1.75rem 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .mermaid .edgeLabel,
+      .mermaid .edgeLabel p,
+      .mermaid .edgeLabel span,
+      .mermaid .edgeLabel foreignObject div {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+      }
+      /* Quiz */
+      .quiz-question {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .quiz-question > p.q {
+        font-weight: 600;
+        margin: 0 0 0.85rem;
+      }
+      .quiz-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 0.5rem;
+        font: inherit;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .quiz-option:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .quiz-option.correct {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .quiz-option.incorrect {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .quiz-option:disabled {
+        cursor: default;
+      }
+      .quiz-feedback {
+        display: none;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 7px;
+        margin-top: 0.3rem;
+      }
+      .quiz-feedback.show {
+        display: block;
+      }
+      .quiz-feedback.ok {
+        background: var(--ok-soft);
+      }
+      .quiz-feedback.bad {
+        background: var(--edge-soft);
+      }
+      a:focus-visible,
+      summary:focus-visible,
+      .quiz-option:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+      table.vals td.yes::before,
+      .dataflow .node.pass::before,
+      .tnode.kept::before,
+      .quiz-option.correct::before {
+        content: "\2713\00a0";
+        font-weight: 700;
+      }
+      table.vals td.no::before,
+      .dataflow .node.fail::before,
+      .quiz-option.incorrect::before {
+        content: "\2717\00a0";
+        font-weight: 700;
+      }
+      table.vals td.warn::before {
+        content: "\25B2\00a0";
+        font-weight: 700;
+      }
+      .tnode.skipped::before {
+        content: "\2013\00a0";
+        font-weight: 700;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 1rem;
+          padding: 1.25rem 1.1rem 4rem;
+        }
+        nav.toc {
+          position: static;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+        }
+        body {
+          font-size: 16px;
+        }
+        main > header h1 {
+          font-size: 1.6rem;
+        }
+        table.vals {
+          display: block;
+          overflow-x: auto;
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+<div class="layout">
+<nav class="toc">
+<strong>목차</strong>
+<ol>
+<li><a href="#background">배경</a></li>
+<li><a href="#intuition">핵심 아이디어</a></li>
+<li><a href="#code">코드 따라가기</a></li>
+<li><a href="#quiz">퀴즈</a></li>
+</ol>
+</nav>
+<main>
+<header>
+<h1>티켓 30: 지시문의 개수를 응답 스키마에서 가져오기</h1>
+<p class="lead">후보 제시와 부품 탐색 지시문이 후보 수와 정면 수를 문장으로 따로 적던 것을 응답 스키마의 minItems와 maxItems에서 만들게 바꿔, 둘이 어긋나지 못하게 하고 그것을 시험이 지키게 한다.</p>
+<p class="provenance">jun-1993-p/threejs-configurator-ai 티켓 30, 기준 커밋 39d8c43 (포함한 커밋: 39d8c43), 2026-11-04 작성. References link to this commit.</p>
+</header>
+<section id="background">
+<h2>배경</h2>
+<details class="skippable">
+<summary>처음 보는 사람을 위한 배경</summary>
+<p>AI에게 JSON으로 답하게 하려면 두 가지를 함께 준다. 하나는 사람이 읽는 <strong>지시문</strong>(프롬프트)이고, 다른 하나는 코드가 답을 검사하는 <strong>응답 스키마</strong>(JSON Schema)다. 답이 스키마를 통과하지 못하면 실행기가 오류 문장을 붙여 다시 묻는다. 두 곳이 같은 사실(예: 후보는 몇 개까지)을 말하는데 하나만 고치면, 모델은 모순된 지시를 받는다.</p>
+</details>
+<p>후보 제시 단계는 후보 수의 하한을 2에서 1로 바꿨다(티켓 28). 그때 스키마의 <code>minItems</code>만 고치고 지시문의 "2~4개"가 남아서, 바로 다음 줄에 "후보 하나만 낸다"는 문장과 부딪쳤다. 티켓 28 리뷰가 이를 잡았고, 티켓 28·29 회고 3번이 근본 원인으로 "같은 수를 두 곳에 적은 것"을 꼽았다고 티켓 30에 적혀 있다.</p>
+<div class="callout">
+<span class="label">용어</span>
+<p><strong>부품 탐색</strong>은 후보 제시 첫머리에 VLM이 그림으로 부품과 정면 후보를 찾는 일이다. 정면 후보 수는 <code>PARTS_SCHEMA</code>의 fronts <code>maxItems</code>(4)이고, 확신하면 하나, 확신하지 못하면 여러 개를 낸다. <strong>후보 제시</strong>의 응답 스키마는 <code>CANDIDATES_SCHEMA</code>이고 <code>minItems</code> 1, <code>maxItems</code> 4다.</p>
+</div>
+</section>
+<section id="intuition">
+<h2>핵심 아이디어</h2>
+<p>핵심 아이디어는 "한 사실은 한 곳에서 만들고, 다른 곳은 그것을 가져다 쓴다"이다. 지시문은 JavaScript 템플릿 문자열이므로 문장에 숫자를 직접 쓰는 대신 스키마의 값을 끼워 넣으면 된다.</p>
+<table class="vals">
+<thead><tr><th>지시문의 문장</th><th>이전</th><th>이후</th></tr></thead>
+<tbody>
+<tr><td>답은 후보 객체 N~M개</td><td class="no">1~4를 문장에 직접 씀</td><td class="yes">minItems~maxItems에서 만듦</td></tr>
+<tr><td>보통 2~M개</td><td class="no">2~4를 직접 씀</td><td class="warn">2는 문장, M은 maxItems</td></tr>
+<tr><td>부품 탐색: 확신하지 못하면 2~M개</td><td class="no">2~4를 직접 씀</td><td class="warn">2는 문장, M은 fronts의 maxItems</td></tr>
+</tbody>
+</table>
+<p>"보통 2"의 2는 스키마 값이 아니다. 서로 다른 후보를 낼 수 있을 때의 하한이라 스키마의 <code>minItems</code>(1)와 뜻이 다르기 때문에 문장에 남겼다고 티켓에 있다. 시험은 이 2를 따로 적지 않고, 모든 "N~M개"가 스키마의 최대에서 끝나고 최소보다 작지 않은지만 본다.</p>
+<p>예를 들어 누군가 <code>CANDIDATES_SCHEMA.maxItems</code>를 3으로 바꾸면 지시문은 "1~3개, 보통 2~3개"로 저절로 바뀐다. 옛 방식이면 "1~4개"가 남아 모델이 4개를 내고 스키마 검사에서 떨어져 다시 묻게 된다.</p>
+</section>
+<section id="code">
+<h2>코드 따라가기</h2>
+<p>흐름: 스키마 상수 → 지시문 템플릿에 끼워 넣음 → 모델에게 가는 요청 → 시험이 요청에서 숫자 범위를 읽어 스키마와 대조.</p>
+<h3>1. 지시문이 스키마를 읽는다</h3>
+<p>후보 제시 지시문의 개수 두 곳과 부품 탐색 지시문의 개수 한 곳이 바뀌었다. 먼저 후보 제시다.</p>
+<pre><span class="del">- 답은 후보 객체 1~4개를 담은 JSON 배열 하나([ … ])다. 보통 2~4개이고, …</span>
+<span class="add">- 답은 후보 객체 ${CANDIDATES_SCHEMA.minItems}~${CANDIDATES_SCHEMA.maxItems}개를 담은 JSON 배열 하나([ … ])다. 보통 2~${CANDIDATES_SCHEMA.maxItems}개이고, …</span></pre>
+<p>이 줄은 지금 <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/39d8c434b900d34cec3b37b68de78949f63f8a8f/configurator/pipeline/litellm-ai.ts#L98"><code>configurator/pipeline/litellm-ai.ts:98</code></a>에 있다. 부품 탐색은 이렇게 바뀌었다. 생략한 부분은 줄의 나머지 문장이다.</p>
+<pre><span class="del">... 확신하지 못하면 가능성 높은 순서로 2~4개 낸다. ...</span>
+<span class="add">... 확신하지 못하면 가능성 높은 순서로 2~${PARTS_SCHEMA.properties.fronts.maxItems}개 낸다. ...</span></pre>
+<p>부품 탐색 줄은 <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/39d8c434b900d34cec3b37b68de78949f63f8a8f/configurator/pipeline/litellm-ai.ts#L94"><code>configurator/pipeline/litellm-ai.ts:94</code></a>다. 스키마의 후보 응답 주석에서도 "2~4개"를 빼고 개수 범위를 <code>minItems</code>·<code>maxItems</code>가 정한다고 고쳤다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/39d8c434b900d34cec3b37b68de78949f63f8a8f/configurator/pipeline/schemas.ts#L104"><code>configurator/pipeline/schemas.ts:104</code></a>).</p>
+<h3>2. 시험: 요청에 실린 문장에서 범위를 읽는다</h3>
+<p>시험은 모델에게 실제로 간 요청의 지시문 본문에서 "N~M개" 꼴을 모두 찾아 스키마와 대조한다. 요청을 읽는 까닭은 상수를 직접 비교하면 지시문이 어떤 문장으로 만들어졌는지가 검사되지 않기 때문이다(내 해석이다. 코드 주석은 "지시문과 스키마에 후보 수를 따로 적었다가 어긋났다"고만 적었다).</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/39d8c434b900d34cec3b37b68de78949f63f8a8f/configurator/test/litellm-ai.test.ts#L465-L480">configurator/test/litellm-ai.test.ts:465-480</a></p>
+<pre>test("후보 제시·부품 탐색 지시문이 알리는 개수는 응답 스키마의 개수를 넘지 않는다", async () =&gt; {
+  // 지시문과 스키마에 후보 수를 따로 적었다가 어긋났다(티켓 28 리뷰)
+  const { llm } = await run({});
+  const promptOf = (model: string) =&gt; textOf(llm.requests.find((r) =&gt; r.body.model === model)!.body.messages[0].content);
+  const ranges = (prompt: string) =&gt; [...prompt.matchAll(/(\d+)~(\d+)개/g)].map(([, low, high]) =&gt; [Number(low), Number(high)]);
+
+  const { minItems, maxItems } = CANDIDATES_SCHEMA;
+  const candidateRanges = ranges(promptOf(MODELS.candidates));
+  assert.deepEqual(candidateRanges[0], [minItems, maxItems]);
+  for (const [low, high] of candidateRanges) assert.ok(low &gt;= minItems &amp;&amp; high === maxItems, `후보 제시 ${low}~${high}개`);
+
+  const fronts = PARTS_SCHEMA.properties.fronts;
+  const frontRanges = ranges(promptOf(MODELS.parts));
+  assert.ok(frontRanges.length &gt; 0);
+  for (const [low, high] of frontRanges) assert.ok(low &gt;= fronts.minItems &amp;&amp; high === fronts.maxItems, `부품 탐색 ${low}~${high}개`);
+});</pre>
+<p>후보 제시는 첫 범위가 스키마의 범위 그대로(<code>[minItems, maxItems]</code>)인지, 나머지 범위는 하한이 최소 이상이고 상한이 최대와 같은지 본다. 부품 탐색은 하한이 최소 이상이고 상한이 최대인지 본다. 티켓 기록에 따르면 스키마 최대를 잠시 3으로 바꾸면 옛 지시문에서는 실패하고 고친 지시문에서는 통과함을 확인했다.</p>
+<div class="callout edge">
+<span class="label">티켓이 남긴 한계</span>
+<p>시험은 "N~M개" 꼴만 본다. "최대 4개"처럼 다른 꼴로 숫자를 적으면 놓친다. 또 "후보 하나만 낸다"는 문장은 <code>minItems</code>가 1이라는 데 기댄다. 최소값을 바꾸면 후보 하나 허용(티켓 28) 자체가 바뀌는 일이라 그때 이 문장도 같이 고친다.</p>
+</div>
+</section>
+<section id="quiz">
+<h2>퀴즈</h2>
+<div class="quiz-question">
+<p class="q">지시문의 "보통 2~M개"에서 2를 스키마 minItems로 바꾸지 않은 까닭은?</p>
+<button class="quiz-option">2는 스키마가 아니라 후보 선택 화면의 제한이라서다</button>
+<button class="quiz-option" data-correct>구성이 여럿일 때의 하한이라 minItems와 뜻이 달라서다</button>
+<button class="quiz-option">minItems가 숫자가 아니라 불리언이라 문장에 못 넣어서다</button>
+<div class="quiz-feedback" role="status">스키마의 <code>minItems</code>는 후보 하나를 허용하는 1이다. "보통 2"는 구성이 여럿일 때의 하한이라 같은 값이 아니다. 그래서 문장으로 남기고 시험도 이 2를 따로 적지 않는다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">누군가 CANDIDATES_SCHEMA의 maxItems를 4에서 3으로 바꿨다. 이 변경 후 후보 제시 지시문은?</p>
+<button class="quiz-option" data-correct>"1~3개"와 "보통 2~3개"로 바뀌어 나간다</button>
+<button class="quiz-option">"1~4개"가 남아 모델이 4개를 내 스키마에서 걸린다</button>
+<button class="quiz-option">지시문의 숫자는 그대로이고 스키마만 3으로 바뀐다</button>
+<div class="quiz-feedback" role="status">지시문이 <code>${CANDIDATES_SCHEMA.maxItems}</code>를 읽어 만들어지므로 값이 함께 바뀐다. 둘째 보기의 상황이 이 티켓 전에 일어날 수 있던 어긋남이다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">새 지시문 줄에 누군가 "최대 4개까지 낸다"라고 숫자를 적었다. 이 티켓의 시험은?</p>
+<button class="quiz-option">숫자 4가 스키마의 maxItems와 다르면 실패한다</button>
+<button class="quiz-option">모든 숫자를 찾아 스키마 값과 대조해 실패한다</button>
+<button class="quiz-option">줄마다 스키마 값을 끼웠는지 검사해 실패한다</button>
+<button class="quiz-option" data-correct>"N~M개" 꼴이 아니라서 놓치고 통과한다</button>
+<div class="quiz-feedback" role="status">시험은 정규식 <code>(\d+)~(\d+)개</code>로 범위만 찾는다. 티켓이 남긴 한계로 적은 부분이다. 이번에 어긋났던 꼴을 막는 것이 목적이다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">부품 탐색의 확신하지 못하는 경우 2~M개에 대해, 스키마의 fronts maxItems를 3으로 바꾸고 지시문을 옛 문장으로 두면 시험은?</p>
+<button class="quiz-option">후보 제시 지시문만 보므로 통과한다</button>
+<button class="quiz-option">하한 2가 minItems 1보다 커서 실패한다</button>
+<button class="quiz-option" data-correct>상한 4가 maxItems 3과 달라 실패한다</button>
+<div class="quiz-feedback" role="status">시험은 부품 탐색 지시문의 모든 범위에서 하한이 최소 이상이고 상한이 최대와 같은지 본다. 옛 지시문은 상한 4를 직접 적어 3과 어긋나므로 실패하고, 고친 지시문은 값을 가져와 통과한다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">이 티켓이 적용한 원칙은?</p>
+<button class="quiz-option">오류가 나면 모델에게 오류 문장을 붙여 다시 묻는다</button>
+<button class="quiz-option" data-correct>같은 사실은 한 곳에서 만들고 다른 곳은 그것을 읽는다</button>
+<button class="quiz-option">지시문은 짧을수록 모델이 잘 따르므로 숫자를 뺀다</button>
+<div class="quiz-feedback" role="status">지시문과 스키마가 같은 사실을 따로 말하면 한쪽을 고칠 때 다른 쪽이 남는다. 티켓 28에서 실제로 그렇게 어긋났다. 오류 문장을 붙여 다시 묻는 것은 어긋남이 생긴 뒤의 복구 수단이고 이 티켓의 대상이 아니다.</div>
+</div>
+</section>
+</main>
+<footer class="colophon">
+        Generated with
+        <a href="https://github.com/malav2110/explain-diff-html"
+          >explain-diff-html</a
+        >
+      </footer>
+</div>
+<script>
+      document.querySelectorAll(".quiz-question").forEach(function (question) {
+        var feedback = question.querySelector(".quiz-feedback");
+
+        // Shuffle the options on every load, so the correct answer's position is
+        // random and a reader cannot fall into answering by position. Each option
+        // is re-inserted before the feedback block, which has to stay last.
+        var shuffled = Array.prototype.slice.call(
+          question.querySelectorAll(".quiz-option"),
+        );
+        for (var i = shuffled.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var swap = shuffled[i];
+          shuffled[i] = shuffled[j];
+          shuffled[j] = swap;
+        }
+        shuffled.forEach(function (option) {
+          question.insertBefore(option, feedback);
+        });
+
+        var options = question.querySelectorAll(".quiz-option");
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            var isCorrect = option.hasAttribute("data-correct");
+            options.forEach(function (other) {
+              other.disabled = true;
+              if (other.hasAttribute("data-correct"))
+                other.classList.add("correct");
+            });
+            if (!isCorrect) option.classList.add("incorrect");
+            feedback.classList.add("show", isCorrect ? "ok" : "bad");
+            feedback.insertBefore(
+              document.createTextNode(isCorrect ? "Correct. " : "Not quite. "),
+              feedback.firstChild,
+            );
+          });
+        });
+      });
+    </script>
+</body>
+</html>

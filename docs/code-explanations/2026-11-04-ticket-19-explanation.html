@@ -1,0 +1,895 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>티켓 19: AI 판정</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f6f7f9;
+        --text: #1c2024;
+        --muted: #60646c;
+        --border: #d7dbdf;
+        --border-strong: #848c95;
+        --accent: #2f5ee0;
+        --accent-soft: #e8eefc;
+        --edge: #a35608;
+        --edge-soft: #fbefe1;
+        --ok: #1a7f47;
+        --ok-soft: #e4f3ea;
+        --bad: #c62a3b;
+        --bad-soft: #fbe7e9;
+        --measure: 68ch;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181b;
+          --surface: #1f2226;
+          --text: #eceef0;
+          --muted: #9ba1a6;
+          --border: #33383d;
+          --border-strong: #646c75;
+          --accent: #7aa2ff;
+          --accent-soft: #1e2740;
+          --edge: #e08c3a;
+          --edge-soft: #2e2517;
+          --ok: #57c98b;
+          --ok-soft: #17281d;
+          --bad: #f07178;
+          --bad-soft: #2c1a1c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:visited {
+        color: var(--accent);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 2.5rem;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 6rem;
+      }
+      nav.toc {
+        position: sticky;
+        top: 2.5rem;
+        align-self: start;
+        font-size: 0.9rem;
+      }
+      nav.toc strong {
+        display: block;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc li {
+        margin: 0.35rem 0;
+      }
+      nav.toc a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav.toc a:hover {
+        color: var(--accent);
+      }
+      main {
+        min-width: 0;
+      }
+      main > header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1.25rem;
+        margin-bottom: 2rem;
+      }
+      main > header h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.6rem;
+      }
+      main > header .lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: var(--measure);
+      }
+      main > header .provenance {
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        margin: 0.7rem 0 0;
+      }
+      .colophon {
+        grid-column: 1 / -1;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        border-top: 1px solid var(--border);
+        margin: 4rem 0 0;
+        padding: 1.2rem 0 0;
+      }
+      .colophon a {
+        color: inherit;
+      }
+      section {
+        margin-bottom: 3.5rem;
+      }
+      section h2 {
+        font-size: 1.4rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      section h3 {
+        font-size: 1.05rem;
+        margin: 2rem 0 0.6rem;
+      }
+      section p,
+      section ul,
+      section ol {
+        max-width: var(--measure);
+      }
+      li {
+        margin: 0.3rem 0;
+      }
+      /* Code blocks: white-space set here so a filled-in block cannot collapse. */
+      pre,
+      .code-block {
+        white-space: pre-wrap;
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        font:
+          0.86rem/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        tab-size: 2;
+      }
+      pre .del {
+        color: var(--bad);
+      }
+      pre .add {
+        color: var(--ok);
+      }
+      pre .hi {
+        background: var(--accent-soft);
+        border-radius: 3px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--surface);
+        padding: 0.05rem 0.3rem;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      /* A file:line reference linked to the code it names. Wraps a <code> span
+         in prose, or the bare text of a .filename label. */
+      a.srcref {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px solid var(--muted);
+      }
+      a.srcref:hover {
+        border-bottom-color: var(--accent);
+      }
+      a.srcref:hover code {
+        background: var(--accent-soft);
+      }
+      /* Path label for the code block below it. */
+      .filename {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        margin: 1.5rem 0 0.3rem;
+        overflow-wrap: anywhere;
+      }
+      /* Comparison table: one row per case, .yes / .no / .warn on outcome cells. */
+      table.vals {
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.86rem;
+        width: 100%;
+        max-width: 620px;
+      }
+      table.vals th,
+      table.vals td {
+        border: 1px solid var(--border-strong);
+        padding: 0.4rem 0.65rem;
+        text-align: left;
+      }
+      table.vals th {
+        background: var(--surface);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+      table.vals td.yes {
+        background: var(--ok-soft);
+      }
+      table.vals td.no {
+        background: var(--bad-soft);
+      }
+      table.vals td.warn {
+        background: var(--edge-soft);
+      }
+      /* Callouts: .callout for a concept, .callout.edge for a caveat. */
+      .callout {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+        padding: 0.85rem 1.1rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .callout .label {
+        display: block;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+      }
+      .callout.edge {
+        background: var(--edge-soft);
+        border-left-color: var(--edge);
+      }
+      .callout.edge .label {
+        color: var(--edge);
+      }
+      /* Skippable deep-background block. */
+      details.skippable {
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 0.75rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      details.skippable > summary {
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      details.skippable[open] > summary {
+        margin-bottom: 0.75rem;
+      }
+      /* Diagram family 1: simplified app UI mockup. */
+      .ui-mockup {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1.5rem 0;
+        max-width: 560px;
+        font-size: 0.85rem;
+      }
+      .ui-mockup .bar {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0.5rem 0.85rem;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .ui-mockup .body {
+        padding: 1.1rem 0.85rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+      }
+      .mock-caption {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.3rem 0 0;
+        max-width: var(--measure);
+      }
+      /* Diagram family 2: data flow between components, example data on the arrows. */
+      .dataflow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+      /* Each arrow travels with the node it points at. Without this, a flow
+         wider than the column wraps between an arrow and its node, leaving the
+         arrow pointing at nothing and the node stranded on the next line. */
+      .dataflow .step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .dataflow .node {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 175px;
+      }
+      .dataflow .node.terminal {
+        background: var(--surface);
+        border-color: var(--border);
+      }
+      .dataflow .node.pass {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .dataflow .node.fail {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .dataflow .arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.72rem;
+        min-width: 96px;
+      }
+      .dataflow .arrow .line {
+        width: 100%;
+        border-top: 2px solid var(--border);
+        position: relative;
+      }
+      .dataflow .arrow .line::after {
+        content: "\25B6";
+        position: absolute;
+        right: -2px;
+        top: -0.72em;
+        color: var(--border);
+        font-size: 0.7rem;
+      }
+      .dataflow .arrow .data {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.35rem;
+        margin-bottom: 0.2rem;
+        font-family: ui-monospace, monospace;
+      }
+      .flow-label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin: 1.25rem 0 0.25rem;
+      }
+      /* A numbered sequence with one marked position: call stacks, retry
+         counts, any ranked list. Not one of the numbered families; reach for
+         it when a step in an ordered list is the point. */
+      .frames {
+        list-style: none;
+        padding: 0;
+        margin: 1.25rem 0;
+        max-width: 620px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.82rem;
+      }
+      .frames li {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.45rem 0.7rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+      }
+      .frames li.target {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .frames .n {
+        display: inline-block;
+        min-width: 2.2em;
+        color: var(--muted);
+      }
+      /* Diagram family 3: node/recursion tree (ASTs, nesting, recursion) */
+      .tree {
+        margin: 1.5rem 0;
+        font:
+          0.82rem/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      .tnode {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.3rem 0.55rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+        display: inline-block;
+      }
+      .tnode.leaf {
+        background: var(--bg);
+      }
+      .tnode.kept {
+        border-color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tnode.skipped {
+        border-color: var(--muted);
+        color: var(--muted);
+      }
+      .tchildren {
+        margin-left: 1.4rem;
+        border-left: 2px dotted var(--border);
+        padding-left: 0.9rem;
+      }
+      .tnote {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-left: 0.4rem;
+      }
+
+      /* Optional tabular body for .ui-mockup, when the mocked UI is a table. */
+      .mock-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .mock-table th,
+      .mock-table td {
+        border: 1px solid var(--border);
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+      }
+      .mock-table th {
+        background: var(--surface);
+        font-weight: 600;
+      }
+      .mock-table .col-highlight {
+        background: var(--accent-soft);
+      }
+
+      .mermaid {
+        margin: 1.75rem 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .mermaid .edgeLabel,
+      .mermaid .edgeLabel p,
+      .mermaid .edgeLabel span,
+      .mermaid .edgeLabel foreignObject div {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+      }
+      /* Quiz */
+      .quiz-question {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .quiz-question > p.q {
+        font-weight: 600;
+        margin: 0 0 0.85rem;
+      }
+      .quiz-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 0.5rem;
+        font: inherit;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .quiz-option:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .quiz-option.correct {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .quiz-option.incorrect {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .quiz-option:disabled {
+        cursor: default;
+      }
+      .quiz-feedback {
+        display: none;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 7px;
+        margin-top: 0.3rem;
+      }
+      .quiz-feedback.show {
+        display: block;
+      }
+      .quiz-feedback.ok {
+        background: var(--ok-soft);
+      }
+      .quiz-feedback.bad {
+        background: var(--edge-soft);
+      }
+      a:focus-visible,
+      summary:focus-visible,
+      .quiz-option:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+      table.vals td.yes::before,
+      .dataflow .node.pass::before,
+      .tnode.kept::before,
+      .quiz-option.correct::before {
+        content: "\2713\00a0";
+        font-weight: 700;
+      }
+      table.vals td.no::before,
+      .dataflow .node.fail::before,
+      .quiz-option.incorrect::before {
+        content: "\2717\00a0";
+        font-weight: 700;
+      }
+      table.vals td.warn::before {
+        content: "\25B2\00a0";
+        font-weight: 700;
+      }
+      .tnode.skipped::before {
+        content: "\2013\00a0";
+        font-weight: 700;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 1rem;
+          padding: 1.25rem 1.1rem 4rem;
+        }
+        nav.toc {
+          position: static;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+        }
+        body {
+          font-size: 16px;
+        }
+        main > header h1 {
+          font-size: 1.6rem;
+        }
+        table.vals {
+          display: block;
+          overflow-x: auto;
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+<div class="layout">
+<nav class="toc">
+<strong>Contents</strong>
+<ol>
+<li><a href="#background">배경</a></li>
+<li><a href="#intuition">핵심 아이디어</a></li>
+<li><a href="#code">코드 따라가기</a></li>
+<li><a href="#quiz">퀴즈</a></li>
+</ol>
+</nav>
+<main>
+<header>
+<h1>티켓 19: AI 판정</h1>
+<p class="lead">수치 검증과 축 반응, 교차 검증을 모두 통과한 명세만, 슬라이더 끝값과 쌍별 모서리 조합을 그려 VLM(그림을 읽는 AI 모델)이 뚫림·겹침·비례 깨짐을 보게 한다. 실패는 검증 피드백이 되어 명세 작성으로 돌아가고, 판정만 3번 실패하면 이유를 붙여 최종 승인으로 넘어간다.</p>
+<p class="provenance">jun-1993-p/threejs-configurator-ai 티켓 19, 최신 커밋 1d0e031, 포함한 커밋: 1d0e031 (티켓 19: AI 판정), explained 2026-11-04. References link to this commit.</p>
+</header>
+<section id="background">
+<h2>배경</h2>
+<details class="skippable">
+<summary>이 영역이 처음이면 펼쳐서 읽는 기본 배경</summary>
+
+<p>이 프로젝트는 Fusion CAD 모델을 쇼핑몰용 three.js 구성기로 바꾼다. 구성기의 형상은 업로드 때 뽑아 둔 스윕(파라미터를 바꿔 가며 얻은 형상 묶음)에서 변형 엔진이 섞어 만든다. 어떤 파라미터 값에서 형상이 어떻게 보일지는 AI가 쓴 명세(JSON)가 정하고, 명세가 맞는지는 검증이 확인한다.</p>
+<p>VLM은 그림을 읽을 수 있는 AI 모델이다. 이 프로젝트는 부품 탐색에서 이미 VLM을 써서 기본 형상을 여섯 방향에서 그린 그림을 보게 한다. 같은 포트(AI 모델 포트)와 같은 모델 설정을 이번에도 쓴다.</p>
+
+</details>
+
+<p>파이프라인의 검증은 여러 층이다. 두께 고정 실측은 판재 두께가 고정인지, 수치 검증은 치수가 규칙 안에 드는지, 축 반응은 슬라이더를 움직일 때 맞는 축이 반응하는지, 교차 검증은 슬라이더 두 개를 동시에 움직였을 때 이동량 덧셈이 맞는지를 본다. 모두 수치 검사다. 판재 사이가 벌어져 뚫려 보이는 것, 부품이 파고드는 것, 상품 종류로 보아 모양이 이상한 것은 숫자만으로 잡기 어렵다. 이 변경은 그 틈을 VLM이 그림으로 보게 한다.</p>
+<p>검증에서 실패하면 <b>검증 피드백</b>(<code>Feedback</code>)이 만들어지고, 같은 후보로 명세를 다시 쓴다. 피드백에는 어디를 고칠지 가리키는 <code>path</code>, 종류 <code>kind</code>(이번에 더해진 값이 <code>ai_judgment</code>), 잰 값 <code>measured</code>, 기대 <code>expected</code>, 힌트 <code>hint</code> 같은 필드가 있다. 같은 후보로 피드백을 받아 명세를 다시 쓰는 횟수는 3번까지이고, 넘으면 후보 제시로 돌아간다(<code>SPEC_RETRIES</code>).</p>
+<div class="callout"><span class="label">핵심 개념</span><p>판정은 비싼 VLM 호출이므로 수치로 잡을 수 있는 실패를 먼저 모두 통과한 명세에만 부른다. 그리고 판정만 반복해서 실패하면 VLM의 오판일 수 있으므로, 사람이 보게 한다.</p></div>
+
+</section>
+<section id="intuition">
+<h2>핵심 아이디어</h2>
+
+<p>슬라이더가 둘(<code>body_w</code>, <code>body_h</code>)인 명세를 예로 든다(이름은 티켓 기록의 그림 이름 예에 맞춘 설명용 값이다). 판정이 보는 그림은 아래와 같다.</p>
+<table class="vals"><tr><th>그림 이름</th><th>움직인 슬라이더</th><th>나머지</th></tr>
+<tr><td>body_w=400</td><td>body_w 최솟값</td><td>기본값</td></tr>
+<tr><td>body_w=800</td><td>body_w 최댓값</td><td>기본값</td></tr>
+<tr><td>body_h=(최솟값), body_h=(최댓값)</td><td>body_h 끝값 2장</td><td>기본값</td></tr>
+<tr><td>body_w=400·body_h=1000 등</td><td>두 슬라이더의 모서리 4조합</td><td>기본값</td></tr>
+</table>
+
+<p>슬라이더가 n개이면 그림은 2n + 4·C(n,2)장이다. n이 2이면 8장, 4이면 32장이다. 티켓 기록은 32장이 VLM의 그림 수 제한에 걸릴 수 있다고 적고, 실제 모델로 돌려 보는 최종 확인(티켓 23)에서 걸리면 나눠 묻기로 미뤘다.</p>
+<p>그림은 모두 같은 축척으로, 정면에서 오른쪽 위로 비켜 본 직교 투영으로 그린다. 후보 카드 미리보기와 같은 시점이다. 부품마다 색이 달라, VLM은 어느 부품이 어디로 갔는지 색으로 짚을 수 있다.</p>
+<div class="dataflow">
+<div class="node terminal">수치 검증 → 축 반응 → 교차 검증 통과</div>
+<div class="step"><div class="arrow"><span class="data">sweeps.json + 명세</span><span class="line"></span></div><div class="node">엔진이 그림을 그림 (2n + 4·C(n,2)장)</div></div>
+<div class="step"><div class="arrow"><span class="data">renders[], colors[]</span><span class="line"></span></div><div class="node">VLM이 문제 있는 그림을 짚음</div></div>
+<div class="step"><div class="arrow"><span class="data">{ problems: [{ image, reason }] }</span><span class="line"></span></div><div class="node fail">ai_judgment 피드백 + 그림 저장</div></div>
+<div class="step"><div class="arrow"><span class="data">피드백으로 명세 다시 쓰기</span><span class="line"></span></div><div class="node pass">3번 쌓이면 최종 승인으로</div></div>
+</div>
+
+<p>실패가 3번 쌓이면 후보 제시로 돌아가는 대신, 마지막 명세와 결과물에 판정 이유를 붙여 사람에게 넘긴다. 사람(운영자)이 최종 승인 화면에서 이유와 그림을 보고 결정한다.</p>
+<div class="callout edge"><span class="label">연속이 아니라 누적</span><p>판정 실패는 연속으로 세지 않고, 같은 후보의 최대 4시도 안에서 쌓인 횟수로 센다. 판정 실패, 수치 실패, 수치 실패, 판정 실패 순이면 판정 실패는 2번이라 후보 제시로 돌아간다. 사이에 수치 검증 실패가 끼어도 판정 실패 3번이 쌓였다는 사실은 그대로이기 때문이다. 티켓 기록은 이것이 VLM의 오판으로 막히지 않게 하려는 뜻에 맞다고 적는다. 그 결과 최종 승인 화면에는 마지막 판정 이유만 보인다. 앞선 두 판정은 다른 명세에 대한 것이고 처리 기록의 검증 항목에 남는다.</p></div>
+
+</section>
+<section id="code">
+<h2>코드 따라가기</h2>
+
+<p>흐름: 검증 통과(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/1d0e031b90509b4e0138c129d5753a01b0e69eb9/configurator/pipeline/runner.ts#L486-L487"><code>configurator/pipeline/runner.ts:486-487</code></a>) → 그림 만들기(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/1d0e031b90509b4e0138c129d5753a01b0e69eb9/configurator/pipeline/verify-judgment.ts#L41-L59"><code>configurator/pipeline/verify-judgment.ts:41-59</code></a>) → VLM 판정(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/1d0e031b90509b4e0138c129d5753a01b0e69eb9/configurator/pipeline/runner.ts#L409-L425"><code>configurator/pipeline/runner.ts:409-425</code></a>, <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/1d0e031b90509b4e0138c129d5753a01b0e69eb9/configurator/pipeline/litellm-ai.ts#L163-L170"><code>configurator/pipeline/litellm-ai.ts:163-170</code></a>) → 판정 응답 검사(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/1d0e031b90509b4e0138c129d5753a01b0e69eb9/configurator/pipeline/schemas.ts#L170-L192"><code>configurator/pipeline/schemas.ts:170-192</code></a>) → 피드백 만들기(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/1d0e031b90509b4e0138c129d5753a01b0e69eb9/configurator/pipeline/verify-judgment.ts#L65-L76"><code>configurator/pipeline/verify-judgment.ts:65-76</code></a>) → 3번 쌓이면 최종 승인(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/1d0e031b90509b4e0138c129d5753a01b0e69eb9/configurator/pipeline/runner.ts#L490"><code>configurator/pipeline/runner.ts:490</code></a>, <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/1d0e031b90509b4e0138c129d5753a01b0e69eb9/configurator/pipeline/operator-screens.ts#L139-L165"><code>configurator/pipeline/operator-screens.ts:139-165</code></a>).</p>
+
+<h3>1. 판정을 부를 자리</h3>
+<p><code>writeVerifiedSpec</code>의 시도 루프(처음 시도와 다시 쓰기 3번을 합쳐 최대 4시도) 끝에서, 앞선 검증(두께 고정 실측·수치 검증·축 반응·교차 검증과 격자 보강)에서 피드백이 하나도 없을 때만 실행기 안의 함수 <code>judge</code>(아래 4절, AI 모델 포트의 <code>ai.judge</code>를 부른다)를 부른다(487행). <code>judged</code>는 이번 시도가 판정까지 갔다는 표시이고, 판정에서 피드백이 나왔을 때만 <code>judgmentFailures</code>를 올린다. 그 수가 <code>JUDGMENT_FAILURES</code>(3)에 닿으면 이 명세를 실패로 돌리지 않고 <code>judgment</code> 목록에 피드백을 담아 돌려준다(490행). 통과하면 <code>judgment</code>는 빈 목록이다(489행).</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/1d0e031b90509b4e0138c129d5753a01b0e69eb9/configurator/pipeline/runner.ts#L486-L490">configurator/pipeline/runner.ts:486-490</a></p>
+<pre>      const judged = feedback.length === 0;
+      if (judged) feedback = await judge(spec, files);
+      await log("verification", { attempt, feedback });
+      if (feedback.length === 0) return { spec, files, judgment: [] };
+      if (judged &amp;&amp; ++judgmentFailures === JUDGMENT_FAILURES) return { spec, files, judgment: feedback };</pre>
+
+
+<h3>2. 그림 만들기</h3>
+<p><code>judgmentShots</code>는 슬라이더마다 최솟값·최댓값, 그다음 슬라이더 쌍마다 두 슬라이더의 끝값 4조합을 목록으로 만든다(43~49행). 나머지 슬라이더는 기본값이다. 그림은 결과물에 담긴 스윕 데이터로 변형 엔진을 만들어 그리므로, 고객이 구성기에서 보게 될 형상과 같다. 시점은 후보 카드와 같은 <code>obliqueView</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/1d0e031b90509b4e0138c129d5753a01b0e69eb9/configurator/pipeline/candidate-cards.ts#L19-L24"><code>configurator/pipeline/candidate-cards.ts:19-24</code></a>)이고, 위쪽은 명세의 H(높이)에 대응하는 Fusion 축 <code>axes.H</code>에서 얻는다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/1d0e031b90509b4e0138c129d5753a01b0e69eb9/configurator/pipeline/verify-judgment.ts#L41-L59">configurator/pipeline/verify-judgment.ts:41-59</a></p>
+<pre>export function judgmentShots(spec: Spec, sweeps: SweepData): { shots: JudgmentShot[]; colors: PartColor[] } {
+  const defaults = Object.fromEntries(spec.sliders.map((s) =&gt; [s.id, s.default]));
+  const places: { slider: string; place: Record&lt;string, number&gt; }[] = [];
+  for (const s of spec.sliders) for (const v of [s.min, s.max]) places.push({ slider: s.id, place: { [s.id]: v } });
+  spec.sliders.forEach((a, i) =&gt; {
+    for (const b of spec.sliders.slice(i + 1)) {
+      for (const va of [a.min, a.max]) for (const vb of [b.min, b.max]) places.push({ slider: a.id, place: { [a.id]: va, [b.id]: vb } });
+    }
+  });
+
+  const morph = createMorph(spec, sweeps);
+  // 명세의 front와 axes는 명세 검사를 통과한 값이다
+  const view = obliqueView(spec.front as Front, `+${spec.axes.H}` as Front);
+  const colorOf = partPalette(sweeps.parts.map((p) =&gt; p.name));
+  const values = places.map(({ place }) =&gt; ({ ...defaults, ...place }));
+  const images = renderPngs(values.map((v) =&gt; morph.shape(v)), view, RENDER_SIZE, colorOf);
+  const shots = places.map(({ slider, place }, k) =&gt; ({ slider, render: { name: placeOf(place), values: values[k], image: images[k].toString("base64") } }));
+  return { shots, colors: partColorsOf(morph.faces.map((f) =&gt; f.part), colorOf) };
+}</pre>
+
+<p>이 목록의 앞 슬라이더가 바깥 고리다. 피드백이 가리킬 슬라이더(<code>slider</code>)는 슬라이더 끝값이면 그 슬라이더, 모서리 조합이면 앞 슬라이더다. 리뷰 뒤에 이 대응을 객체 키 순서에 기대지 않고 필드로 두었다.</p>
+
+<h3>3. VLM에게 묻기와 응답 검사</h3>
+<p>AI 모델 포트에 <code>judge</code>가 생겼고(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/1d0e031b90509b4e0138c129d5753a01b0e69eb9/configurator/pipeline/runner.ts#L201"><code>configurator/pipeline/runner.ts:201</code></a>), LiteLLM 구현은 부품 탐색처럼 그림을 조각으로 붙이고 문장에는 그림의 이름과 슬라이더 값만 남긴다. 지시문은 뚫림·겹침·비례 깨짐만 찾으라고 하고, 이상이 없으면 빈 목록을 내라고 한다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/1d0e031b90509b4e0138c129d5753a01b0e69eb9/configurator/pipeline/litellm-ai.ts#L163-L170">configurator/pipeline/litellm-ai.ts:163-170</a></p>
+<pre>    // 부품 탐색처럼 그림은 조각으로 붙이고, 문장에는 그림 순서대로 이름과 슬라이더 값만 남긴다
+    judge: ({ renders, ...input }) =&gt;
+      ask(
+        "judgment",
+        `${JUDGMENT_PROMPT}\n${OUTPUT_RULES(judgmentSchema(renders.map((r) =&gt; r.name)))}`,
+        { ...input, renders: renders.map(({ name, values }) =&gt; ({ name, values })) },
+        renders.map((r) =&gt; r.image),
+      ),</pre>
+
+<p>응답은 <code>{ "problems": [{ "image", "reason" }] }</code> 형식이다. 스키마는 <code>image</code>가 보낸 그림 이름 중 하나여야 하고(열거), <code>reason</code>이 한 줄(줄바꿈 없음)이어야 한다고 본다. 보내지 않은 이름이나 두 줄짜리 이유는 형식 오류이므로 같은 방식으로 다시 묻는다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/1d0e031b90509b4e0138c129d5753a01b0e69eb9/configurator/pipeline/schemas.ts#L170-L192">configurator/pipeline/schemas.ts:170-192</a></p>
+<pre>/** AI 판정 응답. 문제는 보낸 렌더링 이름(images)을 가리키고 이유는 한 줄이다. 문제가 없으면 통과다. */
+export function judgmentSchema(images: string[]) {
+  return {
+    type: "object",
+    required: ["problems"],
+    additionalProperties: false,
+    properties: {
+      problems: {
+        type: "array",
+        items: {
+          type: "object",
+          required: ["image", "reason"],
+          additionalProperties: false,
+          properties: { image: { enum: images }, reason: { type: "string", pattern: "^[^\\n]+$" } },
+        },
+      },
+    },
+  };
+}
+
+export function judgmentChecker(images: string[]): Check {
+  return checker(judgmentSchema(images));
+}</pre>
+
+
+<h3>4. 판정에서 피드백으로</h3>
+<p><code>judge</code>는 같은 그림을 여러 번 짚은 이유를 <code>; </code>로 이어 붙여 그림 하나에 피드백 하나로 만든다. 문제가 있는 그림은 저장소 포트의 <code>saveRender</code>로 저장해 경로를 얻는다(없던 포트 메서드이고, 피드백이 이미지 경로를 담으려면 그림을 둘 곳이 필요했다). 그 경로가 <code>measured.image</code>가 된다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/1d0e031b90509b4e0138c129d5753a01b0e69eb9/configurator/pipeline/runner.ts#L409-L425">configurator/pipeline/runner.ts:409-425</a></p>
+<pre>  async function judge(spec: Spec, files: ProductFiles): Promise&lt;Feedback[]&gt; {
+    const { shots, colors } = judgmentShots(spec, JSON.parse(files["sweeps.json"]));
+    const renders = shots.map((s) =&gt; s.render);
+    const { problems } = await askUntilValid&lt;{ problems: JudgmentProblem[] }&gt;("verification", judgmentChecker(renders.map((r) =&gt; r.name)), (schemaErrors, rejected) =&gt;
+      ai.judge({ intake, spec: structuredClone(spec), renders: structuredClone(renders), colors, rejected, schemaErrors }),
+    );
+    // 같은 렌더링을 여러 번 짚으면 이유를 이어 붙여 그림 하나에 피드백 하나로 둔다
+    const reasons = new Map&lt;string, string[]&gt;();
+    for (const { image, reason } of problems) reasons.set(image, [...(reasons.get(image) ?? []), reason]);
+    const feedback: Feedback[] = [];
+    for (const [image, said] of reasons) {
+      const shot = shots.find((s) =&gt; s.render.name === image)!;
+      const path = await store.saveRender(intake.name, `${image}.png`, Buffer.from(shot.render.image, "base64"));
+      feedback.push(judgmentFeedback(spec, shot, said.join("; "), path));
+    }
+    return feedback;
+  }</pre>
+
+<p>피드백의 <code>kind</code>는 <code>ai_judgment</code>이고, 부품은 판정이 짚지 않으므로 <code>part</code>는 빈 문자열이다. 힌트는 "그 끝값을 범위에서 빼거나 affects의 형태 변경·위치 이동 부품 확인"이라고 명세 작성에게 길을 일러 준다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/1d0e031b90509b4e0138c129d5753a01b0e69eb9/configurator/pipeline/verify-judgment.ts#L65-L76">configurator/pipeline/verify-judgment.ts:65-76</a></p>
+<pre>export function judgmentFeedback(spec: Spec, { slider, render }: JudgmentShot, reason: string, image: string): Feedback {
+  const measured: JudgmentMeasured = { image, values: render.values, reason };
+  return {
+    path: `sliders[${spec.sliders.findIndex((s) =&gt; s.id === slider)}]`,
+    slider,
+    part: "",
+    kind: "ai_judgment",
+    measured,
+    expected: "뚫림·겹침·비례 깨짐 없음",
+    hint: `${render.name}에서 렌더링 판정 실패: 그 끝값을 범위에서 빼거나 affects의 형태 변경·위치 이동 부품 확인`,
+  };
+}</pre>
+
+
+<h3>5. 최종 승인 화면</h3>
+<p>3번 쌓여 넘어오면 <code>finalApprovalHtml</code>이 마지막 판정의 이유와 그림을 보인다. 이 화면은 이유를 보이기 위한 최소한이고, 이름 고치기·범위 좁히기·반려는 다음 티켓(20)에서 붙인다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/1d0e031b90509b4e0138c129d5753a01b0e69eb9/configurator/pipeline/operator-screens.ts#L139-L165">configurator/pipeline/operator-screens.ts:139-165</a></p>
+<pre>export function finalApprovalHtml({ spec, judgment }: { spec: Spec; judgment: Feedback[] }): string {
+  const sliders = spec.sliders.map((s) =&gt; `&lt;li&gt;${escape(s.name)} ${s.min}~${s.max} ${escape(s.unit)} (기본 ${s.default})&lt;/li&gt;`).join("\n");
+  const reasons = judgment.map((f) =&gt; {
+    const { image, values, reason } = f.measured as JudgmentMeasured;
+    const place = escape(placeOf(values));
+    return `&lt;figure&gt;&lt;img src="${escape(image)}" alt="${place}"&gt;&lt;figcaption&gt;${place}: ${escape(reason)}&lt;/figcaption&gt;&lt;/figure&gt;`;
+  });
+  const judged =
+    reasons.length === 0
+      ? ""
+      : `&lt;section class="judgment"&gt;
+&lt;h2&gt;AI 판정을 ${JUDGMENT_FAILURES}번 통과하지 못해 넘어왔습니다&lt;/h2&gt;
+&lt;p&gt;수치 검증과 축 반응은 통과했습니다. 아래 렌더링을 눈여겨보고 결정하세요.&lt;/p&gt;
+${reasons.join("\n")}
+&lt;/section&gt;
+`;
+  return page(
+    `${spec.product} 최종 승인`,
+    `&lt;h1&gt;${escape(spec.product)} 최종 승인&lt;/h1&gt;
+${judged}&lt;ul&gt;
+${sliders}
+&lt;/ul&gt;
+&lt;form method="post"&gt;
+&lt;p&gt;&lt;button type="submit" name="decision" value="approve"&gt;승인&lt;/button&gt;&lt;/p&gt;
+&lt;/form&gt;`,
+  );
+}</pre>
+
+<p>사람 결정 포트의 <code>finalApproval</code>은 이제 <code>judgment</code>를 입력으로 받는다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/1d0e031b90509b4e0138c129d5753a01b0e69eb9/configurator/pipeline/runner.ts#L224"><code>configurator/pipeline/runner.ts:224</code></a>). 실행기는 명세 작성 결과의 <code>judgment</code>를 그대로 넘긴다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/1d0e031b90509b4e0138c129d5753a01b0e69eb9/configurator/pipeline/runner.ts#L568-L570"><code>configurator/pipeline/runner.ts:568-570</code></a>).</p>
+
+</section>
+<section id="quiz">
+<h2>퀴즈</h2>
+<div class="quiz-question">
+<p class="q">AI 판정을 수치 검증·축 반응·교차 검증 뒤에만 부르는 가장 알맞은 이유는?</p>
+<button class="quiz-option">판정이 수치 검증보다 정확하다</button>
+<button class="quiz-option" data-correct>수치로 잡을 일에 VLM을 안 쓴다</button>
+<button class="quiz-option">그림은 수치 검증 뒤에야 나온다</button>
+<div class="quiz-feedback" role="status">VLM 호출은 비싸고, 앞선 검증이 잡을 실패는 숫자로도 잡힌다. 그림은 결과물의 스윕 데이터로 언제든 그릴 수 있어 순서의 이유가 아니고, 어느 쪽이 더 정확한지도 이 순서의 이유가 아니다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">슬라이더 3개인 명세에서 판정에 보내는 그림은 몇 장인가?</p>
+<button class="quiz-option">12장</button>
+<button class="quiz-option">24장</button>
+<button class="quiz-option" data-correct>18장</button>
+<div class="quiz-feedback" role="status">끝값 2n = 6장, 슬라이더 쌍 C(3,2) = 3쌍에 쌍마다 모서리 4조합이라 12장, 합해 18장이다. 12장은 모서리 조합만 센 것이고, 24장은 쌍마다 8조합으로 센 것이다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">같은 후보로 시도가 이렇게 흘렀다: 판정 실패, 판정 실패, 수치 검증 실패, 판정 실패. 어떻게 되는가?</p>
+<button class="quiz-option" data-correct>판정 3번째 실패에 최종 승인</button>
+<button class="quiz-option">수치 실패에서 횟수가 다시 시작된다</button>
+<button class="quiz-option">후보 제시로 돌아가 새 후보를 묻는다</button>
+<div class="quiz-feedback" role="status">판정 실패는 연속이 아니라 누적으로 센다. 판정까지 간 시도에서만 올리고 수치 실패는 영향을 주지 않으며, 3에 닿으면 마지막 명세와 판정 이유를 사람에게 넘긴다. 이 설계는 VLM의 오판 하나로 상품 생성이 막히지 않게 하려는 것이다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">판정 응답의 <code>image</code>를 보낸 그림 이름의 열거(enum)로 제한하는 효과는?</p>
+<button class="quiz-option">VLM이 문제를 더 많이 찾는다</button>
+<button class="quiz-option">피드백 때 그림을 다시 그린다</button>
+<button class="quiz-option" data-correct>없는 그림을 짚으면 다시 묻는다</button>
+<div class="quiz-feedback" role="status">이 이름으로 그림을 찾아 저장하고 피드백을 만든다. 보내지 않은 이름이면 가리킬 그림이 없으므로 다른 AI 단계처럼 스키마로 걸러 다시 묻는다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">같은 방식을 다른 곳에 쓴다면, 비싼 검사 하나를 파이프라인에 더할 때 지킬 것은?</p>
+<button class="quiz-option">가장 먼저 불러 실패를 일찍 잡는다</button>
+<button class="quiz-option" data-correct>싼 검사 뒤에 두고 반복 실패는 사람이</button>
+<button class="quiz-option">실패하면 즉시 후보 제시로 간다</button>
+<div class="quiz-feedback" role="status">이 변경이 두 번 쓴 원칙이다. 비싼 검사는 싼 검사 뒤에 두고, 검사 자체가 틀릴 수 있다면 반복 실패는 사람이 보게 한다. 후보 제시로 돌아가는 길은 검증 실패가 같은 후보로 반복될 때의 길이다.</div>
+</div>
+
+</section>
+</main>
+<footer class="colophon">Generated with explain-diff-html</footer>
+</div>
+<script>
+      document.querySelectorAll(".quiz-question").forEach(function (question) {
+        var feedback = question.querySelector(".quiz-feedback");
+
+        // Shuffle the options on every load, so the correct answer's position is
+        // random and a reader cannot fall into answering by position. Each option
+        // is re-inserted before the feedback block, which has to stay last.
+        var shuffled = Array.prototype.slice.call(
+          question.querySelectorAll(".quiz-option"),
+        );
+        for (var i = shuffled.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var swap = shuffled[i];
+          shuffled[i] = shuffled[j];
+          shuffled[j] = swap;
+        }
+        shuffled.forEach(function (option) {
+          question.insertBefore(option, feedback);
+        });
+
+        var options = question.querySelectorAll(".quiz-option");
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            var isCorrect = option.hasAttribute("data-correct");
+            options.forEach(function (other) {
+              other.disabled = true;
+              if (other.hasAttribute("data-correct"))
+                other.classList.add("correct");
+            });
+            if (!isCorrect) option.classList.add("incorrect");
+            feedback.classList.add("show", isCorrect ? "ok" : "bad");
+            feedback.insertBefore(
+              document.createTextNode(isCorrect ? "Correct. " : "Not quite. "),
+              feedback.firstChild,
+            );
+          });
+        });
+      });
+    </script>
+</body>
+</html>

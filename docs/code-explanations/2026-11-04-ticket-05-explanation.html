@@ -1,0 +1,859 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>티켓 05: 적응형 스윕과 범위 축소</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f6f7f9;
+        --text: #1c2024;
+        --muted: #60646c;
+        --border: #d7dbdf;
+        --border-strong: #848c95;
+        --accent: #2f5ee0;
+        --accent-soft: #e8eefc;
+        --edge: #a35608;
+        --edge-soft: #fbefe1;
+        --ok: #1a7f47;
+        --ok-soft: #e4f3ea;
+        --bad: #c62a3b;
+        --bad-soft: #fbe7e9;
+        --measure: 68ch;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181b;
+          --surface: #1f2226;
+          --text: #eceef0;
+          --muted: #9ba1a6;
+          --border: #33383d;
+          --border-strong: #646c75;
+          --accent: #7aa2ff;
+          --accent-soft: #1e2740;
+          --edge: #e08c3a;
+          --edge-soft: #2e2517;
+          --ok: #57c98b;
+          --ok-soft: #17281d;
+          --bad: #f07178;
+          --bad-soft: #2c1a1c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:visited {
+        color: var(--accent);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 2.5rem;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 6rem;
+      }
+      nav.toc {
+        position: sticky;
+        top: 2.5rem;
+        align-self: start;
+        font-size: 0.9rem;
+      }
+      nav.toc strong {
+        display: block;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc li {
+        margin: 0.35rem 0;
+      }
+      nav.toc a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav.toc a:hover {
+        color: var(--accent);
+      }
+      main {
+        min-width: 0;
+      }
+      main > header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1.25rem;
+        margin-bottom: 2rem;
+      }
+      main > header h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.6rem;
+      }
+      main > header .lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: var(--measure);
+      }
+      main > header .provenance {
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        margin: 0.7rem 0 0;
+      }
+      .colophon {
+        grid-column: 1 / -1;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        border-top: 1px solid var(--border);
+        margin: 4rem 0 0;
+        padding: 1.2rem 0 0;
+      }
+      .colophon a {
+        color: inherit;
+      }
+      section {
+        margin-bottom: 3.5rem;
+      }
+      section h2 {
+        font-size: 1.4rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      section h3 {
+        font-size: 1.05rem;
+        margin: 2rem 0 0.6rem;
+      }
+      section p,
+      section ul,
+      section ol {
+        max-width: var(--measure);
+      }
+      li {
+        margin: 0.3rem 0;
+      }
+      /* Code blocks: white-space set here so a filled-in block cannot collapse. */
+      pre,
+      .code-block {
+        white-space: pre-wrap;
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        font:
+          0.86rem/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        tab-size: 2;
+      }
+      pre .del {
+        color: var(--bad);
+      }
+      pre .add {
+        color: var(--ok);
+      }
+      pre .hi {
+        background: var(--accent-soft);
+        border-radius: 3px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--surface);
+        padding: 0.05rem 0.3rem;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      /* A file:line reference linked to the code it names. Wraps a <code> span
+         in prose, or the bare text of a .filename label. */
+      a.srcref {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px solid var(--muted);
+      }
+      a.srcref:hover {
+        border-bottom-color: var(--accent);
+      }
+      a.srcref:hover code {
+        background: var(--accent-soft);
+      }
+      /* Path label for the code block below it. */
+      .filename {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        margin: 1.5rem 0 0.3rem;
+        overflow-wrap: anywhere;
+      }
+      /* Comparison table: one row per case, .yes / .no / .warn on outcome cells. */
+      table.vals {
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.86rem;
+        width: 100%;
+        max-width: 620px;
+      }
+      table.vals th,
+      table.vals td {
+        border: 1px solid var(--border-strong);
+        padding: 0.4rem 0.65rem;
+        text-align: left;
+      }
+      table.vals th {
+        background: var(--surface);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+      table.vals td.yes {
+        background: var(--ok-soft);
+      }
+      table.vals td.no {
+        background: var(--bad-soft);
+      }
+      table.vals td.warn {
+        background: var(--edge-soft);
+      }
+      /* Callouts: .callout for a concept, .callout.edge for a caveat. */
+      .callout {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+        padding: 0.85rem 1.1rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .callout .label {
+        display: block;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+      }
+      .callout.edge {
+        background: var(--edge-soft);
+        border-left-color: var(--edge);
+      }
+      .callout.edge .label {
+        color: var(--edge);
+      }
+      /* Skippable deep-background block. */
+      details.skippable {
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 0.75rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      details.skippable > summary {
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      details.skippable[open] > summary {
+        margin-bottom: 0.75rem;
+      }
+      /* Diagram family 1: simplified app UI mockup. */
+      .ui-mockup {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1.5rem 0;
+        max-width: 560px;
+        font-size: 0.85rem;
+      }
+      .ui-mockup .bar {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0.5rem 0.85rem;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .ui-mockup .body {
+        padding: 1.1rem 0.85rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+      }
+      .mock-caption {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.3rem 0 0;
+        max-width: var(--measure);
+      }
+      /* Diagram family 2: data flow between components, example data on the arrows. */
+      .dataflow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+      /* Each arrow travels with the node it points at. Without this, a flow
+         wider than the column wraps between an arrow and its node, leaving the
+         arrow pointing at nothing and the node stranded on the next line. */
+      .dataflow .step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .dataflow .node {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 175px;
+      }
+      .dataflow .node.terminal {
+        background: var(--surface);
+        border-color: var(--border);
+      }
+      .dataflow .node.pass {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .dataflow .node.fail {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .dataflow .arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.72rem;
+        min-width: 96px;
+      }
+      .dataflow .arrow .line {
+        width: 100%;
+        border-top: 2px solid var(--border);
+        position: relative;
+      }
+      .dataflow .arrow .line::after {
+        content: "\25B6";
+        position: absolute;
+        right: -2px;
+        top: -0.72em;
+        color: var(--border);
+        font-size: 0.7rem;
+      }
+      .dataflow .arrow .data {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.35rem;
+        margin-bottom: 0.2rem;
+        font-family: ui-monospace, monospace;
+      }
+      .flow-label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin: 1.25rem 0 0.25rem;
+      }
+      /* A numbered sequence with one marked position: call stacks, retry
+         counts, any ranked list. Not one of the numbered families; reach for
+         it when a step in an ordered list is the point. */
+      .frames {
+        list-style: none;
+        padding: 0;
+        margin: 1.25rem 0;
+        max-width: 620px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.82rem;
+      }
+      .frames li {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.45rem 0.7rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+      }
+      .frames li.target {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .frames .n {
+        display: inline-block;
+        min-width: 2.2em;
+        color: var(--muted);
+      }
+      /* Diagram family 3: node/recursion tree (ASTs, nesting, recursion) */
+      .tree {
+        margin: 1.5rem 0;
+        font:
+          0.82rem/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      .tnode {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.3rem 0.55rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+        display: inline-block;
+      }
+      .tnode.leaf {
+        background: var(--bg);
+      }
+      .tnode.kept {
+        border-color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tnode.skipped {
+        border-color: var(--muted);
+        color: var(--muted);
+      }
+      .tchildren {
+        margin-left: 1.4rem;
+        border-left: 2px dotted var(--border);
+        padding-left: 0.9rem;
+      }
+      .tnote {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-left: 0.4rem;
+      }
+
+      /* Optional tabular body for .ui-mockup, when the mocked UI is a table. */
+      .mock-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .mock-table th,
+      .mock-table td {
+        border: 1px solid var(--border);
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+      }
+      .mock-table th {
+        background: var(--surface);
+        font-weight: 600;
+      }
+      .mock-table .col-highlight {
+        background: var(--accent-soft);
+      }
+
+      .mermaid {
+        margin: 1.75rem 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .mermaid .edgeLabel,
+      .mermaid .edgeLabel p,
+      .mermaid .edgeLabel span,
+      .mermaid .edgeLabel foreignObject div {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+      }
+      /* Quiz */
+      .quiz-question {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .quiz-question > p.q {
+        font-weight: 600;
+        margin: 0 0 0.85rem;
+      }
+      .quiz-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 0.5rem;
+        font: inherit;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .quiz-option:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .quiz-option.correct {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .quiz-option.incorrect {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .quiz-option:disabled {
+        cursor: default;
+      }
+      .quiz-feedback {
+        display: none;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 7px;
+        margin-top: 0.3rem;
+      }
+      .quiz-feedback.show {
+        display: block;
+      }
+      .quiz-feedback.ok {
+        background: var(--ok-soft);
+      }
+      .quiz-feedback.bad {
+        background: var(--edge-soft);
+      }
+      a:focus-visible,
+      summary:focus-visible,
+      .quiz-option:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+      table.vals td.yes::before,
+      .dataflow .node.pass::before,
+      .tnode.kept::before,
+      .quiz-option.correct::before {
+        content: "\2713\00a0";
+        font-weight: 700;
+      }
+      table.vals td.no::before,
+      .dataflow .node.fail::before,
+      .quiz-option.incorrect::before {
+        content: "\2717\00a0";
+        font-weight: 700;
+      }
+      table.vals td.warn::before {
+        content: "\25B2\00a0";
+        font-weight: 700;
+      }
+      .tnode.skipped::before {
+        content: "\2013\00a0";
+        font-weight: 700;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 1rem;
+          padding: 1.25rem 1.1rem 4rem;
+        }
+        nav.toc {
+          position: static;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+        }
+        body {
+          font-size: 16px;
+        }
+        main > header h1 {
+          font-size: 1.6rem;
+        }
+        table.vals {
+          display: block;
+          overflow-x: auto;
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+<div class="layout">
+<nav class="toc">
+<strong>목차</strong>
+<ol>
+<li><a href="#background">배경</a></li>
+<li><a href="#intuition">핵심 아이디어</a></li>
+<li><a href="#code">코드 따라가기</a></li>
+<li><a href="#quiz">퀴즈</a></li>
+</ol>
+</nav>
+<main>
+<header>
+<h1>티켓 05: 적응형 스윕과 범위 축소</h1>
+<p class="lead">애드인이 업로드 때 5점 균등 샘플에서 시작해 휘는 구간만 샘플을 늘리고, 17점으로도 못 맞추면 그 파라미터를 후보에서 빼며, Fusion 재계산이 실패하는 곳에서는 스윕 범위를 줄인다.</p>
+<p class="provenance">jun-1993-p/threejs-configurator-ai 티켓 05, 기준 커밋 83573d2 (포함한 커밋: 83573d2), 2026-11-04 작성. References link to this commit.</p>
+</header>
+<section id="background">
+<h2>배경</h2>
+<details class="skippable">
+<summary>처음 보는 사람을 위한 배경</summary>
+<p>이 프로젝트는 Fusion에서 만든 CAD 모델을 쇼핑몰용 three.js 구성기로 옮긴다. 브라우저는 Fusion을 돌릴 수 없으므로, 슬라이더를 움직였을 때의 모양은 미리 계산해 둔 표본으로 흉내 낸다. 파라미터(예: 선반 폭 <code>shelf_w</code>)를 여러 값으로 바꿔 보며 모델의 면 점들을 기록해 두는 일을 <strong>스윕</strong>이라 하고, 기록한 값 하나를 <strong>샘플</strong>이라 한다. 슬라이더가 두 샘플 사이에 놓이면 변형 엔진이 두 샘플의 점을 직선으로 섞는다(ADR-0002, ADR-0004).</p>
+<p>직선으로 섞는 방식은 파라미터에 비례해 움직이는 부분에는 정확하다. 하지만 경사진 등판처럼 점이 원호를 그리며 움직이면 두 샘플의 한가운데 점은 직선 위가 아니라 원호 위에 있으므로 오차가 생긴다.</p>
+</details>
+<p>업로드는 Fusion 애드인이 모델의 사용자 파라미터를 하나씩 바꿔 가며 형상을 읽어 업로드 묶음을 만드는 단계다. 샘플을 몇 점, 어디에 둘지는 AI가 아니라 애드인이 정한다(ADR-0007). 이 티켓 이전에는 기본값의 50%, 75%, 100%, 125%, 150%에 5점을 고정으로 뽑고, 이웃 샘플 사이 가운데 값에서 <strong>검증점</strong>(그 값에서 Fusion이 계산한 실제 형상)을 하나씩 더 뽑았다.</p>
+<div class="callout">
+<span class="label">용어</span>
+<p><strong>합격선</strong>(ADR-0012)은 보간 결과가 실제 형상과 얼마나 달라도 되는지의 한도다. 치수 오차(부품별 가로·세로·높이 차이)는 0.2 mm, 형상 오차(같은 꼭짓점끼리의 거리)는 1 mm와 상품 전체 바운딩 박스 대각선의 0.1% 중 큰 값이다. <strong>위상 묶음</strong>(ADR-0005)은 개수형 파라미터 때문에 면 구성이 달라지는 구간을 나눈 묶음이고, <strong>처리 기록</strong>은 파이프라인이 단계마다 남기는 로그다. <strong>슬라이더 후보</strong>는 AI가 제안하고 사람이 고르는 슬라이더 구성안이다.</p>
+</div>
+<p>티켓 파일은 이 변경이 할 일을 다섯 가지로 적었다. 선형 파라미터는 5점에서 멈출 것, 비선형 구간만 늘릴 것, 17점으로도 못 맞춘 파라미터는 실패로 보고해 후보에서 뺄 것, 재계산 실패 지점 안쪽으로 범위를 줄일 것, 위상 묶음 안에서 부피가 튀면 <code>volume_jump</code> 경고를 남길 것이다.</p>
+<div class="callout edge">
+<span class="label">주의</span>
+<p>합격선 비교는 "검증점의 실제 형상"과 "이웃 샘플 둘을 직선으로 섞은 형상"을 견주는 일이다. 그래서 애드인(Python)이 계산하는 섞기 규칙이 브라우저의 변형 엔진(TypeScript)과 같아야 한다. 규칙이 다르면 애드인이 통과시킨 구간이 브라우저에서는 틀린다.</p>
+</div>
+</section>
+<section id="intuition">
+<h2>핵심 아이디어</h2>
+<p>핵심 아이디어는 "의심스러운 구간만 반으로 쪼갠다"이다. 5점으로 시작해, 이웃한 샘플 두 개의 직선 보간이 그 사이 검증점을 합격선 안으로 맞히면 그 구간은 끝이다. 못 맞히면 그 검증점을 새 샘플로 삼아 구간을 둘로 나눈다. 나뉜 두 구간에는 다시 검증점이 생기고, 같은 검사를 반복한다. 샘플은 17점까지만 늘린다(5점에서 모든 구간을 두 번 반으로 나눈 수).</p>
+<h3>작은 예: 등판 각도 A가 50도를 넘어야 기울어지는 모델</h3>
+<p>시험 모델(<code>_Tilt</code>)에서 각도 A의 기본값은 40도다. 처음 샘플은 20, 30, 40, 50, 60도다. 50~60도 구간만 점이 원호를 그린다. 10도 폭 구간의 형상 오차는 1.5 mm로 합격선을 넘고, 5도 폭 구간은 상판 높이의 치수 오차 0.30 mm로 넘으며, 2.5도 폭 구간은 0.08 mm로 통과한다. 그래서 샘플은 50과 60 사이에서만 늘어난다.</p>
+<div class="tree">
+<div class="tnode">A: 20, 30, 40, 50, 60 (처음 5점)</div>
+<div class="tchildren">
+<div class="tnode leaf kept">20~50도, 구간 셋 <span class="tnote">검증점이 합격선 안, 그대로 둔다</span></div><br />
+<div class="tnode">50~60도 <span class="tnote">검증점 55도에서 형상 오차 1.5 mm, 합격선 초과, 55도를 샘플로</span></div>
+<div class="tchildren">
+<div class="tnode">50~55도 <span class="tnote">검증점 52.5도에서 치수 오차 0.30 mm, 초과, 52.5도를 샘플로</span></div>
+<div class="tchildren">
+<div class="tnode leaf kept">50~52.5도 <span class="tnote">검증점 51.25도, 통과</span></div><br />
+<div class="tnode leaf kept">52.5~55도 <span class="tnote">검증점 53.75도, 통과</span></div>
+</div>
+<div class="tnode">55~60도 <span class="tnote">검증점 57.5도를 샘플로, 같은 방식으로 나뉨</span></div>
+</div>
+</div>
+</div>
+<p>결과 샘플은 20, 30, 40, 50, 52.5, 55, 57.5, 60도의 8점이다. 폭 W는 선형이라 5점에서 멈춘다. 같은 방식으로 SolidCraft에서 만든 의자 모델 <code>bench-tilt</code>는 폭 5점, 등판 각도(15~45도) 11점이 되었고, 늘어난 샘플은 원호가 크게 휘는 15~22.5도 쪽에만 모였다.</p>
+<h3>두 번째 이야기: 재계산이 실패하는 곳</h3>
+<p>파라미터를 너무 크게 바꾸면 Fusion이 모델을 재계산하지 못할 수 있다. 그런 지점은 샘플로 쓸 수 없으니, 기본값에서 그쪽으로 가며 처음 실패한 점부터 바깥을 버린다. 남는 가장 안쪽 점이 새 범위 끝이다. 시험에서 W가 1200에서 실패하면 범위는 400~1100이 되고, 안쪽 검증점 1100이 샘플로 올라가며, 그 이유는 <code>reason: "recompute_failed"</code>로 업로드 묶음에 남는다.</p>
+<div class="dataflow">
+<div class="node terminal">파라미터 하나</div>
+<div class="step"><div class="arrow"><span class="data">기본값 ±50%</span><span class="line"></span></div><div class="node">샘플 5점</div></div>
+<div class="step"><div class="arrow"><span class="data">구간마다 검증</span><span class="line"></span></div><div class="node">구간마다 검증점</div></div>
+<div class="step"><div class="arrow"><span class="data">구간 가운데 값</span><span class="line"></span></div><div class="node">실제 형상 vs 직선 보간</div></div>
+<div class="step"><div class="arrow"><span class="data">ok: 전부 합격선 안이면 종</span><span class="line"></span></div><div class="node pass">전부 합격선 안이면 종료</div></div>
+</div>
+<p>17점으로도 합격선을 못 맞추면 업로드 묶음에 <code>interpolation_failure</code>(어디에서, 어떤 오차가, 어느 부품에서, 얼마나)가 담기고, 파이프라인은 그 파라미터를 슬라이더 후보에서 뺀다. 예를 들어 등판이 47.3도에서 0도에서 30도로 튀는 모델은 아무리 나눠도 맞지 않는다. 시험은 이때 샘플이 17개이고 합격선과의 비율이 가장 큰 것이 상판 높이의 치수 오차(0에서 200 mm)임을 확인한다.</p>
+</section>
+<section id="code">
+<h2>코드 따라가기</h2>
+<p>흐름: 애드인의 스윕 시작(<code>_single_sweep</code>, <code>_sweep</code>) → 적응형 샘플 뽑기(<code>_adaptive_points</code>, <code>_refine</code>) → 보간 오차 계산 → 업로드 묶음 JSON → 파이프라인의 업로드 단계 알림 → 후보·명세 검사에서 파라미터 제외.</p>
+<h3>1. 합격선과 보간 오차</h3>
+<p>상한 17점과 치수 합격선 0.2 mm는 상수로 둔다. 형상 합격선은 점들의 바운딩 박스 대각선에서 계산한다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/83573d27c2d923945b09a5fd6426e2ff3c5632b5/addin/ConfiguratorUploader/uploader/core.py#L285"><code>addin/ConfiguratorUploader/uploader/core.py:285</code></a>의 <code>SAMPLE_LIMIT</code>, <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/83573d27c2d923945b09a5fd6426e2ff3c5632b5/addin/ConfiguratorUploader/uploader/core.py#L289"><code>core.py:289</code></a>의 <code>DIMENSION_TOLERANCE</code>). 핵심은 <code>_interpolation_error</code>다. 변형 엔진의 <code>addDelta</code>와 같은 규칙으로 면을 (바디, 면 이름)으로 짝짓고 점마다 <code>lo + (hi - lo) * t</code>를 계산한다. 부품마다 형상 오차와 치수 오차를 합격선으로 나눈 비율을 구해 가장 큰 것을 돌려준다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/83573d27c2d923945b09a5fd6426e2ff3c5632b5/addin/ConfiguratorUploader/uploader/core.py#L315-L337">addin/ConfiguratorUploader/uploader/core.py:315-337</a></p>
+<pre>def _interpolation_error(
+    lo: dict[str, Any], hi: dict[str, Any], check: dict[str, Any], part_of: dict[str, str]
+) -&gt; _Miss | None:
+    """검증점에서 이웃 두 샘플의 선형 보간이 빗나간 양. 변형 엔진의 단독 스윕 보간과 같은 규칙이다:
+    면은 (바디, 면 이름)으로 짝짓고, 점마다 lo + (hi - lo) * t로 섞는다(configurator/src/engine.ts의 addDelta).
+
+    부품마다 형상 오차와 W·D·H 치수 오차를 재서 오차 / 합격선이 가장 큰 것을 돌려준다. 점이 짝지어지지 않으면 None.
+    """
+    t = (check["value"] - lo["value"]) / (hi["value"] - lo["value"])
+    faces_lo = {(f["body"], f["name"]): f["points"] for f in lo["faces"]}
+    faces_hi = {(f["body"], f["name"]): f["points"] for f in hi["faces"]}
+    predicted: dict[str, list[Point]] = {}
+    actual: dict[str, list[Point]] = {}
+    distance: dict[str, float] = {}
+    for face in check["faces"]:
+        key = (face["body"], face["name"])
+        a, b = faces_lo.get(key), faces_hi.get(key)
+        if a is None or b is None or not len(a) == len(b) == len(face["points"]):
+            return None
+        part = part_of.get(face["body"], face["body"])
+        for pa, pb, pc in zip(a, b, face["points"]):
+            p = (pa[0] + (pb[0] - pa[0]) * t, pa[1] + (pb[1] - pa[1]) * t, pa[2] + (pb[2] - pa[2]) * t)
+            predicted.setdefault(part, []).append(p)</pre>
+<p>비율이 1을 넘으면 그 구간은 합격선을 못 맞춘 것이다. 면 구성이 달라 짝이 안 맞는 구간은 <code>None</code>을 돌려주고 보간하지 않는다. 그 구간은 위상 묶음의 몫이다.</p>
+<h3>2. 반으로 쪼개는 반복</h3>
+<p><code>_adaptive_points</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/83573d27c2d923945b09a5fd6426e2ff3c5632b5/addin/ConfiguratorUploader/uploader/core.py#L368"><code>core.py:368</code></a>)가 5점 샘플을 만들고 <code>_refine</code>에 넘긴다. <code>_refine</code>의 반복은 검증점이 없는 구간에 검증점을 뽑고, 재계산 실패를 정리하고(범위 축소일 때), 합격선을 넘은 구간을 모은 뒤, 상한 안에서 비율이 큰 구간부터 나눈다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/83573d27c2d923945b09a5fd6426e2ff3c5632b5/addin/ConfiguratorUploader/uploader/core.py#L403-L432">addin/ConfiguratorUploader/uploader/core.py:403-432</a></p>
+<pre>    while True:
+        values = sorted(samples)
+        for a, b in zip(values, values[1:]):
+            # 범위를 줄일 때는 모든 구간을 본다(재계산 실패와 위상 변화를 찾는다). 아니면 보간할 구간만 본다.
+            if (a + b) / 2 not in checks and (reductions is not None or mixable(a, b)):
+                checks[(a + b) / 2] = _sample(model, parameter, (a + b) / 2, counts)
+        if reductions is not None:
+            trimmed = _trim_failures(parameter.value, samples, checks)
+            if trimmed:
+                reductions.update(trimmed)
+                continue
+        values = sorted(samples)
+        failing = []
+        for a, b in zip(values, values[1:]):
+            check = checks.get((a + b) / 2)
+            if check is None or not mixable(a, b) or Composition.of(check) != Composition.of(samples[a]):
+                continue
+            lo, hi = samples[a], samples[b]
+            # 면 구성이 같은데 점 수가 다르면 None이다. 그런 묶음은 서버의 업로드 묶음 검사가 거절한다(server/bundle.py).
+            miss = _interpolation_error(lo, hi, check, part_of)
+            if miss is not None and miss.ratio &gt; 1:
+                failing.append((miss, check))
+        if not failing:
+            return None
+        if len(samples) &gt;= limit:
+            miss, check = max(failing, key=lambda f: f[0].ratio)
+            return miss.failure_json(check["value"])
+        # 오차가 큰 구간부터 상한까지 나눈다
+        for _, check in sorted(failing, key=lambda f: -f[0].ratio)[: limit - len(samples)]:
+            samples[check["value"]] = checks.pop(check["value"])</pre>
+<p>끝 조건이 둘이다. 넘은 구간이 없으면 <code>None</code>(성공), 샘플이 이미 <code>limit</code>개인데도 넘은 구간이 있으면 비율이 가장 큰 검증점을 <code>interpolation_failure</code> 형식으로 돌려준다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/83573d27c2d923945b09a5fd6426e2ff3c5632b5/addin/ConfiguratorUploader/uploader/core.py#L427-L429"><code>addin/ConfiguratorUploader/uploader/core.py:427-429</code></a>). 상한 근처에서는 <code>limit - len(samples)</code>개만 나눈다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/83573d27c2d923945b09a5fd6426e2ff3c5632b5/addin/ConfiguratorUploader/uploader/core.py#L431"><code>addin/ConfiguratorUploader/uploader/core.py:431</code></a>).</p>
+<h3>3. 재계산 실패에서 범위 줄이기</h3>
+<p><code>_trim_failures</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/83573d27c2d923945b09a5fd6426e2ff3c5632b5/addin/ConfiguratorUploader/uploader/core.py#L439"><code>core.py:439</code></a>)는 기본값에서 쪽마다 처음 실패한 점부터 바깥을 지우고 그 안쪽 가장 먼 점이 검증점이면 샘플로 올린다. 줄인 쪽마다 <code>recompute_failed</code> 기록을 하나 돌려준다. 줄이고 나면 바깥 구간이 새로 생기므로 <code>_refine</code>은 <code>continue</code>로 처음부터 다시 돈다. 이것이 "범위를 줄여 새로 뽑은 검증점에서도 실패하면 더 안쪽으로 줄인다"는 시험(<code>1200</code>과 <code>1050</code>이 실패하면 최대 1000)의 근거다.</p>
+<h3>4. 스윕 두 종류에 연결하고 JSON으로</h3>
+<p>단독 스윕(<code>_single_sweep</code>, <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/83573d27c2d923945b09a5fd6426e2ff3c5632b5/addin/ConfiguratorUploader/uploader/core.py#L504"><code>core.py:504</code></a>)은 적응형 샘플을 뽑은 뒤 위상 변화로 줄일 쪽을 정하고, 위상 변화가 재계산 실패 기록을 덮는다. 이유는 코드 주석이 적었다: 면 구성이 바뀐 지점이 재계산 실패 지점보다 안쪽이기 때문이다. 위상 묶음을 나누는 <code>_sweep</code>은 경계 양쪽의 샘플을 더한 뒤 그 샘플과 이웃 샘플 사이 구간도 <code>_refine</code>으로 다듬는다. 경계 샘플은 상한 계산에서 빠진다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/83573d27c2d923945b09a5fd6426e2ff3c5632b5/addin/ConfiguratorUploader/uploader/core.py#L640-L641"><code>addin/ConfiguratorUploader/uploader/core.py:640-641</code></a>의 <code>SAMPLE_LIMIT + len(edges)</code>).</p>
+<h3>5. 파이프라인: 알리고 후보에서 빼기</h3>
+<p>업로드 단계에서 <code>runner.ts</code>가 기존 범위 알림에 새 알림을 합쳐 처리 기록에 남긴다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/83573d27c2d923945b09a5fd6426e2ff3c5632b5/configurator/pipeline/runner.ts#L633"><code>configurator/pipeline/runner.ts:633</code></a>).</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/83573d27c2d923945b09a5fd6426e2ff3c5632b5/configurator/pipeline/verify-sweep.ts#L73-L75">configurator/pipeline/verify-sweep.ts:73-75</a></p>
+<pre>export function uploadSweepFeedback(bundle: UploadBundle): Feedback[] {
+  return scopes(bundle).flatMap((scope) =&gt; [...interpolationFeedback(scope), ...volumeFeedback(scope)]);
+}</pre>
+<p>새 파일 <code>verify-sweep.ts</code>의 <code>interpolationFeedback</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/83573d27c2d923945b09a5fd6426e2ff3c5632b5/configurator/pipeline/verify-sweep.ts#L15"><code>verify-sweep.ts:15</code></a>)이 보간 실패를, <code>volumeFeedback</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/83573d27c2d923945b09a5fd6426e2ff3c5632b5/configurator/pipeline/verify-sweep.ts#L38"><code>verify-sweep.ts:38</code></a>)이 부피 튐을 만든다. 부피 튐은 같은 위상 묶음 안의 이웃 세 샘플에서 가운데 바디의 부피가 양옆을 직선으로 이은 값에서 20%(<code>VOLUME_JUMP</code>, <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/83573d27c2d923945b09a5fd6426e2ff3c5632b5/configurator/pipeline/verify-sweep.ts#L11"><code>configurator/pipeline/verify-sweep.ts:11</code></a>) 넘게 벗어나면 낸다. 20%로 잡은 이유는 코드 주석이 적었다: 판 크기가 두 치수에 따라 바뀌면 부피가 파라미터의 제곱이라 5점 스윕의 가운데 샘플도 11%쯤 벗어난다. 실패가 아니라 경고다.</p>
+<p>두 알림이 같이 쓰는 도우미(기본 묶음의 단독 스윕과 위상 묶음 안의 단독 스윕을 하나씩 도는 <code>scopes</code>)는 <code>verify-range.ts</code>에서 새 파일 <code>sweep-scopes.ts</code>로 옮겼다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/83573d27c2d923945b09a5fd6426e2ff3c5632b5/configurator/pipeline/sweep-scopes.ts#L21"><code>sweep-scopes.ts:21</code></a>). <code>verify-range.ts</code>는 <code>recompute_failed</code>의 문장만 추가한다.</p>
+<p>후보에서 빼는 규칙은 <code>unmixableSweeps</code>에 모았다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/83573d27c2d923945b09a5fd6426e2ff3c5632b5/configurator/pipeline/parameter-relations.ts#L31-L43">configurator/pipeline/parameter-relations.ts:31-43</a></p>
+<pre>export function unmixableSweeps(bundle: BundleParameters): Map&lt;string, string&gt; {
+  const all = bundle.sweeps.flatMap((s) =&gt; [s, ...(s.groups ?? []).flatMap((g) =&gt; g.sweeps)]);
+  const out = new Map&lt;string, string&gt;();
+  for (const s of all) {
+    if (out.has(s.parameter)) continue;
+    if (s.interpolation_failure !== undefined) {
+      out.set(s.parameter, `${s.parameter}는 적응형 스윕을 ${SAMPLE_LIMIT}점까지 늘려도 보간 오차가 합격선을 넘어(보간 실패) 슬라이더 후보가 될 수 없습니다`);
+    } else if (s.samples.filter((x) =&gt; x.status === "ok").length &lt; 2) {
+      out.set(s.parameter, `${s.parameter}는 재계산에 성공한 스윕 샘플이 2개보다 적어 보간할 수 없으므로 슬라이더 후보가 될 수 없습니다`);
+    }
+  }
+  return out;
+}</pre>
+<p>보간 실패한 파라미터뿐 아니라 재계산 실패로 범위가 줄어 성공한 샘플이 2개보다 적은 파라미터도 섞을 수 없다. 이 목록은 <code>sliderable</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/83573d27c2d923945b09a5fd6426e2ff3c5632b5/configurator/pipeline/parameter-relations.ts#L56"><code>parameter-relations.ts:56</code></a>)과 후보 검사(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/83573d27c2d923945b09a5fd6426e2ff3c5632b5/configurator/pipeline/schemas.ts#L399"><code>configurator/pipeline/schemas.ts:399</code></a>), 명세 검사(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/83573d27c2d923945b09a5fd6426e2ff3c5632b5/configurator/pipeline/schemas.ts#L223"><code>configurator/pipeline/schemas.ts:223</code></a>)가 같이 쓰므로 같은 문장이 AI에게 돌아간다.</p>
+<h3>6. 스키마와 합성 녹화본</h3>
+<p>업로드 묶음 스키마에 <code>interpolation_failure</code>가 생기고 <code>reductions[].reason</code>에 <code>recompute_failed</code>가 더해졌다. SolidCraft 어댑터가 각도 파라미터를 바꿀 수 있게 되어, 합성 녹화본 <code>fixtures/synthetic/bench-tilt.json</code>이 추가되었다. 티켓에 적힌 "실제 상품 녹화본"은 이 합성 녹화본으로 대신하고 Fusion 실물 확인은 티켓 26으로 넘겼다.</p>
+<div class="callout edge">
+<span class="label">티켓이 남긴 한계</span>
+<p>티켓의 구현 기록에 따르면 17점 상한은 파라미터 하나의 스윕 전체(양쪽 끝과 모든 위상 묶음)가 나눠 쓴다. ADR-0007이 "파라미터마다" 상한을 두었기 때문이다. 그래서 기본 묶음 밖의 위상 묶음에서 보간이 실패해도 파라미터 전체가 후보에서 빠진다. <code>volume_jump</code>는 바디 부피가 있는 합성 녹화본에서만 나오고, Fusion 어댑터에는 아직 바디 측정이 없다.</p>
+</div>
+</section>
+<section id="quiz">
+<h2>퀴즈</h2>
+<div class="quiz-question">
+<p class="q">5점 균등으로 끝내지 않고 합격선을 넘은 구간만 반으로 나누는 까닭은?</p>
+<button class="quiz-option">고정 샘플이 틀리는 구간은 샘플 수와 상관없이 AI가 명세에서 고친다</button>
+<button class="quiz-option">샘플이 많을수록 파일이 작아져 모든 구간을 17점으로 채우는 편이 낫다</button>
+<button class="quiz-option" data-correct>휘는 구간에만 샘플을 모아 17점 안에서 정확도를 올린다</button>
+<div class="quiz-feedback" role="status">샘플 위치는 AI가 정하지 않는다(ADR-0007). 선형 구간은 5점이면 충분하고, 늘리는 비용(Fusion 재계산)을 오차가 큰 구간에만 쓴다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">등판 각도 A의 검증점 오차가 처음 샘플 사이에서 모두 합격선 안이었다. 어떤 일이 일어나는가?</p>
+<button class="quiz-option" data-correct>샘플은 5점에서 멈추고 보간 실패도 기록되지 않는다</button>
+<button class="quiz-option">검증점이 있는 구간마다 검증점을 샘플로 삼아 9점이 된다</button>
+<button class="quiz-option">오차가 0에 가까울 때까지 17점을 채운 뒤 멈춘다</button>
+<div class="quiz-feedback" role="status"><code>_refine</code>은 넘은 구간이 없으면 <code>None</code>을 돌려주고 끝난다. 선형 파라미터 W가 5점에서 멈춘 시험이 이 경우다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">재계산이 1200에서 실패했다. 그 안쪽 검증점 1100은 어떻게 쓰이는가?</p>
+<button class="quiz-option">1100은 버리고 가장 가까운 기존 샘플 1000을 범위 끝으로 삼는다</button>
+<button class="quiz-option" data-correct>1100이 새 샘플로 올라가 범위 끝이 되고 사유를 남긴다</button>
+<button class="quiz-option">1100도 같은 파라미터의 실패 후보가 되어 스윕 전체가 실패한다</button>
+<div class="quiz-feedback" role="status"><code>_trim_failures</code>는 실패 지점 안쪽의 가장 먼 점이 검증점이면 샘플로 올린다. 그래서 시험의 범위는 400~1100이 된다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">위상 묶음 안에서 면 구성이 바뀌는 경계의 두 샘플이 상한 17점 계산에서 빠지는 까닭으로 가장 알맞은 것은?</p>
+<button class="quiz-option">경계 샘플은 같은 값의 샘플이 하나뿐이라 따로 셀 필요가 없다</button>
+<button class="quiz-option">경계 샘플은 Fusion 재계산을 거치지 않아 비용이 들지 않는다</button>
+<button class="quiz-option">경계 샘플은 보간 오차가 항상 0이라 나눌 일이 없다</button>
+<button class="quiz-option" data-correct>경계는 위상 묶음이 요구하는 점이라 17점 몫과 별개다</button>
+<div class="quiz-feedback" role="status">코드 주석은 "경계 샘플은 상한에 넣지 않는다"고만 적었다. 경계는 위상 묶음이 요구하는 샘플이라 보간 정확도를 올리려는 17점과는 목적이 다르다고 읽을 수 있다(해석). 실제로 <code>SAMPLE_LIMIT + len(edges)</code>를 상한으로 넘긴다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">두 번째 단독 스윕이 보간 실패인데 같은 파라미터가 다른 위상 묶음에서는 통과했다. 파이프라인은 어떻게 하는가?</p>
+<button class="quiz-option">통과한 위상 묶음의 범위만 남기고 실패한 쪽 범위를 줄인다</button>
+<button class="quiz-option">실패한 위상 묶음의 샘플만 버리고 나머지로 후보를 만든다</button>
+<button class="quiz-option" data-correct>파라미터 전체를 섞을 수 없는 것으로 보고 후보에서 뺀다</button>
+<div class="quiz-feedback" role="status"><code>unmixableSweeps</code>는 위상 묶음 안의 단독 스윕까지 훑어 한 곳이라도 실패하면 그 파라미터를 뺀다. 티켓이 "실패한 쪽만 범위를 줄이는 방법은 명세에 없어 하지 않았다"고 적은 한계다.</div>
+</div>
+</section>
+</main>
+<footer class="colophon">
+        Generated with
+        <a href="https://github.com/malav2110/explain-diff-html"
+          >explain-diff-html</a
+        >
+      </footer>
+</div>
+<script>
+      document.querySelectorAll(".quiz-question").forEach(function (question) {
+        var feedback = question.querySelector(".quiz-feedback");
+
+        // Shuffle the options on every load, so the correct answer's position is
+        // random and a reader cannot fall into answering by position. Each option
+        // is re-inserted before the feedback block, which has to stay last.
+        var shuffled = Array.prototype.slice.call(
+          question.querySelectorAll(".quiz-option"),
+        );
+        for (var i = shuffled.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var swap = shuffled[i];
+          shuffled[i] = shuffled[j];
+          shuffled[j] = swap;
+        }
+        shuffled.forEach(function (option) {
+          question.insertBefore(option, feedback);
+        });
+
+        var options = question.querySelectorAll(".quiz-option");
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            var isCorrect = option.hasAttribute("data-correct");
+            options.forEach(function (other) {
+              other.disabled = true;
+              if (other.hasAttribute("data-correct"))
+                other.classList.add("correct");
+            });
+            if (!isCorrect) option.classList.add("incorrect");
+            feedback.classList.add("show", isCorrect ? "ok" : "bad");
+            feedback.insertBefore(
+              document.createTextNode(isCorrect ? "Correct. " : "Not quite. "),
+              feedback.firstChild,
+            );
+          });
+        });
+      });
+    </script>
+</body>
+</html>

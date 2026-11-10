@@ -1,0 +1,1004 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>티켓 03: 파이프라인 실행기 관통</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f6f7f9;
+        --text: #1c2024;
+        --muted: #60646c;
+        --border: #d7dbdf;
+        --border-strong: #848c95;
+        --accent: #2f5ee0;
+        --accent-soft: #e8eefc;
+        --edge: #a35608;
+        --edge-soft: #fbefe1;
+        --ok: #1a7f47;
+        --ok-soft: #e4f3ea;
+        --bad: #c62a3b;
+        --bad-soft: #fbe7e9;
+        --measure: 68ch;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181b;
+          --surface: #1f2226;
+          --text: #eceef0;
+          --muted: #9ba1a6;
+          --border: #33383d;
+          --border-strong: #646c75;
+          --accent: #7aa2ff;
+          --accent-soft: #1e2740;
+          --edge: #e08c3a;
+          --edge-soft: #2e2517;
+          --ok: #57c98b;
+          --ok-soft: #17281d;
+          --bad: #f07178;
+          --bad-soft: #2c1a1c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:visited {
+        color: var(--accent);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 2.5rem;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 6rem;
+      }
+      nav.toc {
+        position: sticky;
+        top: 2.5rem;
+        align-self: start;
+        font-size: 0.9rem;
+      }
+      nav.toc strong {
+        display: block;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc li {
+        margin: 0.35rem 0;
+      }
+      nav.toc a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav.toc a:hover {
+        color: var(--accent);
+      }
+      main {
+        min-width: 0;
+      }
+      main > header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1.25rem;
+        margin-bottom: 2rem;
+      }
+      main > header h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.6rem;
+      }
+      main > header .lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: var(--measure);
+      }
+      main > header .provenance {
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        margin: 0.7rem 0 0;
+      }
+      .colophon {
+        grid-column: 1 / -1;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        border-top: 1px solid var(--border);
+        margin: 4rem 0 0;
+        padding: 1.2rem 0 0;
+      }
+      .colophon a {
+        color: inherit;
+      }
+      section {
+        margin-bottom: 3.5rem;
+      }
+      section h2 {
+        font-size: 1.4rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      section h3 {
+        font-size: 1.05rem;
+        margin: 2rem 0 0.6rem;
+      }
+      section p,
+      section ul,
+      section ol {
+        max-width: var(--measure);
+      }
+      li {
+        margin: 0.3rem 0;
+      }
+      /* Code blocks: white-space set here so a filled-in block cannot collapse. */
+      pre,
+      .code-block {
+        white-space: pre-wrap;
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        font:
+          0.86rem/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        tab-size: 2;
+      }
+      pre .del {
+        color: var(--bad);
+      }
+      pre .add {
+        color: var(--ok);
+      }
+      pre .hi {
+        background: var(--accent-soft);
+        border-radius: 3px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--surface);
+        padding: 0.05rem 0.3rem;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      /* A file:line reference linked to the code it names. Wraps a <code> span
+         in prose, or the bare text of a .filename label. */
+      a.srcref {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px solid var(--muted);
+      }
+      a.srcref:hover {
+        border-bottom-color: var(--accent);
+      }
+      a.srcref:hover code {
+        background: var(--accent-soft);
+      }
+      /* Path label for the code block below it. */
+      .filename {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        margin: 1.5rem 0 0.3rem;
+        overflow-wrap: anywhere;
+      }
+      /* Comparison table: one row per case, .yes / .no / .warn on outcome cells. */
+      table.vals {
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.86rem;
+        width: 100%;
+        max-width: 620px;
+      }
+      table.vals th,
+      table.vals td {
+        border: 1px solid var(--border-strong);
+        padding: 0.4rem 0.65rem;
+        text-align: left;
+      }
+      table.vals th {
+        background: var(--surface);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+      table.vals td.yes {
+        background: var(--ok-soft);
+      }
+      table.vals td.no {
+        background: var(--bad-soft);
+      }
+      table.vals td.warn {
+        background: var(--edge-soft);
+      }
+      /* Callouts: .callout for a concept, .callout.edge for a caveat. */
+      .callout {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+        padding: 0.85rem 1.1rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .callout .label {
+        display: block;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+      }
+      .callout.edge {
+        background: var(--edge-soft);
+        border-left-color: var(--edge);
+      }
+      .callout.edge .label {
+        color: var(--edge);
+      }
+      /* Skippable deep-background block. */
+      details.skippable {
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 0.75rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      details.skippable > summary {
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      details.skippable[open] > summary {
+        margin-bottom: 0.75rem;
+      }
+      /* Diagram family 1: simplified app UI mockup. */
+      .ui-mockup {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1.5rem 0;
+        max-width: 560px;
+        font-size: 0.85rem;
+      }
+      .ui-mockup .bar {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0.5rem 0.85rem;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .ui-mockup .body {
+        padding: 1.1rem 0.85rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+      }
+      .mock-caption {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.3rem 0 0;
+        max-width: var(--measure);
+      }
+      /* Diagram family 2: data flow between components, example data on the arrows. */
+      .dataflow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+      /* Each arrow travels with the node it points at. Without this, a flow
+         wider than the column wraps between an arrow and its node, leaving the
+         arrow pointing at nothing and the node stranded on the next line. */
+      .dataflow .step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .dataflow .node {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 175px;
+      }
+      .dataflow .node.terminal {
+        background: var(--surface);
+        border-color: var(--border);
+      }
+      .dataflow .node.pass {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .dataflow .node.fail {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .dataflow .arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.72rem;
+        min-width: 96px;
+      }
+      .dataflow .arrow .line {
+        width: 100%;
+        border-top: 2px solid var(--border);
+        position: relative;
+      }
+      .dataflow .arrow .line::after {
+        content: "\25B6";
+        position: absolute;
+        right: -2px;
+        top: -0.72em;
+        color: var(--border);
+        font-size: 0.7rem;
+      }
+      .dataflow .arrow .data {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.35rem;
+        margin-bottom: 0.2rem;
+        font-family: ui-monospace, monospace;
+      }
+      .flow-label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin: 1.25rem 0 0.25rem;
+      }
+      /* A numbered sequence with one marked position: call stacks, retry
+         counts, any ranked list. Not one of the numbered families; reach for
+         it when a step in an ordered list is the point. */
+      .frames {
+        list-style: none;
+        padding: 0;
+        margin: 1.25rem 0;
+        max-width: 620px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.82rem;
+      }
+      .frames li {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.45rem 0.7rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+      }
+      .frames li.target {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .frames .n {
+        display: inline-block;
+        min-width: 2.2em;
+        color: var(--muted);
+      }
+      /* Diagram family 3: node/recursion tree (ASTs, nesting, recursion) */
+      .tree {
+        margin: 1.5rem 0;
+        font:
+          0.82rem/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      .tnode {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.3rem 0.55rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+        display: inline-block;
+      }
+      .tnode.leaf {
+        background: var(--bg);
+      }
+      .tnode.kept {
+        border-color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tnode.skipped {
+        border-color: var(--muted);
+        color: var(--muted);
+      }
+      .tchildren {
+        margin-left: 1.4rem;
+        border-left: 2px dotted var(--border);
+        padding-left: 0.9rem;
+      }
+      .tnote {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-left: 0.4rem;
+      }
+
+      /* Optional tabular body for .ui-mockup, when the mocked UI is a table. */
+      .mock-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .mock-table th,
+      .mock-table td {
+        border: 1px solid var(--border);
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+      }
+      .mock-table th {
+        background: var(--surface);
+        font-weight: 600;
+      }
+      .mock-table .col-highlight {
+        background: var(--accent-soft);
+      }
+
+      .mermaid {
+        margin: 1.75rem 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .mermaid .edgeLabel,
+      .mermaid .edgeLabel p,
+      .mermaid .edgeLabel span,
+      .mermaid .edgeLabel foreignObject div {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+      }
+      /* Quiz */
+      .quiz-question {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .quiz-question > p.q {
+        font-weight: 600;
+        margin: 0 0 0.85rem;
+      }
+      .quiz-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 0.5rem;
+        font: inherit;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .quiz-option:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .quiz-option.correct {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .quiz-option.incorrect {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .quiz-option:disabled {
+        cursor: default;
+      }
+      .quiz-feedback {
+        display: none;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 7px;
+        margin-top: 0.3rem;
+      }
+      .quiz-feedback.show {
+        display: block;
+      }
+      .quiz-feedback.ok {
+        background: var(--ok-soft);
+      }
+      .quiz-feedback.bad {
+        background: var(--edge-soft);
+      }
+      a:focus-visible,
+      summary:focus-visible,
+      .quiz-option:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+      table.vals td.yes::before,
+      .dataflow .node.pass::before,
+      .tnode.kept::before,
+      .quiz-option.correct::before {
+        content: "\2713\00a0";
+        font-weight: 700;
+      }
+      table.vals td.no::before,
+      .dataflow .node.fail::before,
+      .quiz-option.incorrect::before {
+        content: "\2717\00a0";
+        font-weight: 700;
+      }
+      table.vals td.warn::before {
+        content: "\25B2\00a0";
+        font-weight: 700;
+      }
+      .tnode.skipped::before {
+        content: "\2013\00a0";
+        font-weight: 700;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 1rem;
+          padding: 1.25rem 1.1rem 4rem;
+        }
+        nav.toc {
+          position: static;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+        }
+        body {
+          font-size: 16px;
+        }
+        main > header h1 {
+          font-size: 1.6rem;
+        }
+        table.vals {
+          display: block;
+          overflow-x: auto;
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <nav class="toc">
+        <strong>목차</strong>
+        <ol>
+          <li><a href="#background">배경</a></li>
+          <li><a href="#intuition">핵심 아이디어</a></li>
+          <li><a href="#code">코드 따라가기</a></li>
+          <li><a href="#quiz">퀴즈</a></li>
+        </ol>
+      </nav>
+      <main>
+        <header>
+          <h1>티켓 03: 파이프라인 실행기 관통</h1>
+          <p class="lead">상품 하나를 업로드 묶음, 정보 입력, 사람 결정 각본으로 넣으면, 10단계가 코드에 고정된 순서로 진행되어 구성기 결과물이 제출된다. AI는 각본대로 답하는 가짜이고, 바깥 의존은 세 포트로만 닿는다.</p>
+          <p class="provenance">jun-1993-p/threejs-configurator-ai 티켓 03 (커밋 3a3d851, 5a444f8) at 5a444f8, explained 2026-11-04. References link to this commit.</p>
+        </header>
+<section id="background">
+<h2>배경</h2>
+<details class="skippable">
+<summary>이 프로젝트의 큰 그림이 낯설다면 펼쳐서 읽는다.</summary>
+<p>이 프로젝트는 Fusion CAD 모델을 쇼핑몰용 three.js <strong>구성기</strong>로 바꾼다. 사람이 Fusion에서 모델을 업로드하면, AI가 슬라이더 구성 후보를 제안하고, 사람이 고르고, AI가 슬라이더 범위와 부모 자식 관계를 적은 JSON(<strong>명세</strong>)을 쓰고, 코드가 그 명세로 결과물을 조립해 검증한 뒤 사람이 최종 승인한다. 이 흐름 전체를 하나의 파이프라인이 순서대로 진행한다.</p>
+<p>티켓 01과 02에서 두 끝이 만들어졌다. 한쪽은 Fusion 애드인과 서버가 만드는 <strong>업로드 묶음</strong>이고, 다른 쪽은 명세와 스윕 데이터로 구성기를 띄우는 변형 엔진과 고정 코어다. 이 티켓은 그 사이를 잇는 실행기를 처음 만든다.</p>
+</details>
+<p>이 티켓이 따르는 결정은 ADR-0014 "순서는 코드가 정하고 AI는 단계 안에서만 일한다"다. 단계 순서와 실패 때 돌아가는 경로는 코드에 고정하고, AI는 정해진 단계에서 정해진 입력을 받아 정해진 형식(JSON Schema)으로만 답한다. ADR은 에이전트가 스스로 다음 단계를 고르게 하면 실행마다 경로가 달라져 재현과 검증이 어렵다고 적었다.</p>
+<ul>
+<li><strong>포트</strong>: 바깥 의존을 숨기는 인터페이스. 여기서는 Fusion 연결, AI 모델, 저장소 세 가지다(티켓의 "테스트 경계 1").</li>
+<li><strong>단계(Stage)</strong>: 업로드, 정보 입력, 후보 제시, 후보 선택, UI 스타일, 명세 작성, 조립, 검증, 최종 승인, 제출 열 가지.</li>
+<li><strong>정보 입력(Intake)</strong>: 상품명, 종류, 원하는 슬라이더 메모, 두께 선택 노출 여부를 담은 사람의 입력.</li>
+<li><strong>후보(Candidate)</strong>: AI가 제안하는 슬라이더 구성 하나. 정면 방향, 노출할 부모 파라미터, 두께 선택 노출 여부, 요약과 다른 후보와의 차이 한 줄을 갖는다.</li>
+</ul>
+<div class="callout">
+<span class="label">핵심 개념</span>
+AI의 모든 응답은 <strong>검사 전에는 믿지 않는 값</strong>이다. 포트는 응답을 <code>unknown</code>으로 돌려주고, 실행기가 JSON Schema로 검사한다. 통과하지 못하면 오류 문장을 붙여 다시 묻고, 정해진 횟수 뒤에도 틀리면 그 단계에서 멈춘다.
+</div>
+</section>
+
+<section id="intuition">
+<h2>핵심 아이디어</h2>
+<p><code>runPipeline</code>은 위에서 아래로 읽히는 하나의 긴 함수다. 단계를 건너뛰는 분기도, AI가 고르는 경로도 없다. 열 단계는 코드의 문장 순서로만 정해진다. 단계 하나가 끝날 때마다 저장소 포트에 처리 기록이 남는다.</p>
+
+<p class="flow-label">고정된 단계 순서(예시: 서랍장 "1단 서랍장")</p>
+<div class="dataflow">
+<div class="node terminal">upload: 묶음 형식 검사</div>
+<div class="step"><div class="arrow"><span class="data">상품명, 종류, 메모</span><span class="line"></span></div><div class="node">intake</div></div>
+<div class="step"><div class="arrow"><span class="data">후보 2~4개</span><span class="line"></span></div><div class="node">candidates: AI 제안</div></div>
+<div class="step"><div class="arrow"><span class="data">후보 id c1</span><span class="line"></span></div><div class="node">choice: 사람이 고름</div></div>
+<div class="step"><div class="arrow"><span class="data">style: natural</span><span class="line"></span></div><div class="node">style: AI가 목록에서 고름</div></div>
+<div class="step"><div class="arrow"><span class="data">명세 JSON</span><span class="line"></span></div><div class="node">spec: AI가 작성</div></div>
+<div class="step"><div class="arrow"><span class="data">명세 + 스윕 데이터</span><span class="line"></span></div><div class="node">assembly: 결과물 파일 4개</div></div>
+<div class="step"><div class="arrow"><span class="data">빈 피드백</span><span class="line"></span></div><div class="node">verification: 아직 빈 자리</div></div>
+<div class="step"><div class="arrow"><span class="data">승인</span><span class="line"></span></div><div class="node">approval: 사람</div></div>
+<div class="step"><div class="arrow"><span class="data">파일 + 사례</span><span class="line"></span></div><div class="node pass">submission: 제출과 기록</div></div>
+</div>
+
+<p>AI 응답을 다루는 규칙이 이 티켓의 핵심 로직이다. 후보, 스타일, 명세의 세 응답에 같은 방식이 적용된다. 응답을 검사해서 통과하면 쓰고, 틀리면 오류 목록을 <code>schemaErrors</code>로 다음 질문에 붙여 다시 묻는다. 처음 질문 한 번에 다시 묻기 3번까지, 합쳐 4번 물어도 통과하지 못하면 그 단계에서 <code>stopped</code>로 끝난다.</p>
+<p>장난감 예시는 시험에서 가져왔다. AI가 처음 낸 명세에서 슬라이더의 <code>unit</code>이 <code>"cm"</code>이면 스키마의 <code>unit: mm</code> 상수에 어긋난다. 실행기는 <code>/sliders/0/unit</code>이 틀렸다는 문장을 붙여 다시 묻고, AI가 고친 명세를 내면 그 명세로 조립한다. 틀린 명세로는 조립 단계에 가지 못한다.</p>
+
+<div class="callout edge">
+<span class="label">아직 빈 자리</span>
+검증 단계는 비어 있다. 수치 검증(티켓 04), 축 반응 검증(티켓 06), AI 판정(티켓 19)이 여기에 들어오고, 피드백 루프와 3회 제한도 티켓 04에서 붙는다. Fusion 연결 포트는 인터페이스만 있고 호출되지 않는다. 최종 승인은 승인만 지원하고, 사례 기록은 메모리에 담기만 한다(티켓 21). 고른 스타일은 결과물에 아직 반영되지 않는다(티켓 18).
+</div>
+</section>
+
+<section id="code">
+<h2>코드 따라가기</h2>
+<p><strong>흐름:</strong> 포트와 단계 타입 → 검사기(<code>schemas.ts</code>) → 실행기 본체(<code>runner.ts</code>의 <code>askUntilValid</code>와 열 단계) → 조립(<code>assemble.ts</code>) → 각본 AI와 메모리 저장소 → 시험. 이어서 리뷰 반영으로 바뀐 점.</p>
+
+<h3>1. 포트와 단계: 바깥 세계와의 경계</h3>
+<p>단계 이름은 문자열 합집합 타입이고, 순서는 타입이 아니라 <code>runPipeline</code>의 코드가 정한다. AI 포트의 세 메서드는 응답을 <code>unknown</code>으로 돌려주며, 저장소 포트는 스타일 목록, 처리 기록, 결과물 제출, 사례 기록을 맡는다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/5a444f862524096ff6e3897e2d446119be0a0ade/configurator/pipeline/runner.ts#L82-L114">configurator/pipeline/runner.ts:82-114</a></p>
+<pre>export interface FusionPort {
+  requestSamples(request: SampleRequest): Promise&lt;unknown&gt;;
+}
+
+/**
+ * AI 모델 포트. 응답은 검사 전이라 unknown이다. 실행기가 JSON Schema로 검사하고,
+ * 형식이 틀리면 schemaErrors를 붙여 다시 묻는다.
+ */
+export interface AiPort {
+  proposeCandidates(input: { bundle: unknown; intake: Intake; schemaErrors: string[] }): Promise&lt;unknown&gt;;
+  chooseStyle(input: { intake: Intake; candidate: Candidate; styles: Style[]; schemaErrors: string[] }): Promise&lt;unknown&gt;;
+  writeSpec(input: {
+    bundle: unknown;
+    intake: Intake;
+    candidate: Candidate;
+    feedback: Feedback[];
+    schemaErrors: string[];
+  }): Promise&lt;unknown&gt;;
+}
+
+/** 저장소 포트: UI 스타일 목록, 처리 기록, 결과물, 사례 저장소 */
+export interface StorePort {
+  styles(): Promise&lt;Style[]&gt;;
+  appendLog(entry: LogEntry): Promise&lt;void&gt;;
+  submit(product: string, files: ProductFiles): Promise&lt;void&gt;;
+  recordCase(record: CaseRecord): Promise&lt;void&gt;;
+}</pre>
+<p>세 포트와 별도로, 사람의 결정(후보 고르기, 최종 승인)은 <code>HumanPort</code>로 들어온다. 시험에서는 각본이, 운영에서는 화면이 답한다고 주석이 적었다. 실행기에 넘기는 <code>PipelineInput</code>은 <code>bundle</code>, <code>intake</code>, <code>human</code>과 세 포트다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/5a444f862524096ff6e3897e2d446119be0a0ade/configurator/pipeline/runner.ts#L116-L121"><code>configurator/pipeline/runner.ts:116-121</code></a>).</p>
+
+<h3>2. 검사기: 어떤 응답이 통과하는가</h3>
+<p>세 가지 검사기가 있다. 업로드 묶음과 명세는 서버와 같이 쓰는 <code>schema/</code> 폴더의 JSON Schema 파일을 읽는다. 후보는 코드 안에 적은 스키마로 검사하며 2개에서 4개여야 한다. 스타일은 저장소가 가진 스타일 id 목록 밖의 값이 통과하지 못하게 한다. AI는 목록 안에서 하나만 고른다는 ADR-0001의 약속이 이 검사로 지켜진다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/5a444f862524096ff6e3897e2d446119be0a0ade/configurator/pipeline/schemas.ts#L27-L55">configurator/pipeline/schemas.ts:27-55</a></p>
+<pre>/** 후보 제시 응답. 후보는 2~4개(사용자 스토리 19). */
+export const checkCandidates = checker({
+  type: "array",
+  minItems: 2,
+  maxItems: 4,
+  items: {
+    type: "object",
+    required: ["id", "front", "parents", "showThickness", "summary", "diff"],
+    additionalProperties: false,
+    properties: {
+      id: { type: "string", minLength: 1 },
+      front: { enum: FRONTS },
+      parents: { type: "array", minItems: 1, items: { type: "string", minLength: 1 } },
+      showThickness: { type: "boolean" },
+      summary: { type: "string" },
+      diff: { type: "string" },
+    },
+  },
+});
+
+/** UI 스타일 응답. 저장소의 스타일 목록 밖의 값은 통과하지 못한다(ADR-0001). */
+export function styleChoiceChecker(styleIds: string[]): Check {
+  return checker({
+    type: "object",
+    required: ["style"],
+    additionalProperties: false,
+    properties: { style: { enum: styleIds } },
+  });
+}</pre>
+<p>명세 스키마(<code>schema/spec.schema.json</code>)는 이 티켓에서 새로 만들었다. 단위는 <code>mm</code> 상수로 못 박고, 정면은 <code>+X</code>에서 <code>-Z</code>까지 여섯 값, 슬라이더는 <code>id</code>부터 <code>affects</code>까지 열한 개 필드를 필수로 둔다. 검사기는 Ajv(<code>ajv</code> 8.17.1)로 만들고, 오류를 <code>경로: 메시지</code> 문장 목록으로 바꾼다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/5a444f862524096ff6e3897e2d446119be0a0ade/configurator/pipeline/schemas.ts#L18-L22"><code>configurator/pipeline/schemas.ts:18-22</code></a>).</p>
+
+<h3>3. 실행기 본체: 다시 묻기와 멈춤</h3>
+<p><code>askUntilValid</code>가 세 응답에 공통인 다시 묻기 반복이다. 첫 질문은 오류 목록이 빈 채로 나가고, 통과하지 못할 때마다 처리 기록에 오류를 남기고 그 오류를 붙여 다시 묻는다. 반복은 <code>attempt</code> 0부터 <code>SCHEMA_RETRIES</code>(3)까지라 질문은 최대 4번이다. 끝내 통과하지 못하면 <code>PipelineStop</code> 예외를 던진다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/5a444f862524096ff6e3897e2d446119be0a0ade/configurator/pipeline/runner.ts#L125-L151">configurator/pipeline/runner.ts:125-151</a></p>
+<pre>/** 형식이 틀린 AI 응답을 다시 묻는 횟수 */
+const SCHEMA_RETRIES = 3;
+
+class PipelineStop extends Error {
+  readonly stage: Stage;
+  constructor(stage: Stage, reason: string) {
+    super(reason);
+    this.stage = stage;
+  }
+}
+
+export async function runPipeline({ bundle, intake, human, ports }: PipelineInput): Promise&lt;PipelineResult&gt; {
+  const { ai, store } = ports;
+  const log = (stage: Stage, detail?: unknown) =&gt;
+    store.appendLog({ product: intake.name, stage, at: new Date().toISOString(), ...(detail === undefined ? {} : { detail }) });
+
+  /** AI 응답이 스키마를 통과할 때까지 다시 묻는다. 끝내 통과하지 못하면 그 단계에서 멈춘다. */
+  async function askUntilValid&lt;T&gt;(stage: Stage, check: Check, call: (schemaErrors: string[]) =&gt; Promise&lt;unknown&gt;): Promise&lt;T&gt; {
+    let errors: string[] = [];
+    for (let attempt = 0; attempt &lt;= SCHEMA_RETRIES; attempt++) {
+      const answer = await call(errors);
+      errors = check(answer);
+      if (errors.length === 0) return answer as T;
+      await log(stage, { schemaErrors: errors });
+    }
+    throw new PipelineStop(stage, `AI 응답이 ${SCHEMA_RETRIES}번 다시 물어도 형식 검사를 통과하지 못했습니다: ${errors.join("; ")}`);
+  }</pre>
+<p>티켓의 판단 기록에 따르면 형식 오류 다시 묻기는 사용자 스토리 81(모든 AI 응답의 JSON Schema 검사)을 단계마다 같은 방식으로 적용한 것이고, 횟수와 <code>stopped</code> 종료는 티켓 04와 15에서 바뀔 수 있다.</p>
+<p>열 단계는 이 함수 안에서 위에서 아래로 이어진다. 후보를 고르는 사람의 응답이 제시되지 않은 후보 id이면 <code>choice</code> 단계에서 멈춘다. 명세는 스키마 검사에 더해 <code>product</code>가 정보 입력의 상품명과 같은지도 본다. 상품명은 실행할 때 들어오는 값이라 정적인 스키마 파일로는 적을 수 없다. 코드는 이 이유를 적어 두지 않았고, 이것은 내 추정이다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/5a444f862524096ff6e3897e2d446119be0a0ade/configurator/pipeline/runner.ts#L178-L205">configurator/pipeline/runner.ts:178-205</a></p>
+<pre>    // 명세의 상품명은 정보 입력에서 가져온다(docs/spec-schema.md).
+    const checkProductSpec: Check = (value) =&gt; {
+      const errors = checkSpec(value);
+      if (errors.length === 0 &amp;&amp; (value as Spec).product !== intake.name) {
+        errors.push(`/product: 정보 입력의 상품명 "${intake.name}"이어야 합니다`);
+      }
+      return errors;
+    };
+    const spec = await askUntilValid&lt;Spec&gt;("spec", checkProductSpec, (schemaErrors) =&gt;
+      ai.writeSpec({ bundle, intake, candidate, feedback: [], schemaErrors }),
+    );
+    await log("spec");
+
+    // 업로드 단계에서 스키마를 통과했으므로 엔진이 읽는 스윕 데이터 형식이다.
+    const files = await assembleProduct(spec, bundle as SweepData);
+    await log("assembly");
+
+    // 수치 검증(티켓 04), 축 반응 검증(티켓 06), AI 판정(티켓 19)이 여기에 들어온다.
+    const feedback: Feedback[] = [];
+    await log("verification", { feedback });
+
+    const { decision } = await human.finalApproval({ spec, files });
+    await log("approval", decision);
+
+    await store.submit(intake.name, files);
+    await store.recordCase({ kind: intake.kind, intake, candidates, chosen: candidate.id, spec });
+    await log("submission");
+    return { status: "submitted" };</pre>
+<p>맨 바깥의 <code>catch</code>는 <code>PipelineStop</code>만 잡아 멈춘 단계를 처리 기록에 남기고 <code>status: "stopped"</code> 결과로 돌려준다. 다른 예외(AI 포트가 던진 오류 등)는 그대로 밖으로 나간다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/5a444f862524096ff6e3897e2d446119be0a0ade/configurator/pipeline/runner.ts#L206-L210"><code>configurator/pipeline/runner.ts:206-210</code></a>).</p>
+
+<h3>4. 조립: 메모리에서 결과물 만들기 (리뷰 반영으로 위치가 바뀜)</h3>
+<p>첫 커밋에서 조립 함수 <code>assembleProduct</code>는 명령행 스크립트 <code>scripts/build.ts</code> 안에 있었고, 실행기가 그 스크립트를 불러다 썼다. 리뷰 반영 커밋(5a444f8)이 이 함수를 <code>pipeline/assemble.ts</code>로 옮겼다. 티켓 기록은 이유를 "실행기가 명령행 스크립트에 기대지 않게" 하려는 것이라고 적었다. 이제 <code>build.ts</code>는 조립 결과를 디스크에 쓰는 일만 한다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/5a444f862524096ff6e3897e2d446119be0a0ade/configurator/pipeline/assemble.ts#L62-L73">configurator/pipeline/assemble.ts:62-73</a></p>
+<pre>/** 결과물 파일 이름과 내용. 쇼핑몰에는 이 파일들을 그대로 올린다. */
+export type ProductFiles = Record&lt;"configurator.js" | "spec.json" | "sweeps.json" | "index.html", string&gt;;
+
+/** 고정 코어 번들과 명세·스윕 데이터·붙여 넣을 div를 메모리에서 만든다. */
+export async function assembleProduct(spec: Spec, bundle: SweepData): Promise&lt;ProductFiles&gt; {
+  return {
+    "configurator.js": await buildCore(),
+    "spec.json": JSON.stringify(spec, null, 2),
+    "sweeps.json": JSON.stringify(sweepDataFor(spec, bundle)),
+    "index.html": SNIPPET,
+  };
+}</pre>
+<p>티켓 02의 <code>buildCore</code>는 파일에 썼지만, 여기서는 esbuild의 <code>write: false</code>로 결과를 문자열로 받는다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/5a444f862524096ff6e3897e2d446119be0a0ade/configurator/pipeline/assemble.ts#L11-L24"><code>configurator/pipeline/assemble.ts:11-24</code></a>). 실행기가 파일 시스템 없이도 결과물을 제출할 수 있다. <code>build.ts</code>의 <code>writeProduct</code>는 이 파일 목록을 폴더에 쓰기만 한다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/5a444f862524096ff6e3897e2d446119be0a0ade/configurator/scripts/build.ts#L9-L14">configurator/scripts/build.ts:9-14</a></p>
+<pre>export async function writeProduct(spec: Spec, bundle: SweepData, outDir: string): Promise&lt;void&gt; {
+  mkdirSync(outDir, { recursive: true });
+  for (const [name, content] of Object.entries(await assembleProduct(spec, bundle))) {
+    writeFileSync(join(outDir, name), content);
+  }
+}</pre>
+
+<h3>5. 시험용 포트: 각본 AI와 메모리 저장소</h3>
+<p>각본 AI는 단계마다 정해 둔 답 목록을 차례로 꺼내 준다. 같은 단계가 다시 불리면 다음 답을 내므로 "처음엔 틀리고 두 번째엔 맞는" 장면을 시험할 수 있다. 받은 입력은 <code>calls</code>에 남는다. 답이 바닥나면 일반 <code>Error</code>로 거절한다. 리뷰 반영은 단계 목록을 <code>STAGES</code> 한 곳에서 만들어 세 군데에 흩어졌던 키 목록을 줄였다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/5a444f862524096ff6e3897e2d446119be0a0ade/configurator/pipeline/scripted-ai.ts#L15-L31">configurator/pipeline/scripted-ai.ts:15-31</a></p>
+<pre>export function scriptedAi(script: Script): ScriptedAi {
+  const byStage = &lt;T&gt;(make: (stage: ScriptStage) =&gt; T) =&gt;
+    Object.fromEntries(STAGES.map((stage) =&gt; [stage, make(stage)])) as Record&lt;ScriptStage, T&gt;;
+  const remaining = byStage((stage) =&gt; [...script[stage]]);
+  const calls = byStage((): unknown[] =&gt; []);
+  const answer = (stage: ScriptStage, input: unknown) =&gt; {
+    calls[stage].push(input);
+    if (remaining[stage].length === 0) return Promise.reject(new Error(`각본에 남은 ${stage} 답이 없습니다`));
+    return Promise.resolve(structuredClone(remaining[stage].shift()));
+  };
+  return {
+    calls,
+    proposeCandidates: (input) =&gt; answer("candidates", input),
+    chooseStyle: (input) =&gt; answer("style", input),
+    writeSpec: (input) =&gt; answer("spec", input),
+  };
+}</pre>
+<p>메모리 저장소는 처리 기록, 제출물, 사례를 배열에 담아 시험이 들여다볼 수 있게 한다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/5a444f862524096ff6e3897e2d446119be0a0ade/configurator/pipeline/memory-store.ts#L11-L22"><code>configurator/pipeline/memory-store.ts:11-22</code></a>).</p>
+
+<h3>6. 리뷰 반영의 나머지</h3>
+<p>두 번째 커밋에는 작은 정리가 더 있다. 후보의 정면(<code>front</code>)이 문자열 대신 <code>Front</code> 타입으로 좁혀졌다. 여섯 값 목록 <code>FRONTS</code>를 <code>schemas.ts</code>에 한 번 두고, 후보 검사기와 <code>Front</code> 타입이 같은 목록을 쓴다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/5a444f862524096ff6e3897e2d446119be0a0ade/configurator/pipeline/schemas.ts#L12-L13"><code>configurator/pipeline/schemas.ts:12-13</code></a>). 스키마 읽기 함수는 <code>shared</code>에서 <code>loadSharedSchema</code>로 이름이 바뀌었다. 티켓은 상품 종류와 검증 피드백 <code>kind</code>의 문자열 타입은 목록이 정해지는 티켓 16과 04에서 좁히기로 하고 이번에 반영하지 않았다고 기록했다.</p>
+
+<h3>7. 시험</h3>
+<p><code>configurator/test/pipeline.test.ts</code>는 일곱 개 시험으로 경계 1을 본다. 서랍장 합성 녹화본을 쓰고 AI는 각본, 저장소는 메모리, Fusion 연결은 부르면 실패하는 가짜다. 보는 것은 다음과 같다.</p>
+<ul>
+<li>열 단계가 정해진 순서로만 처리 기록에 남는다.</li>
+<li>승인하면 제출된 결과물의 명세와 스윕 데이터, 붙여 넣을 div, 그리고 제출된 코어 번들이 실제로 서랍장 형상을 만든다.</li>
+<li>승인된 결정이 사례로 기록된다.</li>
+<li>틀린 명세(<code>unit: "cm"</code>)는 이유를 붙여 다시 묻고, 고친 명세로 조립한다.</li>
+<li>끝내 틀리면(네 번 모두 <code>front: "앞"</code>) 조립하지 않고 <code>spec</code> 단계에서 멈춘다.</li>
+<li>명세의 상품명이 다르면 다시 묻는다.</li>
+<li>처리 기록 항목마다 상품명이 남는다.</li>
+</ul>
+</section>
+
+<section id="quiz">
+<h2>퀴즈</h2>
+<div class="quiz-question">
+<p class="q">단계 순서를 AI가 고르지 않고 <code>runPipeline</code>의 코드 순서로 고정한 이유로 ADR-0014가 드는 것은?</p>
+<button class="quiz-option">AI 호출 횟수를 줄여 비용을 크게 아끼려고</button>
+<button class="quiz-option" data-correct>같은 상품이 같은 경로를 밟아 재현이 쉽도록</button>
+<button class="quiz-option">AI가 단계 이름을 알지 못하기 때문에</button>
+<div class="quiz-feedback" role="status">ADR은 에이전트가 다음 단계를 스스로 고르면 실행마다 경로가 달라져 재현과 검증이 어렵고, 1인 프로젝트에서 실패 원인을 추적하기 힘들다고 적었다. 유연성을 포기하고 예측 가능성을 택한 결정이다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">각본 AI가 형식이 틀린 명세를 네 번 연속으로 낸다. 실행기가 <code>stopped</code>로 끝내기까지 <code>writeSpec</code>은 몇 번 불릴까?</p>
+<button class="quiz-option">3번</button>
+<button class="quiz-option">1번</button>
+<button class="quiz-option" data-correct>4번</button>
+<div class="quiz-feedback" role="status">반복은 attempt 0부터 <code>SCHEMA_RETRIES</code>(3)까지라서 처음 질문 한 번에 다시 묻기 세 번, 합쳐 네 번이다. 시험의 각본에 틀린 명세가 네 개 들어 있는 것도 같은 이유다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">명세의 <code>product</code>가 정보 입력의 상품명과 같은지는 스키마 파일이 아니라 실행기 코드가 확인한다. 이렇게 나눈 이유로 가장 알맞은 것은?</p>
+<button class="quiz-option" data-correct>스키마 파일이 실행 때의 상품명을 몰라서</button>
+<button class="quiz-option">Ajv에 문자열끼리 비교하는 기능이 없어서</button>
+<button class="quiz-option">서버가 같은 스키마를 쓰므로 못 바꿔서</button>
+<div class="quiz-feedback" role="status">상품명은 실행할 때마다 달라지는 값이고 스키마는 정적 파일이다. 코드가 이유를 적지 않았으므로 이것은 추정이다. 서버와 스키마를 공유하는 것은 사실이지만, 그래서 확인을 못 넣는 것은 아니다.</div>
+</div>
+<div class="quiz-question">
+<p class="q"><code>assembleProduct</code>를 <code>scripts/build.ts</code>에서 <code>pipeline/assemble.ts</code>로 옮긴 리뷰 반영의 효과는?</p>
+<button class="quiz-option">조립 속도가 눈에 띄게 크게 빨라진다</button>
+<button class="quiz-option">고른 스타일이 결과물에 반영된다</button>
+<button class="quiz-option" data-correct>실행기가 스크립트에 기대지 않는다</button>
+<div class="quiz-feedback" role="status">첫 커밋에서는 실행기가 명령행 스크립트 파일을 불러와 조립 함수를 썼다. 조립을 파이프라인 쪽으로 옮기면 의존 방향이 실행기에서 스크립트가 아니라 스크립트에서 조립으로 바뀐다. 스타일 반영은 티켓 18의 몫이다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">각본의 <code>spec</code> 답이 틀린 명세 하나뿐인데 실행기가 다시 물으면 어떻게 될까?</p>
+<button class="quiz-option">빈 명세로 조립하고 계속한다</button>
+<button class="quiz-option" data-correct>일반 오류가 그대로 나온다</button>
+<button class="quiz-option">stopped 결과로 끝난다</button>
+<div class="quiz-feedback" role="status">각본 AI는 답이 바닥나면 일반 <code>Error</code>로 거절한다. 실행기의 <code>catch</code>는 <code>PipelineStop</code>만 처리하므로 이 오류는 그대로 밖으로 나간다. 형식 검사를 끝내 통과하지 못한 경우와 달리 <code>stopped</code> 결과가 되지 않는다.</div>
+</div>
+</section>
+
+      </main>
+
+      <footer class="colophon">
+        Generated with
+        <a href="https://github.com/malav2110/explain-diff-html"
+          >explain-diff-html</a
+        >
+      </footer>
+    </div>
+
+    <script>
+      document.querySelectorAll(".quiz-question").forEach(function (question) {
+        var feedback = question.querySelector(".quiz-feedback");
+
+        // Shuffle the options on every load, so the correct answer's position is
+        // random and a reader cannot fall into answering by position. Each option
+        // is re-inserted before the feedback block, which has to stay last.
+        var shuffled = Array.prototype.slice.call(
+          question.querySelectorAll(".quiz-option"),
+        );
+        for (var i = shuffled.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var swap = shuffled[i];
+          shuffled[i] = shuffled[j];
+          shuffled[j] = swap;
+        }
+        shuffled.forEach(function (option) {
+          question.insertBefore(option, feedback);
+        });
+
+        var options = question.querySelectorAll(".quiz-option");
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            var isCorrect = option.hasAttribute("data-correct");
+            options.forEach(function (other) {
+              other.disabled = true;
+              if (other.hasAttribute("data-correct"))
+                other.classList.add("correct");
+            });
+            if (!isCorrect) option.classList.add("incorrect");
+            feedback.classList.add("show", isCorrect ? "ok" : "bad");
+            feedback.insertBefore(
+              document.createTextNode(isCorrect ? "Correct. " : "Not quite. "),
+              feedback.firstChild,
+            );
+          });
+        });
+      });
+    </script>
+    <script>
+      // Mermaid loads without blocking: the page scripts above run first, and a slow
+      // or blocked CDN never holds up the quiz or the rest of the page. This is the
+      // only permitted external request, and it fires only when a .mermaid block is
+      // present. Leave it in place; it is a no-op on pages without a diagram.
+      (function () {
+        var blocks = document.querySelectorAll(".mermaid");
+        if (!blocks.length) return;
+
+        // mermaid.run() replaces each block's text with an SVG, so the source is
+        // gone after the first render. Stash it, because a theme change has to
+        // parse it again.
+        blocks.forEach(function (block) {
+          block.dataset.source = block.textContent;
+        });
+
+        var darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+        function render() {
+          blocks.forEach(function (block) {
+            block.removeAttribute("data-processed");
+            block.textContent = block.dataset.source;
+          });
+          try {
+            window.mermaid.initialize({
+              startOnLoad: false,
+              theme: darkQuery.matches ? "dark" : "default",
+            });
+          } catch (e) {}
+          Promise.resolve(window.mermaid.run({ nodes: blocks })).catch(
+            function () {},
+          );
+        }
+
+        var s = document.createElement("script");
+        s.src =
+          "https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js";
+        s.integrity =
+          "sha384-T/0lMUdJpd2S1ZHtRiofG3htU3xPCrFVeAQ1UUE2TJwlEJSV5NUwn30kP28n238E";
+        s.crossOrigin = "anonymous";
+        s.onload = function () {
+          render();
+          // Re-render when the reader switches system theme, so the diagram does
+          // not stay light on a dark page.
+          if (darkQuery.addEventListener)
+            darkQuery.addEventListener("change", render);
+        };
+        document.head.appendChild(s);
+      })();
+    </script>
+  </body>
+</html>

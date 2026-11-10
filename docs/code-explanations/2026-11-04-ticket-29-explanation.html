@@ -1,0 +1,810 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>티켓 29: AI 판정은 최종 승인에 알리기만</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f6f7f9;
+        --text: #1c2024;
+        --muted: #60646c;
+        --border: #d7dbdf;
+        --border-strong: #848c95;
+        --accent: #2f5ee0;
+        --accent-soft: #e8eefc;
+        --edge: #a35608;
+        --edge-soft: #fbefe1;
+        --ok: #1a7f47;
+        --ok-soft: #e4f3ea;
+        --bad: #c62a3b;
+        --bad-soft: #fbe7e9;
+        --measure: 68ch;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181b;
+          --surface: #1f2226;
+          --text: #eceef0;
+          --muted: #9ba1a6;
+          --border: #33383d;
+          --border-strong: #646c75;
+          --accent: #7aa2ff;
+          --accent-soft: #1e2740;
+          --edge: #e08c3a;
+          --edge-soft: #2e2517;
+          --ok: #57c98b;
+          --ok-soft: #17281d;
+          --bad: #f07178;
+          --bad-soft: #2c1a1c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:visited {
+        color: var(--accent);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 2.5rem;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 6rem;
+      }
+      nav.toc {
+        position: sticky;
+        top: 2.5rem;
+        align-self: start;
+        font-size: 0.9rem;
+      }
+      nav.toc strong {
+        display: block;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc li {
+        margin: 0.35rem 0;
+      }
+      nav.toc a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav.toc a:hover {
+        color: var(--accent);
+      }
+      main {
+        min-width: 0;
+      }
+      main > header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1.25rem;
+        margin-bottom: 2rem;
+      }
+      main > header h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.6rem;
+      }
+      main > header .lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: var(--measure);
+      }
+      main > header .provenance {
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        margin: 0.7rem 0 0;
+      }
+      .colophon {
+        grid-column: 1 / -1;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        border-top: 1px solid var(--border);
+        margin: 4rem 0 0;
+        padding: 1.2rem 0 0;
+      }
+      .colophon a {
+        color: inherit;
+      }
+      section {
+        margin-bottom: 3.5rem;
+      }
+      section h2 {
+        font-size: 1.4rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      section h3 {
+        font-size: 1.05rem;
+        margin: 2rem 0 0.6rem;
+      }
+      section p,
+      section ul,
+      section ol {
+        max-width: var(--measure);
+      }
+      li {
+        margin: 0.3rem 0;
+      }
+      /* Code blocks: white-space set here so a filled-in block cannot collapse. */
+      pre,
+      .code-block {
+        white-space: pre-wrap;
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        font:
+          0.86rem/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        tab-size: 2;
+      }
+      pre .del {
+        color: var(--bad);
+      }
+      pre .add {
+        color: var(--ok);
+      }
+      pre .hi {
+        background: var(--accent-soft);
+        border-radius: 3px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--surface);
+        padding: 0.05rem 0.3rem;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      /* A file:line reference linked to the code it names. Wraps a <code> span
+         in prose, or the bare text of a .filename label. */
+      a.srcref {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px solid var(--muted);
+      }
+      a.srcref:hover {
+        border-bottom-color: var(--accent);
+      }
+      a.srcref:hover code {
+        background: var(--accent-soft);
+      }
+      /* Path label for the code block below it. */
+      .filename {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        margin: 1.5rem 0 0.3rem;
+        overflow-wrap: anywhere;
+      }
+      /* Comparison table: one row per case, .yes / .no / .warn on outcome cells. */
+      table.vals {
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.86rem;
+        width: 100%;
+        max-width: 620px;
+      }
+      table.vals th,
+      table.vals td {
+        border: 1px solid var(--border-strong);
+        padding: 0.4rem 0.65rem;
+        text-align: left;
+      }
+      table.vals th {
+        background: var(--surface);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+      table.vals td.yes {
+        background: var(--ok-soft);
+      }
+      table.vals td.no {
+        background: var(--bad-soft);
+      }
+      table.vals td.warn {
+        background: var(--edge-soft);
+      }
+      /* Callouts: .callout for a concept, .callout.edge for a caveat. */
+      .callout {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+        padding: 0.85rem 1.1rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .callout .label {
+        display: block;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+      }
+      .callout.edge {
+        background: var(--edge-soft);
+        border-left-color: var(--edge);
+      }
+      .callout.edge .label {
+        color: var(--edge);
+      }
+      /* Skippable deep-background block. */
+      details.skippable {
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 0.75rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      details.skippable > summary {
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      details.skippable[open] > summary {
+        margin-bottom: 0.75rem;
+      }
+      /* Diagram family 1: simplified app UI mockup. */
+      .ui-mockup {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1.5rem 0;
+        max-width: 560px;
+        font-size: 0.85rem;
+      }
+      .ui-mockup .bar {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0.5rem 0.85rem;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .ui-mockup .body {
+        padding: 1.1rem 0.85rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+      }
+      .mock-caption {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.3rem 0 0;
+        max-width: var(--measure);
+      }
+      /* Diagram family 2: data flow between components, example data on the arrows. */
+      .dataflow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+      /* Each arrow travels with the node it points at. Without this, a flow
+         wider than the column wraps between an arrow and its node, leaving the
+         arrow pointing at nothing and the node stranded on the next line. */
+      .dataflow .step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .dataflow .node {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 175px;
+      }
+      .dataflow .node.terminal {
+        background: var(--surface);
+        border-color: var(--border);
+      }
+      .dataflow .node.pass {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .dataflow .node.fail {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .dataflow .arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.72rem;
+        min-width: 96px;
+      }
+      .dataflow .arrow .line {
+        width: 100%;
+        border-top: 2px solid var(--border);
+        position: relative;
+      }
+      .dataflow .arrow .line::after {
+        content: "\25B6";
+        position: absolute;
+        right: -2px;
+        top: -0.72em;
+        color: var(--border);
+        font-size: 0.7rem;
+      }
+      .dataflow .arrow .data {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.35rem;
+        margin-bottom: 0.2rem;
+        font-family: ui-monospace, monospace;
+      }
+      .flow-label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin: 1.25rem 0 0.25rem;
+      }
+      /* A numbered sequence with one marked position: call stacks, retry
+         counts, any ranked list. Not one of the numbered families; reach for
+         it when a step in an ordered list is the point. */
+      .frames {
+        list-style: none;
+        padding: 0;
+        margin: 1.25rem 0;
+        max-width: 620px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.82rem;
+      }
+      .frames li {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.45rem 0.7rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+      }
+      .frames li.target {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .frames .n {
+        display: inline-block;
+        min-width: 2.2em;
+        color: var(--muted);
+      }
+      /* Diagram family 3: node/recursion tree (ASTs, nesting, recursion) */
+      .tree {
+        margin: 1.5rem 0;
+        font:
+          0.82rem/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      .tnode {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.3rem 0.55rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+        display: inline-block;
+      }
+      .tnode.leaf {
+        background: var(--bg);
+      }
+      .tnode.kept {
+        border-color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tnode.skipped {
+        border-color: var(--muted);
+        color: var(--muted);
+      }
+      .tchildren {
+        margin-left: 1.4rem;
+        border-left: 2px dotted var(--border);
+        padding-left: 0.9rem;
+      }
+      .tnote {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-left: 0.4rem;
+      }
+
+      /* Optional tabular body for .ui-mockup, when the mocked UI is a table. */
+      .mock-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .mock-table th,
+      .mock-table td {
+        border: 1px solid var(--border);
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+      }
+      .mock-table th {
+        background: var(--surface);
+        font-weight: 600;
+      }
+      .mock-table .col-highlight {
+        background: var(--accent-soft);
+      }
+
+      .mermaid {
+        margin: 1.75rem 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .mermaid .edgeLabel,
+      .mermaid .edgeLabel p,
+      .mermaid .edgeLabel span,
+      .mermaid .edgeLabel foreignObject div {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+      }
+      /* Quiz */
+      .quiz-question {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .quiz-question > p.q {
+        font-weight: 600;
+        margin: 0 0 0.85rem;
+      }
+      .quiz-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 0.5rem;
+        font: inherit;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .quiz-option:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .quiz-option.correct {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .quiz-option.incorrect {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .quiz-option:disabled {
+        cursor: default;
+      }
+      .quiz-feedback {
+        display: none;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 7px;
+        margin-top: 0.3rem;
+      }
+      .quiz-feedback.show {
+        display: block;
+      }
+      .quiz-feedback.ok {
+        background: var(--ok-soft);
+      }
+      .quiz-feedback.bad {
+        background: var(--edge-soft);
+      }
+      a:focus-visible,
+      summary:focus-visible,
+      .quiz-option:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+      table.vals td.yes::before,
+      .dataflow .node.pass::before,
+      .tnode.kept::before,
+      .quiz-option.correct::before {
+        content: "\2713\00a0";
+        font-weight: 700;
+      }
+      table.vals td.no::before,
+      .dataflow .node.fail::before,
+      .quiz-option.incorrect::before {
+        content: "\2717\00a0";
+        font-weight: 700;
+      }
+      table.vals td.warn::before {
+        content: "\25B2\00a0";
+        font-weight: 700;
+      }
+      .tnode.skipped::before {
+        content: "\2013\00a0";
+        font-weight: 700;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 1rem;
+          padding: 1.25rem 1.1rem 4rem;
+        }
+        nav.toc {
+          position: static;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+        }
+        body {
+          font-size: 16px;
+        }
+        main > header h1 {
+          font-size: 1.6rem;
+        }
+        table.vals {
+          display: block;
+          overflow-x: auto;
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+<div class="layout">
+<nav class="toc">
+<strong>목차</strong>
+<ol>
+<li><a href="#background">배경</a></li>
+<li><a href="#intuition">핵심 아이디어</a></li>
+<li><a href="#code">코드 따라가기</a></li>
+<li><a href="#quiz">퀴즈</a></li>
+</ol>
+</nav>
+<main>
+<header>
+<h1>티켓 29: AI 판정은 최종 승인에 알리기만</h1>
+<p class="lead">AI 판정이 문제를 짚어도 명세를 다시 쓰지 않고, 짚은 이유와 렌더링을 최종 승인 화면에 띄워 운영자가 판단하게 바꾼다. 이미지 모델의 오판이 운영자가 정한 슬라이더 범위를 깎던 문제를 없앤다.</p>
+<p class="provenance">jun-1993-p/threejs-configurator-ai 티켓 29, 기준 커밋 0762d35 (포함한 커밋: d1aff1a, 0762d35). 0762d35는 티켓 28과 29를 함께 리뷰한 커밋이고, 이 문서에는 29 몫만 넣었다. 2026-11-04 작성. References link to this commit.</p>
+</header>
+<section id="background">
+<h2>배경</h2>
+<details class="skippable">
+<summary>처음 보는 사람을 위한 배경</summary>
+<p>파이프라인은 명세(JSON)를 AI가 쓰고, 코드가 조립한 뒤 여러 겹으로 검증한다. 수치 검증(치수·형상 오차), 축 반응(슬라이더가 부품을 움직이는 방향), 교차 검증(슬라이더 쌍 조합)은 코드가 재는 값이다. 마지막 <strong>AI 판정</strong>만 이미지 모델이 렌더링을 보고 뚫림, 겹침, 비례 깨짐을 판정한다. 수치로 잡을 수 없는 것만 본다(GLOSSARY.md).</p>
+</details>
+<p>이 변경 전에는 AI 판정이 문제를 짚으면 그 피드백으로 AI가 명세를 다시 썼다. 판정만 3번 실패하면(<code>JUDGMENT_FAILURES</code> = 3) 그제야 마지막 판정 이유를 붙여 최종 승인으로 넘겼다. 티켓 26 6절의 Groq 회차에서 VLM(<code>qwen3.8-27b</code>)이 멀쩡한 서랍장을 세 번 모두 오판했다(겹침, 구멍, 비례). 명세 작성이 그 피드백대로 끝값을 빼서 메모에 있던 폭 400~800이 420~760으로 줄어 제출되었다고 티켓에 적혀 있다.</p>
+<div class="callout">
+<span class="label">용어</span>
+<p><strong>최종 승인</strong>은 사람이 결과물로 띄운 구성기를 직접 조작해 보고 승인하는 단계다. 슬라이더 이름과 범위는 여기서 고칠 수 있고, 반려하면 후보 선택으로 돌아가거나 거절 이유를 적어 후보 제시로 돌아간다. <strong>처리 기록</strong>은 단계마다 남는 로그이고, 검증 단계 기록의 모양은 <code>{ attempt, feedback }</code>이다.</p>
+</div>
+<p>운영자 결정은 "AI 판정은 명세를 바꾸지 않고, 짚은 이유와 렌더링을 최종 승인 화면에 띄워 운영자가 판단한다"이다(티켓 본문).</p>
+</section>
+<section id="intuition">
+<h2>핵심 아이디어</h2>
+<p>핵심 아이디어는 "믿을 수 없는 판정자의 말을 고치기 입력이 아니라 참고 자료로 쓴다"이다. 이전에는 판정이 명세를 직접 움직였지만, 이제는 사람 앞에 증거(문제로 짚은 렌더링과 이유)를 놓을 뿐이다.</p>
+<table class="vals">
+<thead><tr><th></th><th>이전</th><th>이후</th></tr></thead>
+<tbody>
+<tr><td>판정이 문제를 짚음</td><td class="no">피드백으로 명세를 다시 쓰고 다시 검증. 3번까지</td><td class="yes">명세는 그대로, 최종 승인으로 간다</td></tr>
+<tr><td>판정이 문제 없음</td><td>최종 승인</td><td>최종 승인(judgment는 빈 목록)</td></tr>
+<tr><td>화면 제목</td><td>AI 판정을 3번 통과하지 못해 넘어왔습니다</td><td>AI 판정이 짚은 곳</td></tr>
+<tr><td>화면 안내</td><td>눈여겨보고 결정하세요</td><td>이미지 모델은 멀쩡한 형상을 잘못 짚기도 합니다. 직접 보고, 문제가 맞으면 범위를 좁히거나 반려하세요</td></tr>
+</tbody>
+</table>
+<div class="dataflow">
+<div class="node terminal">수치 검증·축 반응·교차 검증 통과</div>
+<div class="step"><div class="arrow"><span class="data">명세·결과물</span><span class="line"></span></div><div class="node">AI 판정 한 번</div></div>
+<div class="step"><div class="arrow"><span class="data">problems</span><span class="line"></span></div><div class="node">피드백으로 변환</div></div>
+<div class="step"><div class="arrow"><span class="data">judgment</span><span class="line"></span></div><div class="node">최종 승인 화면</div></div>
+<div class="step"><div class="arrow"><span class="data">ok: 운영자가 판</span><span class="line"></span></div><div class="node pass">운영자가 판단</div></div>
+</div>
+<p>AI 판정은 이제 재시도에 들지 않는다. 수치 검증, 축 반응, 교차 검증에서 떨어지는 경우의 재시도(같은 후보로 다시 쓰기 3번)는 그대로다.</p>
+<div class="callout edge">
+<span class="label">이어지는 영향: 최종 확인 판정</span>
+<p>티켓 23이 만든 최종 확인 판정(<code>judgeRun</code>)은 사람이 범위를 고치거나 반려할 때마다 그 앞 검증의 피드백을 근거로 붙인다. 이제 운영자가 AI 판정을 보고 범위를 고치면 근거에 <code>ai_judgment</code>가 남고, 이 종류는 엔진 한계 목록에 없으므로 명세 문제로 센다. 리뷰 때 용어집에서 AI 판정을 명세 문제에서 뺐더니 이 코드와 어긋나서, "사람이 AI 판정을 보고 범위를 고치거나 반려한 것"을 명세 문제에 포함한다고 용어집을 고쳤다. 코드(<code>judgeRun</code>)는 바꾸지 않았다.</p>
+</div>
+</section>
+<section id="code">
+<h2>코드 따라가기</h2>
+<p>흐름: 검증 루프(<code>writeVerifiedSpec</code>)에서 AI 판정을 한 번만 받음 → 반환값에 <code>judgment</code>를 실어 최종 승인으로 → 최종 승인 화면이 "AI 판정이 짚은 곳"으로 표시 → 처리 기록에는 판정 피드백이 한 줄로 남음.</p>
+<h3>1. 실행기: 판정이 재시도에서 빠진다</h3>
+<p>이전 코드는 판정 실패 횟수 변수(<code>judgmentFailures</code>)를 두고, 판정이 실패하면 피드백으로 반복을 계속하다가 세 번째에 넘겼다. 첫 커밋(d1aff1a)에서 판정 분기를 이렇게 바꿨다.</p>
+<pre><span class="del">const judged = feedback.length === 0;</span>
+<span class="del">if (judged) feedback = await judge(spec, files);</span>
+<span class="del">await log("verification", { attempt, feedback });</span>
+<span class="del">if (feedback.length === 0) return { spec, files, judgment: [] };</span>
+<span class="del">if (judged &amp;&amp; ++judgmentFailures === JUDGMENT_FAILURES) return { spec, files, judgment: feedback };</span>
+<span class="add">if (feedback.length === 0) {</span>
+<span class="add">  const judgment = await judge(spec, files);</span>
+<span class="add">  await log("verification", { attempt, feedback: judgment });</span>
+<span class="add">  return { spec, files, judgment };</span>
+<span class="add">}</span>
+<span class="add">await log("verification", { attempt, feedback });</span></pre>
+<p>리뷰 커밋(0762d35)이 이를 처리 기록을 한 번만 쓰는 형태로 모았다. 현재 코드는 다음과 같다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/0762d35b1e5dd990369a6e5d19385a6d2e7f6e60/configurator/pipeline/runner.ts#L595-L597">configurator/pipeline/runner.ts:595-597</a></p>
+<pre>      const judgment = feedback.length === 0 ? await judge(spec, files) : null;
+      await log("verification", { attempt, feedback: judgment ?? feedback });
+      if (judgment) return { spec, files, judgment };</pre>
+<p>검증이 통과했을 때만(<code>feedback.length === 0</code>) <code>judge</code>를 부르고, 그 결과를 처리 기록에 남긴 뒤 <code>judgment</code>가 있으면 바로 돌려준다. 판정이 아무것도 못 짚으면 <code>judgment</code>는 빈 배열 <code>[]</code>인데, 배열은 JavaScript에서 비어 있어도 참으로 취급되므로 <code>if (judgment)</code>는 문제 없음에서도 통과한다. 검증이 실패했을 때는 <code>judgment</code>가 <code>null</code>이라 판정을 부르지 않고 실패 피드백이 기록되며 루프가 계속된다. 상수 <code>JUDGMENT_FAILURES</code>와 그 변수는 없어졌고, 기록의 모양은 그대로다.</p>
+<p>함수 설명과 <code>HumanPort</code>의 <code>judgment</code> 설명도 새 동작에 맞게 고쳤다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/0762d35b1e5dd990369a6e5d19385a6d2e7f6e60/configurator/pipeline/runner.ts#L274"><code>configurator/pipeline/runner.ts:274</code></a>).</p>
+<h3>2. 최종 승인 화면</h3>
+<p>판정이 짚은 곳이 있을 때만 구획이 나온다. 제목과 안내 문구가 바뀌었다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/0762d35b1e5dd990369a6e5d19385a6d2e7f6e60/configurator/pipeline/operator-screens.ts#L225-L233">configurator/pipeline/operator-screens.ts:225-233</a></p>
+<pre>  const judged =
+    reasons.length === 0
+      ? ""
+      : `&lt;section class="judgment"&gt;
+&lt;h2&gt;AI 판정이 짚은 곳&lt;/h2&gt;
+&lt;p&gt;수치 검증과 축 반응은 통과했습니다. 이미지 모델은 멀쩡한 형상을 잘못 짚기도 합니다. 아래 렌더링을 직접 보고, 문제가 맞으면 범위를 좁히거나 반려하세요.&lt;/p&gt;
+${reasons.join("\n")}
+&lt;/section&gt;
+`;</pre>
+<h3>3. 힌트 문구</h3>
+<p>판정 피드백의 힌트가 AI에게 명세를 고치라는 문장에서 운영자에게 판단을 부탁하는 문장으로 바뀌었다. 첫 커밋 때는 "affects의 형태 변경·위치 이동 부품 확인"이 남아 있었고, 리뷰 커밋이 이를 고쳤다.</p>
+<pre><span class="del">hint: `${render.name}에서 렌더링 판정 실패: 그 끝값을 범위에서 빼거나 affects의 형태 변경·위치 이동 부품 확인`</span>
+<span class="add">hint: `${render.name}에서 AI 판정이 짚음: 렌더링을 보고 문제가 맞으면 그 끝값을 범위에서 빼거나 반려`</span></pre>
+<p>현재 위치는 <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/0762d35b1e5dd990369a6e5d19385a6d2e7f6e60/configurator/pipeline/verify-judgment.ts#L74"><code>configurator/pipeline/verify-judgment.ts:74</code></a>다.</p>
+<h3>4. 시험</h3>
+<p>3번 실패해 넘어오는 시험과 판정 실패 세기 시험(수치 검증 실패가 끼어도 판정 실패만 센다)은 없앴다. 대신 판정이 문제를 짚으면 명세를 다시 쓰지 않고 최종 승인에 붙는지 본다. 명세 작성 호출은 한 번뿐이고(<code>ai.calls.spec.length</code>가 1), 판정 호출도 한 번이며, 승인 화면이 받은 <code>judgment</code>가 기대한 피드백인지 확인한다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/0762d35b1e5dd990369a6e5d19385a6d2e7f6e60/configurator/test/pipeline.test.ts#L1569-L1579">configurator/test/pipeline.test.ts:1569-1579</a></p>
+<pre>function approveAndKeep() {
+  const reviews: { spec: Spec; judgment: Feedback[] }[] = [];
+  const human: HumanPort = {
+    chooseCandidate: () =&gt; Promise.resolve({ candidate: "c1" }),
+    finalApproval: (review) =&gt; {
+      reviews.push(review);
+      return Promise.resolve({ decision: "approve" });
+    },
+  };
+  return { human, reviews };
+}</pre>
+<p>최종 승인에서 받은 검토 거리를 모아 승인하는 사람(<code>approveAndKeep</code>)을 새로 만들어 기존 시험 몇 개가 함께 쓴다. <code>operator-screens.test.ts</code>의 문구 시험도 "AI 판정이 짚은 곳"으로 바뀌었다.</p>
+<h3>5. 문서와 용어집</h3>
+<p><code>docs/plan.md</code>의 흐름 그림에서 "AI 판정 → 명세 작성으로 돌아감"과 "3회 실패 (판정만)" 화살표를 빼고 "짚은 곳을 알림" 화살표 하나로 바꿨다. <code>docs/spec-schema.md</code>의 AI 판정 절과 재시도 절, <code>GLOSSARY.md</code>의 AI 판정 항목도 고쳤다. 리뷰 커밋은 원래 명세(<code>spec.md</code>)의 사용자 스토리 67과 재시도 문장에도 바뀐 것을 적었다.</p>
+<div class="callout edge">
+<span class="label">남는 점</span>
+<p>판정을 한 번만 받으므로 이미지 모델이 진짜 문제를 짚어도 AI가 스스로 고치지는 않는다. 운영자가 보고 범위를 좁히거나 반려해야 한다. 이는 티켓이 선택한 비용이다(오판으로 범위가 깎이는 피해를 막는 쪽을 택했다).</p>
+</div>
+</section>
+<section id="quiz">
+<h2>퀴즈</h2>
+<div class="quiz-question">
+<p class="q">AI 판정이 짚은 곳으로 명세를 다시 쓰던 방식을 버린 직접 원인은?</p>
+<button class="quiz-option">판정이 매번 느려서 재시도 횟수가 모자랐기 때문이다</button>
+<button class="quiz-option">판정의 피드백이 사람이 읽기 어려운 형식이었기 때문이다</button>
+<button class="quiz-option" data-correct>판정이 멀쩡한 형상을 오판해 범위가 깎였기 때문이다</button>
+<div class="quiz-feedback" role="status">티켓 26 6절 Groq 회차에서 VLM이 멀쩡한 서랍장을 세 번 오판했고, 명세 작성이 끝값을 빼서 폭 400~800이 420~760으로 줄었다. 판정을 믿을 수 없다면 판정이 명세를 직접 움직이게 하면 안 된다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">판정이 아무 문제도 못 짚었다(problems가 빈 목록). runner는 어떻게 하는가?</p>
+<button class="quiz-option" data-correct>judgment를 빈 목록으로 실어 최종 승인으로 간다</button>
+<button class="quiz-option">판정을 한 번 더 받아 두 번 연속 통과를 확인한다</button>
+<button class="quiz-option">judgment가 비어 있으면 거짓이라 명세를 다시 쓰게 한다</button>
+<div class="quiz-feedback" role="status">배열은 비어 있어도 참으로 취급되므로 <code>if (judgment)</code>는 통과하고 <code>{ spec, files, judgment: [] }</code>를 돌려준다. 화면은 <code>reasons</code>가 비면 "AI 판정이 짚은 곳" 구획을 그리지 않는다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">같은 후보로 수치 검증이 실패하면 AI 판정은 어떻게 되는가?</p>
+<button class="quiz-option">판정을 먼저 받아 두고 수치 검증 피드백과 함께 명세 작성에 보낸다</button>
+<button class="quiz-option">판정은 건너뛰되 처리 기록에 판정 없음을 따로 한 줄 남긴다</button>
+<button class="quiz-option">판정은 실패 횟수만 세고 다음 재시도로 간다</button>
+<button class="quiz-option" data-correct>판정을 부르지 않는다. 판정은 검증이 통과한 명세에만 돈다</button>
+<div class="quiz-feedback" role="status"><code>feedback.length === 0</code>일 때만 <code>judge</code>를 부르고, 그렇지 않으면 <code>judgment</code>가 <code>null</code>이라 실패 피드백만 기록하고 루프가 계속된다. 판정은 재시도 횟수에 들지 않는다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">운영자가 AI 판정이 짚은 곳을 보고 슬라이더 범위를 좁혀 승인했다. 최종 확인(티켓 23)은 이 상품을 어떻게 보는가?</p>
+<button class="quiz-option">범위를 고친 승인은 이름 고치기와 같아 통과다</button>
+<button class="quiz-option" data-correct>사람 개입이고 근거가 ai_judgment라 명세 문제다</button>
+<button class="quiz-option">사람 개입이고 판정이 엔진 한계를 드러내 엔진 한계다</button>
+<div class="quiz-feedback" role="status">최종 승인에서 범위를 고친 것은 개입이다. 앞 검증의 피드백이 <code>ai_judgment</code>인데 이 종류는 엔진 한계 목록(<code>ENGINE_LIMIT_KINDS</code>)에 없으므로 명세 문제가 된다. 그래서 용어집의 명세 문제를 이에 맞게 고쳤다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">이 변경을 이해했는지 가장 잘 드러내는 설계 원칙은?</p>
+<button class="quiz-option">자동 검사가 늘수록 사람 확인을 줄인다</button>
+<button class="quiz-option">모든 검증 실패를 같은 방식으로 재시도한다</button>
+<button class="quiz-option" data-correct>믿기 어려운 검사는 자동으로 고치지 않고 알린다</button>
+<div class="quiz-feedback" role="status">수치 검증은 재면 되는 값이라 실패 때 자동으로 고친다. 이미지 모델 판정은 오판할 수 있어서 고침 대신 알림으로 바뀌었다. 사람이 최종 승인에서 판단한다.</div>
+</div>
+</section>
+</main>
+<footer class="colophon">
+        Generated with
+        <a href="https://github.com/malav2110/explain-diff-html"
+          >explain-diff-html</a
+        >
+      </footer>
+</div>
+<script>
+      document.querySelectorAll(".quiz-question").forEach(function (question) {
+        var feedback = question.querySelector(".quiz-feedback");
+
+        // Shuffle the options on every load, so the correct answer's position is
+        // random and a reader cannot fall into answering by position. Each option
+        // is re-inserted before the feedback block, which has to stay last.
+        var shuffled = Array.prototype.slice.call(
+          question.querySelectorAll(".quiz-option"),
+        );
+        for (var i = shuffled.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var swap = shuffled[i];
+          shuffled[i] = shuffled[j];
+          shuffled[j] = swap;
+        }
+        shuffled.forEach(function (option) {
+          question.insertBefore(option, feedback);
+        });
+
+        var options = question.querySelectorAll(".quiz-option");
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            var isCorrect = option.hasAttribute("data-correct");
+            options.forEach(function (other) {
+              other.disabled = true;
+              if (other.hasAttribute("data-correct"))
+                other.classList.add("correct");
+            });
+            if (!isCorrect) option.classList.add("incorrect");
+            feedback.classList.add("show", isCorrect ? "ok" : "bad");
+            feedback.insertBefore(
+              document.createTextNode(isCorrect ? "Correct. " : "Not quite. "),
+              feedback.firstChild,
+            );
+          });
+        });
+      });
+    </script>
+</body>
+</html>

@@ -1,0 +1,876 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>티켓 21: 사례 저장소</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f6f7f9;
+        --text: #1c2024;
+        --muted: #60646c;
+        --border: #d7dbdf;
+        --border-strong: #848c95;
+        --accent: #2f5ee0;
+        --accent-soft: #e8eefc;
+        --edge: #a35608;
+        --edge-soft: #fbefe1;
+        --ok: #1a7f47;
+        --ok-soft: #e4f3ea;
+        --bad: #c62a3b;
+        --bad-soft: #fbe7e9;
+        --measure: 68ch;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181b;
+          --surface: #1f2226;
+          --text: #eceef0;
+          --muted: #9ba1a6;
+          --border: #33383d;
+          --border-strong: #646c75;
+          --accent: #7aa2ff;
+          --accent-soft: #1e2740;
+          --edge: #e08c3a;
+          --edge-soft: #2e2517;
+          --ok: #57c98b;
+          --ok-soft: #17281d;
+          --bad: #f07178;
+          --bad-soft: #2c1a1c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:visited {
+        color: var(--accent);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 2.5rem;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 6rem;
+      }
+      nav.toc {
+        position: sticky;
+        top: 2.5rem;
+        align-self: start;
+        font-size: 0.9rem;
+      }
+      nav.toc strong {
+        display: block;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc li {
+        margin: 0.35rem 0;
+      }
+      nav.toc a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav.toc a:hover {
+        color: var(--accent);
+      }
+      main {
+        min-width: 0;
+      }
+      main > header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1.25rem;
+        margin-bottom: 2rem;
+      }
+      main > header h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.6rem;
+      }
+      main > header .lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: var(--measure);
+      }
+      main > header .provenance {
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        margin: 0.7rem 0 0;
+      }
+      .colophon {
+        grid-column: 1 / -1;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        border-top: 1px solid var(--border);
+        margin: 4rem 0 0;
+        padding: 1.2rem 0 0;
+      }
+      .colophon a {
+        color: inherit;
+      }
+      section {
+        margin-bottom: 3.5rem;
+      }
+      section h2 {
+        font-size: 1.4rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      section h3 {
+        font-size: 1.05rem;
+        margin: 2rem 0 0.6rem;
+      }
+      section p,
+      section ul,
+      section ol {
+        max-width: var(--measure);
+      }
+      li {
+        margin: 0.3rem 0;
+      }
+      /* Code blocks: white-space set here so a filled-in block cannot collapse. */
+      pre,
+      .code-block {
+        white-space: pre-wrap;
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        font:
+          0.86rem/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        tab-size: 2;
+      }
+      pre .del {
+        color: var(--bad);
+      }
+      pre .add {
+        color: var(--ok);
+      }
+      pre .hi {
+        background: var(--accent-soft);
+        border-radius: 3px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--surface);
+        padding: 0.05rem 0.3rem;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      /* A file:line reference linked to the code it names. Wraps a <code> span
+         in prose, or the bare text of a .filename label. */
+      a.srcref {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px solid var(--muted);
+      }
+      a.srcref:hover {
+        border-bottom-color: var(--accent);
+      }
+      a.srcref:hover code {
+        background: var(--accent-soft);
+      }
+      /* Path label for the code block below it. */
+      .filename {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        margin: 1.5rem 0 0.3rem;
+        overflow-wrap: anywhere;
+      }
+      /* Comparison table: one row per case, .yes / .no / .warn on outcome cells. */
+      table.vals {
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.86rem;
+        width: 100%;
+        max-width: 620px;
+      }
+      table.vals th,
+      table.vals td {
+        border: 1px solid var(--border-strong);
+        padding: 0.4rem 0.65rem;
+        text-align: left;
+      }
+      table.vals th {
+        background: var(--surface);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+      table.vals td.yes {
+        background: var(--ok-soft);
+      }
+      table.vals td.no {
+        background: var(--bad-soft);
+      }
+      table.vals td.warn {
+        background: var(--edge-soft);
+      }
+      /* Callouts: .callout for a concept, .callout.edge for a caveat. */
+      .callout {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+        padding: 0.85rem 1.1rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .callout .label {
+        display: block;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+      }
+      .callout.edge {
+        background: var(--edge-soft);
+        border-left-color: var(--edge);
+      }
+      .callout.edge .label {
+        color: var(--edge);
+      }
+      /* Skippable deep-background block. */
+      details.skippable {
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 0.75rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      details.skippable > summary {
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      details.skippable[open] > summary {
+        margin-bottom: 0.75rem;
+      }
+      /* Diagram family 1: simplified app UI mockup. */
+      .ui-mockup {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1.5rem 0;
+        max-width: 560px;
+        font-size: 0.85rem;
+      }
+      .ui-mockup .bar {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0.5rem 0.85rem;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .ui-mockup .body {
+        padding: 1.1rem 0.85rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+      }
+      .mock-caption {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.3rem 0 0;
+        max-width: var(--measure);
+      }
+      /* Diagram family 2: data flow between components, example data on the arrows. */
+      .dataflow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+      /* Each arrow travels with the node it points at. Without this, a flow
+         wider than the column wraps between an arrow and its node, leaving the
+         arrow pointing at nothing and the node stranded on the next line. */
+      .dataflow .step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .dataflow .node {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 175px;
+      }
+      .dataflow .node.terminal {
+        background: var(--surface);
+        border-color: var(--border);
+      }
+      .dataflow .node.pass {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .dataflow .node.fail {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .dataflow .arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.72rem;
+        min-width: 96px;
+      }
+      .dataflow .arrow .line {
+        width: 100%;
+        border-top: 2px solid var(--border);
+        position: relative;
+      }
+      .dataflow .arrow .line::after {
+        content: "\25B6";
+        position: absolute;
+        right: -2px;
+        top: -0.72em;
+        color: var(--border);
+        font-size: 0.7rem;
+      }
+      .dataflow .arrow .data {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.35rem;
+        margin-bottom: 0.2rem;
+        font-family: ui-monospace, monospace;
+      }
+      .flow-label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin: 1.25rem 0 0.25rem;
+      }
+      /* A numbered sequence with one marked position: call stacks, retry
+         counts, any ranked list. Not one of the numbered families; reach for
+         it when a step in an ordered list is the point. */
+      .frames {
+        list-style: none;
+        padding: 0;
+        margin: 1.25rem 0;
+        max-width: 620px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.82rem;
+      }
+      .frames li {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.45rem 0.7rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+      }
+      .frames li.target {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .frames .n {
+        display: inline-block;
+        min-width: 2.2em;
+        color: var(--muted);
+      }
+      /* Diagram family 3: node/recursion tree (ASTs, nesting, recursion) */
+      .tree {
+        margin: 1.5rem 0;
+        font:
+          0.82rem/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      .tnode {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.3rem 0.55rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+        display: inline-block;
+      }
+      .tnode.leaf {
+        background: var(--bg);
+      }
+      .tnode.kept {
+        border-color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tnode.skipped {
+        border-color: var(--muted);
+        color: var(--muted);
+      }
+      .tchildren {
+        margin-left: 1.4rem;
+        border-left: 2px dotted var(--border);
+        padding-left: 0.9rem;
+      }
+      .tnote {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-left: 0.4rem;
+      }
+
+      /* Optional tabular body for .ui-mockup, when the mocked UI is a table. */
+      .mock-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .mock-table th,
+      .mock-table td {
+        border: 1px solid var(--border);
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+      }
+      .mock-table th {
+        background: var(--surface);
+        font-weight: 600;
+      }
+      .mock-table .col-highlight {
+        background: var(--accent-soft);
+      }
+
+      .mermaid {
+        margin: 1.75rem 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .mermaid .edgeLabel,
+      .mermaid .edgeLabel p,
+      .mermaid .edgeLabel span,
+      .mermaid .edgeLabel foreignObject div {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+      }
+      /* Quiz */
+      .quiz-question {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .quiz-question > p.q {
+        font-weight: 600;
+        margin: 0 0 0.85rem;
+      }
+      .quiz-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 0.5rem;
+        font: inherit;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .quiz-option:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .quiz-option.correct {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .quiz-option.incorrect {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .quiz-option:disabled {
+        cursor: default;
+      }
+      .quiz-feedback {
+        display: none;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 7px;
+        margin-top: 0.3rem;
+      }
+      .quiz-feedback.show {
+        display: block;
+      }
+      .quiz-feedback.ok {
+        background: var(--ok-soft);
+      }
+      .quiz-feedback.bad {
+        background: var(--edge-soft);
+      }
+      a:focus-visible,
+      summary:focus-visible,
+      .quiz-option:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+      table.vals td.yes::before,
+      .dataflow .node.pass::before,
+      .tnode.kept::before,
+      .quiz-option.correct::before {
+        content: "\2713\00a0";
+        font-weight: 700;
+      }
+      table.vals td.no::before,
+      .dataflow .node.fail::before,
+      .quiz-option.incorrect::before {
+        content: "\2717\00a0";
+        font-weight: 700;
+      }
+      table.vals td.warn::before {
+        content: "\25B2\00a0";
+        font-weight: 700;
+      }
+      .tnode.skipped::before {
+        content: "\2013\00a0";
+        font-weight: 700;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 1rem;
+          padding: 1.25rem 1.1rem 4rem;
+        }
+        nav.toc {
+          position: static;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+        }
+        body {
+          font-size: 16px;
+        }
+        main > header h1 {
+          font-size: 1.6rem;
+        }
+        table.vals {
+          display: block;
+          overflow-x: auto;
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+<div class="layout">
+<nav class="toc">
+<strong>Contents</strong>
+<ol>
+<li><a href="#background">배경</a></li>
+<li><a href="#intuition">핵심 아이디어</a></li>
+<li><a href="#code">코드 따라가기</a></li>
+<li><a href="#quiz">퀴즈</a></li>
+</ol>
+</nav>
+<main>
+<header>
+<h1>티켓 21: 사례 저장소</h1>
+<p class="lead">최종 승인된 상품의 결정 기록을 사례로 쌓고, 다음 상품의 후보 제시·명세 작성·AI 판정에 같은 상품 종류에서 임베딩 유사도가 높은 사례 3개를 예시로 넣는다. 학습은 하지 않는다.</p>
+<p class="provenance">jun-1993-p/threejs-configurator-ai 티켓 21, 최신 커밋 159d87a, 포함한 커밋: 159d87a (티켓 21: 사례 저장소), explained 2026-11-04. References link to this commit.</p>
+</header>
+<section id="background">
+<h2>배경</h2>
+<details class="skippable">
+<summary>이 영역이 처음이면 펼쳐서 읽는 기본 배경</summary>
+
+<p>임베딩은 문장을 숫자 벡터로 바꾸는 것이다. 뜻이 비슷한 문장은 벡터가 가깝고, 가까운 정도를 코사인 유사도로 잰다. 임베딩 모델 호출도 LiteLLM 프록시가 중개하며, 임베딩은 작아서 계속 로컬에서 돈다(ADR-0015). 색인은 LanceDB에 저장한 사례의 벡터 표를 뜻한다. LanceDB는 벡터를 파일로 저장하고 가까운 벡터를 찾아 주는 로컬 데이터베이스다. JSONL은 한 줄에 JSON 하나를 적는 텍스트 형식이라 편집기로 줄을 직접 지울 수 있다.</p>
+<p>AI에게 사례를 예시로 주는 방식은 모델을 다시 훈련하지 않는다. 입력에 예시를 붙여 주면 모델이 그 방식을 따라 답한다. 사례를 빼는 일은 입력에서 예시가 사라지는 것이므로 바로 되돌릴 수 있다.</p>
+
+</details>
+
+<p>티켓 20까지의 실행기는 승인된 상품마다 <code>store.recordCase</code>로 사례를 한 번 남겼지만, 그 기록은 메모리 저장소의 배열에 쌓일 뿐이었다. 고른 후보도 id(<code>chosen: string</code>)만 남았고, AI는 기록을 읽지 못했다. 이 티켓이 그 기록을 실제 저장소로 만들고, AI 입력으로 되돌려 보낸다.</p>
+<p>이 문서의 용어는 다음과 같다. <b>사례 기록</b>(<code>CaseRecord</code>)은 최종 승인된 상품의 결정 한 묶음이다. <b>사례 저장소</b>(<code>CaseStore</code>)는 사례 기록을 모아 두고 비슷한 사례를 꺼내는 곳이다. <b>예시</b>(<code>examples</code>)는 AI 입력에 붙는 사례 3개다. <b>상품 종류</b>(<code>kind</code>)는 서랍장·책장 같은 정해진 목록의 분류다.</p>
+<div class="callout"><span class="label">핵심 개념</span><p>ADR-0011은 사례를 학습이 아니라 예시로만 쓰기로 정했다. 사례가 수십 개 수준이면 학습 비용에 견줄 효과가 없고, 예시 방식은 잘못된 사례를 빼기만 하면 되돌릴 수 있기 때문이다. 사례에는 최종 명세와 함께 선택되거나 버려진 후보, 사람이 고친 내용, 거절 이유가 남는다. ADR은 사람이 고친 내용이 다음 명세를 개선하는 가장 큰 신호라고 적는다.</p></div>
+
+</section>
+<section id="intuition">
+<h2>핵심 아이디어</h2>
+
+<p>파이프라인은 정보 입력(상품 종류·상품명·메모), 후보 제시, 후보 선택, 스타일 선택, 명세 작성, 검증(AI 판정 포함), 최종 승인, 제출 순으로 진행한다. 이 변경의 흐름은 쓰기와 읽기 두 방향이다.</p><p>설계의 핵심은 원본과 색인의 분리다. 원본은 JSONL 한 파일이라 사람이 줄을 지우면 사례가 빠진다. LanceDB 색인은 그 파일에서 만드는 파생물이고, 검색할 때마다 기록에 맞춘다. 그래서 줄을 지우든 임베딩 모델을 바꾸든 색인만 다시 맞추면 된다.</p>
+<p class="flow-label">쓰기: 승인될 때 한 번</p>
+<div class="dataflow">
+<div class="node terminal">최종 승인</div>
+<div class="step"><div class="arrow"><span class="data">CaseRecord</span><span class="line"></span></div><div class="node">JSONL에 한 줄 추가 (원본)</div></div>
+<div class="step"><div class="arrow"><span class="data">다음 검색 때</span><span class="line"></span></div><div class="node">LanceDB 색인을 기록에 맞춤</div></div>
+</div>
+<p class="flow-label">읽기: 상품마다 한 번</p>
+<div class="dataflow">
+<div class="node terminal">다음 상품의 정보 입력</div>
+<div class="step"><div class="arrow"><span class="data">kind + 이름 + 메모</span><span class="line"></span></div><div class="node">같은 kind만 거르고 유사도 상위 3개</div></div>
+<div class="step"><div class="arrow"><span class="data">examples[3]</span><span class="line"></span></div><div class="node pass">후보 제시 · 명세 작성 · AI 판정 입력</div></div>
+</div>
+
+<p>유사도를 재는 문장은 정보 입력의 상품 종류·상품명·메모를 줄바꿈으로 이은 것이다(<code>caseQuery</code>). 사례도 지금 상품도 같은 문장으로 임베딩해야 유사도가 뜻을 가진다. 예를 들어 "서랍장 / 1단 서랍장 / 폭은 600~900"과 "서랍장 / 2단 서랍장 / 폭 700 안쪽"은 "책장 / 5단 책장 / 폭 1200"보다 서로 가까울 것이다(설명을 위한 가상의 문장이고 실제 값으로 확인한 것이 아니다).</p>
+<p>사례를 빼려면 <code>node scripts/cases.ts remove &lt;id&gt;</code>를 쓰거나 <code>cases.jsonl</code>에서 줄을 직접 지운다. 예시는 상품마다 처리 시작 때 한 번 꺼내므로, 사례를 빼면 다음 상품부터 예시에서 사라진다.</p>
+<div class="callout"><span class="label">사례 기록이 담는 것</span><p>상품 종류, 정보 입력, 후보 제시 회차마다의 후보 전부(<code>candidates: Candidate[][]</code>), 고른 후보, 고친 내용을 넣은 최종 명세, 고친 내용(<code>edits</code>), 거절 이유(<code>rejections</code>), 거절 이유 없이 "다른 후보"로 반려한 후보(<code>backToChoice</code>). 사례 기록 파일은 기본 폴더 <code>data/cases/</code>에 있고, <code>.gitignore</code>의 <code>data/</code>라 공개 저장소에 올라가지 않는다(시험이 <code>git check-ignore</code>로 확인한다).</p></div>
+<div class="callout edge"><span class="label">남긴 한계</span><p>유사도가 같을 때 순서는 메모리 구현에서만 먼저 기록된 사례가 앞서고, LanceDB는 보장하지 않는다. 티켓은 같은 점수가 정보 입력 문장이 같다는 뜻이라 어느 쪽이 먼저 와도 예시의 쓸모는 같다고 적었다(이 문서가 보증하는 판단은 아니다). 또한 예시가 AI 입력을 키운다. 사례마다 명세와 모든 회차의 후보가 들어가며, 지금은 줄이지 않고 최종 확인(티켓 23)에서 토큰 한도에 걸리면 단계별로 필요한 필드만 남기기로 미뤘다.</p></div>
+
+</section>
+<section id="code">
+<h2>코드 따라가기</h2>
+
+<p>흐름: 사례 기록의 모양(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/159d87a421eb82287a34fa5f3062a31822ade861/configurator/pipeline/runner.ts#L149-L164"><code>configurator/pipeline/runner.ts:149-164</code></a>) → 실행 중 쌓기(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/159d87a421eb82287a34fa5f3062a31822ade861/configurator/pipeline/runner.ts#L703"><code>configurator/pipeline/runner.ts:703</code></a>, <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/159d87a421eb82287a34fa5f3062a31822ade861/configurator/pipeline/runner.ts#L710"><code>configurator/pipeline/runner.ts:710</code></a>) → 저장소 포트(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/159d87a421eb82287a34fa5f3062a31822ade861/configurator/pipeline/case-store.ts#L18-L27"><code>configurator/pipeline/case-store.ts:18-27</code></a>) → JSONL과 색인(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/159d87a421eb82287a34fa5f3062a31822ade861/configurator/pipeline/case-store.ts#L100-L164"><code>configurator/pipeline/case-store.ts:100-164</code></a>) → 임베딩(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/159d87a421eb82287a34fa5f3062a31822ade861/configurator/pipeline/litellm-ai.ts#L133-L145"><code>configurator/pipeline/litellm-ai.ts:133-145</code></a>) → 예시 꺼내기(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/159d87a421eb82287a34fa5f3062a31822ade861/configurator/pipeline/runner.ts#L640"><code>configurator/pipeline/runner.ts:640</code></a>) → AI 입력에 넣기.</p>
+
+<h3>1. 사례 기록의 모양</h3>
+<p>변경 전 <code>CaseRecord</code>는 상품 종류를 문자열로, 후보 목록을 한 회차 분량으로, 고른 후보를 id 문자열 하나로 남겼다. 이제 회차마다 후보를 2차원 배열로, 고른 후보는 축 대응과 부모가 붙은 <code>ChosenCandidate</code>로 남긴다. 거절 기록(<code>Rejection</code>)의 후보 타입도 실제로 넣던 <code>ChosenCandidate</code>로 바로잡았다(티켓 기록).</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/159d87a421eb82287a34fa5f3062a31822ade861/configurator/pipeline/runner.ts#L149-L164">configurator/pipeline/runner.ts:149-164</a></p>
+<pre>export interface CaseRecord {
+  kind: ProductKind;
+  intake: Intake;
+  /** 후보 제시 회차마다 제시된 후보. 고르지 않은 후보도 남긴다. */
+  candidates: Candidate[][];
+  /** 최종 승인된 명세의 후보 */
+  chosen: ChosenCandidate;
+  /** 최종 승인 때 고친 내용을 넣은 명세 */
+  spec: Spec;
+  /** 최종 승인 때 고친 내용 */
+  edits: SliderEdits;
+  /** 이 상품에서 반려하며 적은 거절 이유 */
+  rejections: Rejection[];
+  /** 최종 승인에서 거절 이유 없이 반려하고 다른 후보를 고르러 돌아간 고른 후보(사용자 스토리 71) */
+  backToChoice: ChosenCandidate[];
+}</pre>
+
+
+<h3>2. 실행기: 쌓았다가 승인할 때 한 번 기록</h3>
+<p>후보 제시 회차마다 받은 후보를 <code>proposed</code>에 쌓고, "다른 후보"로 반려하면 <code>backToChoice</code>에 고른 후보를 쌓는다. 승인되면 <code>submit</code>이 고친 내용을 넣은 명세로 결과물을 제출하고 <code>store.cases.record</code>로 사례를 기록한다. 저장소 포트의 <code>recordCase</code>는 사라지고 <code>cases: CaseStore</code> 하나로 바뀌었다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/159d87a421eb82287a34fa5f3062a31822ade861/configurator/pipeline/runner.ts#L703-L704">configurator/pipeline/runner.ts:703-704</a></p>
+<pre>            backToChoice.push(candidate);
+            continue;</pre>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/159d87a421eb82287a34fa5f3062a31822ade861/configurator/pipeline/runner.ts#L451-L456">configurator/pipeline/runner.ts:451-456</a></p>
+<pre>  async function submit(approved: Spec, files: ProductFiles, decisions: Omit&lt;CaseRecord, "kind" | "intake" | "spec"&gt;): Promise&lt;void&gt; {
+    const spec = applyEdits(approved, decisions.edits);
+    await store.submit(intake.name, withApprovedSpec(files, spec));
+    await store.cases.record(structuredClone({ kind: intake.kind, intake, ...decisions, spec }));
+    await log("submission");
+  }</pre>
+
+
+<h3>3. 저장소 포트</h3>
+<p><code>CaseStore</code>는 기록(<code>record</code>), 같은 상품 종류에서 유사도 상위를 꺼내기(<code>similar</code>), 목록(<code>list</code>), 빼기(<code>remove</code>) 네 가지다. 임베딩은 <code>Embed</code> 함수 하나로 주입받는다. 운영은 LiteLLM 임베딩, 시험은 외부 모델 없이 글자 두 개 묶음의 해시를 쓴다(<code>ngramEmbedding</code>, <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/159d87a421eb82287a34fa5f3062a31822ade861/configurator/pipeline/case-store.ts#L166-L180"><code>configurator/pipeline/case-store.ts:166-180</code></a>).</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/159d87a421eb82287a34fa5f3062a31822ade861/configurator/pipeline/case-store.ts#L15-L32">configurator/pipeline/case-store.ts:15-32</a></p>
+<pre>/** 문장마다 임베딩 벡터 하나. 운영에서는 LiteLLM 임베딩 모델(liteLlmEmbed)이다. */
+export type Embed = (texts: string[]) =&gt; Promise&lt;number[][]&gt;;
+
+export interface CaseStore {
+  /** 사례를 기록하고 그 id를 돌려준다 */
+  record(record: CaseRecord): Promise&lt;string&gt;;
+  /** 그 상품 종류의 사례 중 query와 임베딩 유사도가 높은 순서로 limit개 */
+  similar(kind: ProductKind, query: string, limit: number): Promise&lt;CaseRecord[]&gt;;
+  /** 기록된 순서대로 모든 사례 */
+  list(): Promise&lt;StoredCase[]&gt;;
+  /** 뺀 사례는 다음 similar부터 나오지 않는다 */
+  remove(id: string): Promise&lt;void&gt;;
+}
+
+/** 임베딩할 정보 입력의 문장. 사례도 지금 상품도 이 문장으로 임베딩해야 유사도가 뜻을 가진다. */
+export function caseQuery(intake: Intake): string {
+  return [intake.kind, intake.name, intake.memo].join("\n");
+}</pre>
+
+
+<h3>4. JSONL이 원본, LanceDB 색인은 검색 때마다 맞춘다</h3>
+<p><code>lanceCaseStore</code>는 <code>cases.jsonl</code>에 줄을 덧붙여 기록한다(<code>record</code>). 검색(<code>similar</code>)은 JSONL을 읽고 질의 문장을 임베딩한 뒤, 그 벡터의 길이를 받아 <code>synced</code>로 색인을 기록에 맞춘다. 순서는 다음과 같다.</p>
+<ol>
+<li>색인 표의 벡터 길이가 지금 임베딩 모델의 길이와 다르면 표를 지우고 새로 만든다(임베딩 모델을 바꾼 경우). 121~124행.</li>
+<li>기록에서 빠졌거나 정보 입력 문장이 달라진 색인 줄을 지운다(<code>remove</code>나 손으로 지운 줄, 손으로 고친 정보 입력). 125~128행.</li>
+<li>색인에 없는 사례만 임베딩해 넣는다. 129~137행.</li>
+</ol>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/159d87a421eb82287a34fa5f3062a31822ade861/configurator/pipeline/case-store.ts#L117-L138">configurator/pipeline/case-store.ts:117-138</a></p>
+<pre>  /** 색인을 사례 기록과 지금 임베딩 모델의 벡터 길이(length)에 맞춘 표. 사례가 하나도 없으면 null이다. */
+  async function synced(cases: StoredCase[], length: number): Promise&lt;lancedb.Table | null&gt; {
+    const db = await lancedb.connect(join(dir, "cases.lance"));
+    let table = (await db.tableNames()).includes("cases") ? await db.openTable("cases") : null;
+    if (table &amp;&amp; (await vectorLength(table)) !== length) {
+      await db.dropTable("cases");
+      table = null;
+    }
+    const texts = new Map(cases.map((c) =&gt; [c.id, caseQuery(c.intake)]));
+    const rows = table ? await table.query().select(["id", "text"]).toArray() : [];
+    const stale = rows.filter((row) =&gt; texts.get(row.id) !== row.text).map((row) =&gt; row.id as string);
+    if (table &amp;&amp; stale.length &gt; 0) await table.delete(`id IN (${stale.map(quoted).join(", ")})`);
+    const indexed = new Set(rows.map((row) =&gt; row.id as string).filter((id) =&gt; !stale.includes(id)));
+    const missing = cases.filter((c) =&gt; !indexed.has(c.id));
+    if (missing.length === 0) return table;
+    const vectors = await embed(missing.map((c) =&gt; texts.get(c.id)!));
+    const added: IndexRow[] = missing.map((c, i) =&gt; ({ id: c.id, kind: c.kind, text: texts.get(c.id)!, vector: vectors[i] }));
+    // LanceDB 표는 첫 줄로 열 형식을 정하므로 처음 넣을 때 만든다
+    if (!table) return db.createTable("cases", added as unknown as Record&lt;string, unknown&gt;[]);
+    await table.add(added as unknown as Record&lt;string, unknown&gt;[]);
+    return table;
+  }</pre>
+
+<p>그 뒤 <code>kind</code>가 같은 줄만 코사인 거리(작을수록 유사)로 상위 <code>limit</code>개를 찾고, 찾은 id로 JSONL에서 읽은 기록을 돌려준다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/159d87a421eb82287a34fa5f3062a31822ade861/configurator/pipeline/case-store.ts#L147-L157"><code>configurator/pipeline/case-store.ts:147-157</code></a>). AI 입력에는 id를 싣지 않는다(<code>recordOf</code>, <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/159d87a421eb82287a34fa5f3062a31822ade861/configurator/pipeline/case-store.ts#L34-L37"><code>configurator/pipeline/case-store.ts:34-37</code></a>). 운영자가 파일을 직접 고칠 수 있으므로, 읽을 수 없는 줄은 줄 번호를 붙여 실패시킨다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/159d87a421eb82287a34fa5f3062a31822ade861/configurator/pipeline/case-store.ts#L102-L115"><code>configurator/pipeline/case-store.ts:102-115</code></a>).</p>
+
+<h3>5. 임베딩 호출</h3>
+<p><code>liteLlmEmbed</code>는 LiteLLM의 OpenAI 호환 임베딩 API(<code>v1/embeddings</code>)에 문장 목록을 한 번에 보내고, 응답을 <code>index</code> 순서로 정렬해 벡터 목록으로 돌려준다. 모델 이름은 LiteLLM 설정의 <code>model_name</code>이고, 수동 실행 도구는 환경 변수 <code>LITELLM_EMBED_MODEL</code>(기본 <code>embedding</code>)로 정한다. 채팅 호출에 인라인이던 주소·인증 처리를 <code>apiUrl</code>과 <code>authorization</code>으로 빼서 임베딩 호출과 같이 쓴다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/159d87a421eb82287a34fa5f3062a31822ade861/configurator/pipeline/litellm-ai.ts#L133-L145">configurator/pipeline/litellm-ai.ts:133-145</a></p>
+<pre>export function liteLlmEmbed({ baseUrl, apiKey, model }: { baseUrl: string; apiKey?: string; model: string }): Embed {
+  const url = apiUrl(baseUrl, "v1/embeddings");
+  return async (texts) =&gt; {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...authorization(apiKey) },
+      body: JSON.stringify({ model, input: texts }),
+    });
+    if (!response.ok) throw new Error(`LiteLLM 임베딩 실패(${model}): ${response.status} ${await response.text()}`);
+    const { data } = (await response.json()) as { data: { index: number; embedding: number[] }[] };
+    return [...data].sort((a, b) =&gt; a.index - b.index).map((d) =&gt; d.embedding);
+  };
+}</pre>
+
+
+<h3>6. 예시 꺼내기와 AI 입력</h3>
+<p>예시는 정보 입력이 형식 검사를 통과한 직후, 상품마다 한 번 꺼낸다. 이 값이 후보 제시·명세 작성·AI 판정 세 호출의 <code>examples</code>로 들어간다. 세 호출 모두 복사본(<code>structuredClone</code>)을 넘기고, 같은 상품 처리 중에는 값이 바뀌지 않는다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/159d87a421eb82287a34fa5f3062a31822ade861/configurator/pipeline/runner.ts#L639-L640">configurator/pipeline/runner.ts:639-640</a></p>
+<pre>    // 형식 검사를 통과한 정보 입력의 상품 종류로 거른다
+    examples = await store.cases.similar(intake.kind, caseQuery(intake), CASE_EXAMPLES);</pre>
+
+<p>AI 지시문은 단계마다 예시를 다르게 쓰라고 일러 준다. 후보 제시는 운영자가 고른 구성과 고친 이름을 따르고 거절 이유가 가리킨 구성은 피한다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/159d87a421eb82287a34fa5f3062a31822ade861/configurator/pipeline/litellm-ai.ts#L84"><code>configurator/pipeline/litellm-ai.ts:84</code></a>). 명세 작성은 이름 짓는 방식과 범위·step 고르는 방식을 따르고 <code>edits</code>가 고친 쪽으로 처음부터 쓴다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/159d87a421eb82287a34fa5f3062a31822ade861/configurator/pipeline/litellm-ai.ts#L103"><code>configurator/pipeline/litellm-ai.ts:103</code></a>). AI 판정은 승인된 상품의 범위 안 비례를 비교 기준으로 삼는다. 후보 제시 지시문은 파라미터 이름을, 명세 작성 지시문은 파라미터 이름과 범위의 근거를 이 상품의 업로드 묶음·치수 규칙·정보 입력에서 찾으라고 한다.</p>
+
+<h3>7. 사례 관리 도구</h3>
+<p><code>scripts/cases.ts</code>는 사례를 보고(<code>list</code>) 빼는(<code>remove</code>) 도구다. 임베딩 모델 없이 도는 저장소를 쓰도록 <code>embed</code>가 항상 거부하는 함수다. 보기와 빼기는 임베딩하지 않기 때문이다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/159d87a421eb82287a34fa5f3062a31822ade861/configurator/scripts/cases.ts#L7-L11">configurator/scripts/cases.ts:7-11</a></p>
+<pre>// 보기와 빼기는 임베딩하지 않는다
+const store = lanceCaseStore({
+  dir: process.env.CASES_DIR ?? DEFAULT_CASES_DIR,
+  embed: () =&gt; Promise.reject(new Error("사례 관리 도구는 임베딩하지 않습니다")),
+});</pre>
+
+
+</section>
+<section id="quiz">
+<h2>퀴즈</h2>
+<div class="quiz-question">
+<p class="q">운영자가 <code>cases.jsonl</code>에서 사례 한 줄을 편집기로 지웠다. 다음 검색에서 색인은 어떻게 되는가?</p>
+<button class="quiz-option">지운 사례가 계속 나온다</button>
+<button class="quiz-option" data-correct>그 색인 줄이 지워진다</button>
+<button class="quiz-option">색인을 전부 다시 임베딩한다</button>
+<div class="quiz-feedback" role="status">JSONL이 원본이고 색인은 검색마다 기록에 맞춘다. 기록에 없는 id의 색인 줄은 낡은 줄로 보고 지운다. 전체를 다시 임베딩하는 경우는 벡터 길이가 바뀔 때뿐이고, 새로 필요한 것만 임베딩한다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">임베딩 모델을 바꿨더니 벡터 길이가 달라졌다. 이때 색인은?</p>
+<button class="quiz-option">새 사례부터 새 길이로 쌓는다</button>
+<button class="quiz-option">길이가 다른 줄만 골라 지운다</button>
+<button class="quiz-option" data-correct>표를 지우고 기록 전체로 다시 만든다</button>
+<div class="quiz-feedback" role="status">한 표에 길이가 다른 벡터가 섞이면 유사도를 재지 못한다. 그래서 길이가 다르면 표를 지우고 JSONL 전체를 새 모델로 임베딩한다. 원본이 JSONL이라 색인은 언제든 다시 만들 수 있다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">상품 B를 처리하는 도중에 사례 하나를 <code>remove</code>했다. 그 사례는 언제부터 예시에서 빠지는가?</p>
+<button class="quiz-option" data-correct>다음 상품을 처리할 때부터</button>
+<button class="quiz-option">B의 다음 AI 호출부터</button>
+<button class="quiz-option">B의 명세 작성 단계부터</button>
+<div class="quiz-feedback" role="status">예시는 정보 입력이 통과한 직후 상품마다 한 번 꺼내 변수에 담아 두고, 처리 중에는 그대로 쓴다. 그래서 처리 중에 뺀 사례의 효과는 다음 상품에서 나타난다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">ADR-0011이 학습 대신 예시를 고른 이유와 가장 가까운 것은?</p>
+<button class="quiz-option">임베딩이 학습보다 정확하다</button>
+<button class="quiz-option">LanceDB는 학습을 못 한다</button>
+<button class="quiz-option" data-correct>사례가 적고 빼기만 하면 된다</button>
+<div class="quiz-feedback" role="status">ADR은 사례가 수십 개 수준이면 학습 비용에 견줄 효과가 없고, 예시 방식은 잘못된 사례를 빼기만 하면 되돌릴 수 있다고 적는다. 사례가 훨씬 많아지면 판단이 달라질 수 있어서, 사례는 나중에 학습에 쓸 수 있게 JSONL로 남긴다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">새 AI 단계를 추가하면서 사례 예시를 쓰고 싶다. 이 구조에서 입력에 무엇을 더하면 되는가?</p>
+<button class="quiz-option">단계마다 저장소를 다시 조회하는 호출</button>
+<button class="quiz-option" data-correct><code>examples</code> 입력과 지시문 설명</button>
+<button class="quiz-option">사례 기록에 그 단계 전용 필드 추가</button>
+<div class="quiz-feedback" role="status">예시는 상품마다 한 번 꺼내 모든 AI 단계가 같은 값을 받는다. 단계는 입력에 <code>examples</code>를 받고, 지시문에 그 쓰임(무엇을 따르고 무엇을 피할지)을 적으면 된다. 저장소를 단계마다 조회하면 같은 상품의 단계끼리 예시가 달라질 수 있다.</div>
+</div>
+
+</section>
+</main>
+<footer class="colophon">Generated with explain-diff-html</footer>
+</div>
+<script>
+      document.querySelectorAll(".quiz-question").forEach(function (question) {
+        var feedback = question.querySelector(".quiz-feedback");
+
+        // Shuffle the options on every load, so the correct answer's position is
+        // random and a reader cannot fall into answering by position. Each option
+        // is re-inserted before the feedback block, which has to stay last.
+        var shuffled = Array.prototype.slice.call(
+          question.querySelectorAll(".quiz-option"),
+        );
+        for (var i = shuffled.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var swap = shuffled[i];
+          shuffled[i] = shuffled[j];
+          shuffled[j] = swap;
+        }
+        shuffled.forEach(function (option) {
+          question.insertBefore(option, feedback);
+        });
+
+        var options = question.querySelectorAll(".quiz-option");
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            var isCorrect = option.hasAttribute("data-correct");
+            options.forEach(function (other) {
+              other.disabled = true;
+              if (other.hasAttribute("data-correct"))
+                other.classList.add("correct");
+            });
+            if (!isCorrect) option.classList.add("incorrect");
+            feedback.classList.add("show", isCorrect ? "ok" : "bad");
+            feedback.insertBefore(
+              document.createTextNode(isCorrect ? "Correct. " : "Not quite. "),
+              feedback.firstChild,
+            );
+          });
+        });
+      });
+    </script>
+</body>
+</html>

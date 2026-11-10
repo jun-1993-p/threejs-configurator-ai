@@ -1,0 +1,1073 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>5b201c5..f00a11d 설명: Fusion 바디 부피와 바디 표시</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f6f7f9;
+        --text: #1c2024;
+        --muted: #60646c;
+        --border: #d7dbdf;
+        --border-strong: #848c95;
+        --accent: #2f5ee0;
+        --accent-soft: #e8eefc;
+        --edge: #a35608;
+        --edge-soft: #fbefe1;
+        --ok: #1a7f47;
+        --ok-soft: #e4f3ea;
+        --bad: #c62a3b;
+        --bad-soft: #fbe7e9;
+        --measure: 68ch;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181b;
+          --surface: #1f2226;
+          --text: #eceef0;
+          --muted: #9ba1a6;
+          --border: #33383d;
+          --border-strong: #646c75;
+          --accent: #7aa2ff;
+          --accent-soft: #1e2740;
+          --edge: #e08c3a;
+          --edge-soft: #2e2517;
+          --ok: #57c98b;
+          --ok-soft: #17281d;
+          --bad: #f07178;
+          --bad-soft: #2c1a1c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:visited {
+        color: var(--accent);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 2.5rem;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 6rem;
+      }
+      nav.toc {
+        position: sticky;
+        top: 2.5rem;
+        align-self: start;
+        font-size: 0.9rem;
+      }
+      nav.toc strong {
+        display: block;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc li {
+        margin: 0.35rem 0;
+      }
+      nav.toc a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav.toc a:hover {
+        color: var(--accent);
+      }
+      main {
+        min-width: 0;
+      }
+      main > header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1.25rem;
+        margin-bottom: 2rem;
+      }
+      main > header h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.6rem;
+      }
+      main > header .lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: var(--measure);
+      }
+      main > header .provenance {
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        margin: 0.7rem 0 0;
+      }
+      .colophon {
+        grid-column: 1 / -1;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        border-top: 1px solid var(--border);
+        margin: 4rem 0 0;
+        padding: 1.2rem 0 0;
+      }
+      .colophon a {
+        color: inherit;
+      }
+      section {
+        margin-bottom: 3.5rem;
+      }
+      section h2 {
+        font-size: 1.4rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      section h3 {
+        font-size: 1.05rem;
+        margin: 2rem 0 0.6rem;
+      }
+      section p,
+      section ul,
+      section ol {
+        max-width: var(--measure);
+      }
+      li {
+        margin: 0.3rem 0;
+      }
+      /* Code blocks: white-space set here so a filled-in block cannot collapse. */
+      pre,
+      .code-block {
+        white-space: pre-wrap;
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        font:
+          0.86rem/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        tab-size: 2;
+      }
+      pre .del {
+        color: var(--bad);
+      }
+      pre .add {
+        color: var(--ok);
+      }
+      pre .hi {
+        background: var(--accent-soft);
+        border-radius: 3px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--surface);
+        padding: 0.05rem 0.3rem;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      /* A file:line reference linked to the code it names. Wraps a <code> span
+         in prose, or the bare text of a .filename label. */
+      a.srcref {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px solid var(--muted);
+      }
+      a.srcref:hover {
+        border-bottom-color: var(--accent);
+      }
+      a.srcref:hover code {
+        background: var(--accent-soft);
+      }
+      /* Path label for the code block below it. */
+      .filename {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        margin: 1.5rem 0 0.3rem;
+        overflow-wrap: anywhere;
+      }
+      /* Comparison table: one row per case, .yes / .no / .warn on outcome cells. */
+      table.vals {
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.86rem;
+        width: 100%;
+        max-width: 620px;
+      }
+      table.vals th,
+      table.vals td {
+        border: 1px solid var(--border-strong);
+        padding: 0.4rem 0.65rem;
+        text-align: left;
+      }
+      table.vals th {
+        background: var(--surface);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+      table.vals td.yes {
+        background: var(--ok-soft);
+      }
+      table.vals td.no {
+        background: var(--bad-soft);
+      }
+      table.vals td.warn {
+        background: var(--edge-soft);
+      }
+      /* Callouts: .callout for a concept, .callout.edge for a caveat. */
+      .callout {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+        padding: 0.85rem 1.1rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .callout .label {
+        display: block;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+      }
+      .callout.edge {
+        background: var(--edge-soft);
+        border-left-color: var(--edge);
+      }
+      .callout.edge .label {
+        color: var(--edge);
+      }
+      /* Skippable deep-background block. */
+      details.skippable {
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 0.75rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      details.skippable > summary {
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      details.skippable[open] > summary {
+        margin-bottom: 0.75rem;
+      }
+      /* Diagram family 1: simplified app UI mockup. */
+      .ui-mockup {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1.5rem 0;
+        max-width: 560px;
+        font-size: 0.85rem;
+      }
+      .ui-mockup .bar {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0.5rem 0.85rem;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .ui-mockup .body {
+        padding: 1.1rem 0.85rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+      }
+      .mock-caption {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.3rem 0 0;
+        max-width: var(--measure);
+      }
+      /* Diagram family 2: data flow between components, example data on the arrows. */
+      .dataflow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+      /* Each arrow travels with the node it points at. Without this, a flow
+         wider than the column wraps between an arrow and its node, leaving the
+         arrow pointing at nothing and the node stranded on the next line. */
+      .dataflow .step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .dataflow .node {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 175px;
+      }
+      .dataflow .node.terminal {
+        background: var(--surface);
+        border-color: var(--border);
+      }
+      .dataflow .node.pass {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .dataflow .node.fail {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .dataflow .arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.72rem;
+        min-width: 96px;
+      }
+      .dataflow .arrow .line {
+        width: 100%;
+        border-top: 2px solid var(--border);
+        position: relative;
+      }
+      .dataflow .arrow .line::after {
+        content: "\25B6";
+        position: absolute;
+        right: -2px;
+        top: -0.72em;
+        color: var(--border);
+        font-size: 0.7rem;
+      }
+      .dataflow .arrow .data {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.35rem;
+        margin-bottom: 0.2rem;
+        font-family: ui-monospace, monospace;
+      }
+      .flow-label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin: 1.25rem 0 0.25rem;
+      }
+      /* A numbered sequence with one marked position: call stacks, retry
+         counts, any ranked list. Not one of the numbered families; reach for
+         it when a step in an ordered list is the point. */
+      .frames {
+        list-style: none;
+        padding: 0;
+        margin: 1.25rem 0;
+        max-width: 620px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.82rem;
+      }
+      .frames li {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.45rem 0.7rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+      }
+      .frames li.target {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .frames .n {
+        display: inline-block;
+        min-width: 2.2em;
+        color: var(--muted);
+      }
+      /* Diagram family 3: node/recursion tree (ASTs, nesting, recursion) */
+      .tree {
+        margin: 1.5rem 0;
+        font:
+          0.82rem/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      .tnode {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.3rem 0.55rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+        display: inline-block;
+      }
+      .tnode.leaf {
+        background: var(--bg);
+      }
+      .tnode.kept {
+        border-color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tnode.skipped {
+        border-color: var(--muted);
+        color: var(--muted);
+      }
+      .tchildren {
+        margin-left: 1.4rem;
+        border-left: 2px dotted var(--border);
+        padding-left: 0.9rem;
+      }
+      .tnote {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-left: 0.4rem;
+      }
+
+      /* Optional tabular body for .ui-mockup, when the mocked UI is a table. */
+      .mock-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .mock-table th,
+      .mock-table td {
+        border: 1px solid var(--border);
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+      }
+      .mock-table th {
+        background: var(--surface);
+        font-weight: 600;
+      }
+      .mock-table .col-highlight {
+        background: var(--accent-soft);
+      }
+
+      .mermaid {
+        margin: 1.75rem 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .mermaid .edgeLabel,
+      .mermaid .edgeLabel p,
+      .mermaid .edgeLabel span,
+      .mermaid .edgeLabel foreignObject div {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+      }
+      /* Quiz */
+      .quiz-question {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .quiz-question > p.q {
+        font-weight: 600;
+        margin: 0 0 0.85rem;
+      }
+      .quiz-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 0.5rem;
+        font: inherit;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .quiz-option:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .quiz-option.correct {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .quiz-option.incorrect {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .quiz-option:disabled {
+        cursor: default;
+      }
+      .quiz-feedback {
+        display: none;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 7px;
+        margin-top: 0.3rem;
+      }
+      .quiz-feedback.show {
+        display: block;
+      }
+      .quiz-feedback.ok {
+        background: var(--ok-soft);
+      }
+      .quiz-feedback.bad {
+        background: var(--edge-soft);
+      }
+      a:focus-visible,
+      summary:focus-visible,
+      .quiz-option:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+      table.vals td.yes::before,
+      .dataflow .node.pass::before,
+      .tnode.kept::before,
+      .quiz-option.correct::before {
+        content: "\2713\00a0";
+        font-weight: 700;
+      }
+      table.vals td.no::before,
+      .dataflow .node.fail::before,
+      .quiz-option.incorrect::before {
+        content: "\2717\00a0";
+        font-weight: 700;
+      }
+      table.vals td.warn::before {
+        content: "\25B2\00a0";
+        font-weight: 700;
+      }
+      .tnode.skipped::before {
+        content: "\2013\00a0";
+        font-weight: 700;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 1rem;
+          padding: 1.25rem 1.1rem 4rem;
+        }
+        nav.toc {
+          position: static;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+        }
+        body {
+          font-size: 16px;
+        }
+        main > header h1 {
+          font-size: 1.6rem;
+        }
+        table.vals {
+          display: block;
+          overflow-x: auto;
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <nav class="toc">
+        <strong>목차</strong>
+        <ol>
+          <li><a href="#background">배경</a></li>
+          <li><a href="#intuition">직관</a></li>
+          <li><a href="#code">코드 살펴보기</a></li>
+          <li><a href="#quiz">퀴즈</a></li>
+        </ol>
+      </nav>
+
+      <main>
+        <header>
+          <h1>Fusion 업로드에서 바디 부피를 재고, 재계산이 바꾼 바디 이름을 면 표시로 이어 가기</h1>
+          <p class="lead">
+            Fusion 애드인이 바디 부피도 업로드 묶음에 담게 했습니다. 비선형 모델을 올려 보는 위저드를 만들었고, 그 업로드에서 드러난 바디 이름 결함을 두 번에 걸쳐 고쳤습니다.
+          </p>
+          <p class="provenance">
+            jun-1993-p/threejs-configurator-ai 5b201c5..f00a11d at f00a11d, explained 2026-11-05. References link to this commit.
+          </p>
+        </header>
+
+        <section id="background">
+          <h2>배경</h2>
+          <details class="skippable">
+            <summary>이 프로젝트가 처음이면 펼쳐서 큰 그림부터 보세요.</summary>
+            <p>
+              이 프로젝트는 Fusion으로 만든 가구 모델을 쇼핑몰의 three.js 구성기로 바꿉니다. 구성기에서 손님이 슬라이더로 폭이나 각도를 바꾸면, 브라우저가 미리 받아 둔 형상들 사이를 보간해 모양을 바꿉니다. 그 형상들을 만드는 것이 Fusion 안에서 도는 <strong>애드인</strong>(<code>addin/ConfiguratorUploader</code>)입니다.
+            </p>
+            <p>
+              애드인은 사용자 파라미터마다 <strong>스윕</strong>을 돕니다. 파라미터 값을 바꾸고 Fusion이 모델을 다시 계산하게 한 뒤(재계산), 면마다 점을 뽑아 <strong>샘플</strong>로 남깁니다. 기본값으로 계산한 첫 형상이 <strong>기본 형상</strong>이고, 모든 샘플을 묶어 서버로 보내는 JSON이 <strong>업로드 묶음</strong>입니다. 서버에 저장된 묶음을 <strong>녹화본</strong>이라고 부릅니다.
+            </p>
+            <p>
+              보간이 되려면 샘플마다 같은 면을 같은 이름으로 불러야 합니다. Fusion은 재계산할 때 면의 순서와 임시 ID를 바꾸므로, 애드인은 기본 형상의 면마다 이름을 Fusion 속성(attribute)으로 붙여 둡니다. 이것이 <strong>면 표시</strong>입니다. 이후 샘플에서는 면을 새로 이름 짓지 않고 이 표시를 읽습니다(ADR-0016). <strong>부품</strong>은 Fusion의 루트 컴포넌트나 컴포넌트 인스턴스(<strong>오커런스</strong>, 예: <code>부품이름#1</code>) 하나이고, 업로드 묶음에서 면은 「부품/바디」와 면 이름으로 불립니다. 그래서 바디 이름이 바뀌면 같은 면이 샘플마다 다른 이름을 갖게 되어, 보간할 때 기본 형상의 면과 짝지어지지 않습니다.
+            </p>
+            <p>
+              애드인 안에서 Fusion API를 감싸 공통 업로드 코드에 모델을 넘기는 부분이 <strong>Fusion 어댑터</strong>(<code>FusionDesignModel</code>)입니다. 사람이 Fusion에서 해야 하는 절차는 bash <strong>위저드</strong>가 한 단계씩 안내합니다. 업로드와 녹화는 녹화 위저드(<code>scripts/fusion-recording-wizard.sh</code>)가 맡고, 이번에 만든 비선형 위저드(<code>scripts/fusion-nonlinear-wizard.sh</code>)는 그것을 안에서 부른 뒤 결과를 자동으로 판정합니다.
+            </p>
+          </details>
+
+          <p>
+            이번 변경은 티켓 26 「Fusion 실물 확인」의 4절, 비선형으로 변하는 부분이 있는 모델을 다룹니다. <strong>합성 녹화본</strong>은 Fusion 대신 SolidCraft(시험용 CAD 앱)로 만든 모델을 애드인과 같은 코드로 스윕해 저장소에 넣어 둔 녹화본이고, 등받이 벤치(<code>fixtures/synthetic/bench-tilt.json</code>)가 그 하나입니다. 합성 녹화본에서 이미 확인된 동작들이 실제 Fusion에서도 맞는지 사람이 업로드해 보는 항목입니다.
+          </p>
+          <p>
+            이 절이 확인하려는 동작은 셋입니다. 먼저 <strong>적응형 스윕</strong>(ADR-0007)입니다. 애드인은 기본값의 0.5·0.75·1.0·1.25·1.5배 다섯 점(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/addin/ConfiguratorUploader/uploader/core.py#L111"><code>core.py:111</code></a>의 <code>SWEEP_FACTORS</code>)에서 시작합니다. 이웃 샘플 사이 가운데 값을 검증점으로 재 보고, 선형 보간이 합격선을 넘는 구간만 반으로 나눕니다. 단독 스윕의 샘플은 최대 17개(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/addin/ConfiguratorUploader/uploader/core.py#L295"><code>core.py:295</code></a>의 <code>SAMPLE_LIMIT</code>)이고, 치수 합격선은 0.2 mm(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/addin/ConfiguratorUploader/uploader/core.py#L299"><code>core.py:299</code></a>)입니다. 17점으로도 넘으면 그 스윕에 <code>interpolation_failure</code>(보간 실패)를 남기고, 그 파라미터는 슬라이더 후보에서 빠집니다.
+          </p>
+          <p>
+            둘째는 <strong>부피 튐</strong>(<code>volume_jump</code>) 경고입니다. 샘플의 바디 부피가 이웃 두 샘플로 보간한 부피에서 20%(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/configurator/pipeline/verify-sweep.ts#L11"><code>verify-sweep.ts:11</code></a>의 <code>VOLUME_JUMP = 0.2</code>)보다 더 벗어나면 납니다. 이 경고는 샘플에 바디 측정값(<code>bodies</code>)이 있어야 계산할 수 있는데, 이번 변경 전까지 Fusion 어댑터는 그 값을 내지 않았습니다. 셋째는 재계산이 실패한 쪽의 스윕 범위를 줄이는 동작으로, 같은 티켓에서 앞서 선반 모델을 Fusion에 올릴 때 확인했습니다.
+          </p>
+
+          <div class="callout">
+            <span class="label">핵심 개념: 범위 줄임</span>
+            스윕 도중 재계산이 실패하거나 면 구성이 기본 형상과 달라지면, 애드인은 그 지점부터 바깥을 버리고 범위를 줄입니다. 까닭은 둘 중 하나로 적습니다. 재계산 자체가 실패했으면 <code>recompute_failed</code>, 면이 사라지거나 새로 생겼으면 <code>modeling_error_suspected</code>입니다. 범위가 기본값 한 점으로 줄면(폭 0) 그 파라미터는 슬라이더로 쓸 수 없습니다.
+          </div>
+
+          <div class="callout edge">
+            <span class="label">주의</span>
+            범위 줄임은 면 이름을 비교해서 판단합니다. 그래서 형상은 그대로인데 이름만 바뀌어도 면이 사라지고 새로 생긴 것으로 보입니다. 이번 결함이 정확히 이 경로였습니다.
+          </div>
+        </section>
+
+        <section id="intuition">
+          <h2>직관</h2>
+          <p>
+            변경은 두 부분입니다. 앞부분은 측정과 판정입니다. 어댑터가 바디 부피를 재고, 사람이 업로드 결과를 눈으로 견주지 않도록 도구가 판정 줄을 찍습니다. 뒷부분은 그 업로드에서 나온 결함 수정입니다. 답은 면입니다. 재계산 뒤 Fusion은 바디 이름과 바디에 붙인 속성을 잃었지만, 면에 붙인 속성은 두 번 모두 남겼습니다. 그래서 바디 이름을 그 바디의 면마다 붙이고, 샘플에서는 면들의 표시 가운데 가장 많은 것을 바디 이름으로 씁니다.
+          </p>
+
+          <p>
+            이제 면에는 표시가 두 가지 붙습니다. 하나는 면 이름 표시(<code>face</code> 속성)이고, 다른 하나는 <strong>바디 표시</strong>, 곧 그 면이 속한 기본 형상 바디의 이름(<code>body</code> 속성)입니다. 커밋 01cd75f가 바디 객체 자체에 붙였던 것은 이 페이지에서 「바디에 붙인 예전 표시」라고 부릅니다.
+          </p>
+
+          <h3>세 번의 업로드</h3>
+          <p>
+            사람이 Fusion에서 만든 벤치에는 컴포넌트가 둘 있었습니다. 하나는 좌판과 등받이가 합쳐진 바디 하나이고, 다른 하나에는 한 번의 돌출로 만든 원기둥 다리 바디 둘이 있습니다. 이 모델을 같은 위저드로 세 번 올렸고, 다리 바디 하나의 이름이 이렇게 움직였습니다.
+          </p>
+          <table class="vals">
+            <thead>
+              <tr><th>업로드</th><th>애드인 코드</th><th>Fusion이 한 일</th><th>좌판 폭·깊이 범위</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>첫째</td><td>c2d9606, 바디 이름 = Fusion 이름</td><td class="warn">본체3 → 본체4, 면 표시는 남음</td><td class="no">폭 0</td></tr>
+              <tr><td>둘째</td><td>01cd75f, 바디에 표시</td><td class="warn">본체4 → 본체5, 바디에 붙인 표시 사라짐, 면 표시는 남음</td><td class="no">폭 0</td></tr>
+              <tr><td>셋째</td><td>6357630, 면에 표시</td><td class="yes">면의 바디 표시로 이름을 이어 감</td><td class="yes">187.5~375, 120~360</td></tr>
+            </tbody>
+          </table>
+          <p>
+            첫 업로드에서 좌판 폭을 처음 바꾸자 다리 바디 이름이 <code>본체3</code>에서 <code>본체4</code>로 바뀌었고, 기본값으로 되돌려도 그대로였습니다. 그 바디의 면 넷에는 기본 형상에서 붙인 면 표시가 그대로 있었습니다(<code>:new</code> 면 0개). 그래서 첫 고침은 바디 자체에도 표시를 붙이는 것이었습니다. 두 번째 업로드에서 그 표시가 사라지면서 이 추정이 틀렸음이 드러났습니다. 지금 아는 것은 두 번 모두 면 표시는 남았다는 사실뿐입니다. Fusion이 바디 객체를 새로 만들면서 면은 이어 가는 것이라고 보지만, 이것은 관찰에서 끌어낸 추론입니다. <code>docs/fusion-api.md</code>도 이 동작을 티켓 26 4절의 관찰 두 번으로만 적어 둡니다.
+          </p>
+
+          <p class="flow-label">기본 형상과 샘플 사이에서 다리 바디 이름이 이어지는 길 (셋째 업로드 코드)</p>
+          <p class="mock-caption">셋째 업로드는 앞 업로드들이 바꿔 둔 Fusion 이름으로 시작했고(그 녹화본의 기본 형상에서는 <code>본체5</code>), 스윕 내내 그 이름을 유지했습니다.</p>
+          <div class="dataflow">
+            <div class="node terminal">기본 형상</div>
+            <div class="step">
+              <div class="arrow"><span class="data">면 넷에 body=본체5</span><span class="line"></span></div>
+              <div class="node">면의 바디 표시</div>
+            </div>
+            <div class="step">
+              <div class="arrow"><span class="data">좌판 폭 312.5</span><span class="line"></span></div>
+              <div class="node">재계산 (Fusion 이름이 바뀌어도)</div>
+            </div>
+            <div class="step">
+              <div class="arrow"><span class="data">[본체5 ×4]</span><span class="line"></span></div>
+              <div class="node pass">부품이름#1/본체5</div>
+            </div>
+          </div>
+
+          <h3>면에 붙인 이름을 바디 이름으로 되돌리는 규칙</h3>
+          <p>
+            바디 이름을 면에 붙이면 거꾸로 면들의 표시에서 바디 이름을 골라야 합니다. 보통은 모든 면이 같은 이름을 가지니 간단합니다. 까다로운 경우는 둘입니다. 하나는 잘라내기로 바디 하나가 두 조각이 될 때입니다. 두 조각의 면이 같은 표시를 물려받으므로, 그대로 두면 한 부품 안에 같은 이름의 바디가 둘 생기고 두 바디의 면 샘플이 섞입니다. 다른 하나는 표시가 하나도 없는 바디로, 기본 형상에 없던 바디이거나 모든 면이 새로 만들어진 바디입니다. 아래 그림이 그 규칙입니다.
+          </p>
+          <pre class="mermaid">flowchart TD
+  A["바디 하나의 면들"] --&gt; B{"면에 바디 표시가 있나"}
+  B --&gt;|있다| C["가장 많은 면에 붙은 이름이 후보"]
+  B --&gt;|없다| D{"바디에 붙인 예전 표시가 있나"}
+  D --&gt;|있다| J["예전 표시의 이름이 후보"]
+  J --&gt; E
+  D --&gt;|없다| F["Fusion 이름으로 돌림"]
+  C --&gt; E{"같은 부품에 같은 표시를 고른 바디가 또 있나"}
+  E --&gt;|없다| G["기본 형상의 이름"]
+  E --&gt;|있다| H{"표시된 면이 가장 많은가"}
+  H --&gt;|그렇다| G
+  H --&gt;|아니다| F
+  F --&gt; I["애드인 점검에 적음"]
+  classDef ok fill:#e4f3ea,stroke:#1a7f47,color:#16181b
+  classDef bad fill:#fbefe1,stroke:#b5620a,color:#16181b
+  class G ok
+  class F,I bad</pre>
+          <p>
+            그림의 「애드인 점검」은 업로드가 끝나면 애드인이 스스로 잰 결과를 남기는 파일로, 표시를 쓰지 못한 바디는 거기 <code>untagged_bodies</code>로 적힙니다(아래 4절). 장난감 예를 들어 봅니다. 한 부품 안에 바디가 둘 있고, Fusion 이름과 면 표시가 다음과 같다고 합시다.
+          </p>
+          <ul>
+            <li>조각 A: Fusion 이름 <code>본체6</code>, 표시 <code>본체1</code>이 붙은 면 2개</li>
+            <li>조각 B: Fusion 이름 <code>본체1</code>, 표시 <code>본체1</code>이 붙은 면 5개</li>
+          </ul>
+          <p>
+            두 조각 모두 <code>본체1</code>을 고르지만 표시된 면이 많은 B만 그 이름을 가집니다. A는 Fusion 이름 <code>본체6</code>으로 돌아가고 애드인 점검의 <code>untagged_bodies</code>에 적힙니다. 이것은 <code>addin/tests/test_face_names.py</code>의 시험과 같은 예입니다. Fusion 이름으로 돌린 바디가 마침 다른 바디의 표시와 같으면 <code>:new</code> 꼬리를 붙여 이름이 겹치지 않게 합니다.
+          </p>
+
+          <h3>판정을 사람이 아니라 도구가 한다</h3>
+          <p>
+            운영자가 정한 규칙에 따라 위저드는 값 비교를 사람에게 시키지 않고, 도구 출력의 한 줄씩을 읽어 판정합니다. 합성 bench-tilt 녹화본으로 판정 줄을 돌리면 이렇게 나옵니다.
+          </p>
+          <div class="ui-mockup">
+            <div class="bar">녹화본 요점 (scripts/recording_summary.py), 합성 bench-tilt</div>
+            <div class="body">적응형으로 더한 샘플: back_angle 6개
+바디 측정값: 형상 31/31개
+[업로드 스윕] 통과</div>
+          </div>
+          <p class="mock-caption">첫 두 줄은 요점에 새로 생긴 줄이고, 셋째 줄은 <code>verify-recording.ts --responses</code>가 새로 찍는 줄입니다.</p>
+        </section>
+
+        <section id="code">
+          <h2>코드 살펴보기</h2>
+          <p>
+            흐름: 업로드 시작에서 기본 형상에 표시를 붙임 → 샘플마다 바디 이름과 부피를 읽어 묶음에 담음 → 점검 파일과 녹화본 요점 → 위저드의 자동 판정.
+          </p>
+
+          <h3>1. 업로드 시작: 기본 형상의 면에 면 이름과 바디 이름을 붙인다</h3>
+          <p>
+            어댑터 <code>FusionDesignModel</code>을 만들면 생성자가 <code>_tag_baseline</code>을 부릅니다. 앞 업로드의 표시를 지우고, 보이는 바디마다 면 이름(<code>face</code> 속성)과 바디 이름(<code>body</code> 속성)을 면에 붙입니다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/addin/ConfiguratorUploader/uploader/fusion_model.py#L257-L270">addin/ConfiguratorUploader/uploader/fusion_model.py:257-270</a></p>
+          <pre><span class="add">    def _tag_baseline(self, keep_body_tags: bool) -&gt; None:</span>
+<span class="add">        """앞 업로드의 표시를 지우고, 기본 형상의 면에 면 이름과 바디 이름을 붙인다. keep_body_tags면 있는 바디 표시는 둔다."""</span>
+<span class="add">        clear_tags(self._design, keep_bodies=keep_body_tags)</span>
+        roles = self._roles()
+        for _, body, _ in self._visible_bodies():
+            names = face_names(self._face_roles(body, roles), baseline=True)
+<span class="add">            # 새 업로드는 표시를 지운 뒤라 Fusion의 바디 이름이다. 이어 답할 때는 업로드 때 붙인 표시를 두고, 표시가 없는</span>
+<span class="add">            # 면에는 그 바디의 표시(면 또는 예전 애드인이 바디에 붙인 것)를 붙인다.</span>
+<span class="add">            label = self._body_tag(body).tag or body.name</span>
+            for face, name in zip(body.faces, names):
+                native = face.nativeObject or face
+                native.attributes.add(TAG_GROUP, TAG_NAME, name)
+<span class="add">                if native.attributes.itemByName(TAG_GROUP, BODY_TAG_NAME) is None:</span>
+<span class="add">                    native.attributes.add(TAG_GROUP, BODY_TAG_NAME, label)</span></pre>
+          <p>
+            새 업로드라면 <code>clear_tags</code>가 <code>body</code> 속성까지 지운 뒤이므로 <code>label</code>은 지금의 Fusion 바디 이름입니다. 바디 표시는 이미 있으면 다시 붙이지 않습니다. 이어 답할 때 업로드 때 붙인 표시를 덮어쓰지 않기 위해서입니다. 오커런스 안의 바디와 면은 Fusion이 <strong>프록시</strong>, 곧 어셈블리 위치로 옮겨 보여 주는 대리 객체로 돌려주고, <code>nativeObject</code>는 그 프록시가 가리키는 본래 면입니다. 속성은 본래 면에 붙습니다.
+          </p>
+          <p>
+            <code>keep_body_tags</code>는 Fusion을 껐다 켠 뒤 같은 업로드에 이어 답할 때(ADR-0013) 참입니다. 면 이름은 기본 형상에서 다시 지어도 업로드 때와 같지만, 바디 이름은 업로드 도중 Fusion이 바꿨을 수 있어 다시 지으면 녹화본과 어긋납니다. 그래서 이어 답할 때는 <code>body</code> 속성을 지우지 않습니다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/addin/ConfiguratorUploader/uploader/fusion_model.py#L85-L87">addin/ConfiguratorUploader/uploader/fusion_model.py:85-87</a></p>
+          <pre>    for name in (TAG_NAME,) if keep_bodies else (TAG_NAME, BODY_TAG_NAME):
+        for attr in design.findAttributes(TAG_GROUP, name):
+            attr.deleteMe()</pre>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/addin/ConfiguratorUploader/ConfiguratorUploader.py#L149-L150">addin/ConfiguratorUploader/ConfiguratorUploader.py:149-150</a></p>
+          <pre>                lambda: FusionDesignModel(design, keep_body_tags=True),
+                lambda: clear_tags(design, keep_bodies=True),</pre>
+
+          <h3>2. 샘플마다: 면의 표시에서 바디 이름을 고른다</h3>
+          <p>
+            재계산 뒤 <code>_visible_bodies</code>는 바디를 새로 찾고, 루트와 오커런스마다 그 안의 바디 목록을 <code>_body_names</code>에 넘깁니다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/addin/ConfiguratorUploader/uploader/fusion_model.py#L160"><code>fusion_model.py:160</code></a>, <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/addin/ConfiguratorUploader/uploader/fusion_model.py#L174"><code>fusion_model.py:174</code></a>). 한 부품 안에서 이름이 겹치는지 봐야 하므로 바디를 하나씩이 아니라 부품 단위로 넘깁니다. 바디마다 이름의 재료는 <code>_body_tag</code>가 모읍니다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/addin/ConfiguratorUploader/uploader/fusion_model.py#L115-L123">addin/ConfiguratorUploader/uploader/fusion_model.py:115-123</a></p>
+          <pre>        tags = []
+        for face in body.faces:
+            tag = (face.nativeObject or face).attributes.itemByName(TAG_GROUP, BODY_TAG_NAME)
+            tags.append(str(tag.value) if tag else None)
+        name = body_name(tags)
+        if name is None:
+            legacy = (body.nativeObject or body).attributes.itemByName(TAG_GROUP, BODY_TAG_NAME)
+            name = str(legacy.value) if legacy else None
+        return BodyTag(name, tags.count(name) if name is not None else 0, str(body.name))</pre>
+          <p>
+            면 표시가 하나도 없을 때만 바디 자체의 <code>body</code> 속성을 봅니다. 이것은 커밋 01cd75f의 애드인이 바디에 붙인 예전 표시로, 그 애드인으로 올린 업로드에 새 애드인이 이어 답하는 경우를 위한 것입니다. 고르는 규칙은 Fusion 객체 없이 시험할 수 있도록 순수 함수 둘로 뺐습니다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/addin/ConfiguratorUploader/uploader/face_names.py#L102-L112">addin/ConfiguratorUploader/uploader/face_names.py:102-112</a></p>
+          <pre>    owner: dict[str, int] = {}
+    for i, b in enumerate(bodies):
+        if b.tag is not None and (b.tag not in owner or b.tagged_faces &gt; bodies[owner[b.tag]].tagged_faces):
+            owner[b.tag] = i
+    names = [b.tag if b.tag is not None and owner[b.tag] == i else "" for i, b in enumerate(bodies)]
+    fallback = []
+    for i, b in enumerate(bodies):
+        if not names[i]:
+            fallback.append(b.fusion)
+            names[i] = f"{b.fusion}:new" if b.fusion in owner else b.fusion
+    return names, fallback</pre>
+          <p>
+            <code>body_names</code>는 표시마다 주인을 하나 정합니다. 주인은 표시된 면이 가장 많은 바디이고, 같으면 앞의 바디입니다(비교가 <code>&gt;</code>라서). 주인이 아닌 바디는 Fusion 이름으로 돌아가 <code>fallback</code>에 들어갑니다. 그 앞 단계의 <code>body_name</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/addin/ConfiguratorUploader/uploader/face_names.py#L73"><code>face_names.py:73</code></a>)은 한 바디의 면 표시 가운데 가장 많은 것을 고르고, 같으면 이름 순으로 앞의 것을 고릅니다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/addin/ConfiguratorUploader/uploader/fusion_model.py#L128-L131">addin/ConfiguratorUploader/uploader/fusion_model.py:128-131</a></p>
+          <pre>        names, fallback = body_names([self._body_tag(body) for body in bodies])
+        if self._tagged:
+            self.checks.untagged_bodies.extend(n for n in fallback if n not in self.checks.untagged_bodies)
+        return names</pre>
+          <p>
+            <code>_tagged</code>는 생성자가 <code>_tag_baseline</code>을 마친 뒤에야 참이 됩니다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/addin/ConfiguratorUploader/uploader/fusion_model.py#L102-L104"><code>fusion_model.py:102-104</code></a>). <code>_tag_baseline</code>도 <code>_visible_bodies</code>를 거쳐 바디 이름을 정하는데, 그때는 표시가 아직 없는 것이 정상이라 점검에 적지 않습니다.
+          </p>
+
+          <h3>3. 같은 샘플에서: 바디 부피를 담는다</h3>
+          <p>
+            샘플 하나의 형상을 JSON으로 만드는 <code>_shape_json</code>은 모델이 <code>MeasuringModel</code> 프로토콜(<code>measure_bodies</code>가 있는 모델)이면 <code>bodies</code>를 더합니다. 이 분기는 원래 있었고 SolidCraft 합성 어댑터만 탔는데, 이제 Fusion 어댑터도 탑니다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/addin/ConfiguratorUploader/uploader/core.py#L175-L179">addin/ConfiguratorUploader/uploader/core.py:175-179</a></p>
+          <pre>    if isinstance(model, MeasuringModel):
+        shape["bodies"] = [
+            {"name": b.body, "volume": b.volume, "bbox": {"min": list(b.bbox_min), "max": list(b.bbox_max)}}
+            for b in model.measure_bodies()
+        ]</pre>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/addin/ConfiguratorUploader/uploader/fusion_model.py#L343-L356">addin/ConfiguratorUploader/uploader/fusion_model.py:343-356</a></p>
+          <pre><span class="add">    def measure_bodies(self) -&gt; list[BodyMeasure]:</span>
+<span class="add">        """바디 부피(mm³)와 경계 상자(mm, 프록시는 어셈블리 좌표). 업로드 스윕의 부피 튐(volume_jump) 경고에 쓴다(티켓 26 4절)."""</span>
+<span class="add">        measures = []</span>
+<span class="add">        for info, body, _ in self._visible_bodies():</span>
+<span class="add">            box = body.boundingBox</span>
+<span class="add">            measures.append(</span>
+<span class="add">                BodyMeasure(</span>
+<span class="add">                    body=info.name,</span>
+<span class="add">                    volume=body.volume * _CM_TO_MM**3,</span>
+<span class="add">                    bbox_min=_mm(box.minPoint),</span>
+<span class="add">                    bbox_max=_mm(box.maxPoint),</span>
+<span class="add">                )</span>
+<span class="add">            )</span>
+<span class="add">        return measures</span></pre>
+          <p>
+            Fusion API의 길이 단위는 cm이므로 부피에는 <code>_CM_TO_MM**3</code>, 곧 1000을 곱해 mm³로 바꿉니다. 바디 이름으로는 <code>info.name</code>을 씁니다. 2절에서 고른 이름이므로 부피와 면이 같은 바디 이름을 가리킵니다.
+          </p>
+
+          <h3>4. 업로드 뒤: 점검 파일이 표시를 쓰지 못한 바디를 알린다</h3>
+          <p>
+            애드인은 업로드가 끝나면 스스로 잰 점검 결과(<code>SelfChecks</code>)를 <code>data/addin-checks/&lt;업로드 ID&gt;.json</code>에 씁니다. 여기에 <code>untagged_bodies</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/addin/ConfiguratorUploader/uploader/fusion_model.py#L73"><code>fusion_model.py:73</code></a>)가 더해졌습니다. 녹화 위저드는 판독기 <code>scripts/addin_checks.py</code>가 찍는 「바디 표시 없는 바디: N개」 줄을 메모에 남기고, 0개가 아니면 경고합니다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/scripts/addin_checks.py#L37">scripts/addin_checks.py:37</a></p>
+          <pre>        f"{len(untagged)}개{_first(untagged)}" if untagged is not None else "점검 파일에 없음(바디 표시 전 애드인)",</pre>
+          <p>
+            바로 이 점검이 두 번째 업로드에서 "바디 표시 없는 바디: 1개: 본체5"를 찍었습니다. 티켓 기록대로, 범위가 다시 폭 0이 된 원인이 바디에 붙인 표시가 사라진 것임을 점검 파일이 바로 보여 주었습니다.
+          </p>
+
+          <h3>5. 녹화본 요점: 적응형 샘플 수와 바디 측정값</h3>
+          <p>
+            <code>scripts/recording_summary.py</code>의 <code>_adaptive</code>는 스윕마다 처음 다섯 점이 아닌 샘플을 셉니다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/scripts/recording_summary.py#L118-L119">scripts/recording_summary.py:118-119</a></p>
+          <pre>        initial = [base * f for f in SWEEP_FACTORS] + [sweep["range"][r["side"]] for r in sweep.get("reductions", [])]
+        extra = sum(1 for s in sweep["samples"] if not any(math.isclose(s["value"], v, abs_tol=1e-9) for v in initial))</pre>
+          <p>
+            범위를 줄인 쪽의 끝 값도 처음 점으로 칩니다. 재계산이 실패하면 애드인(<code>core._trim_failures</code>)이 실패한 쪽 샘플을 지우고 그 안쪽 검증점을 샘플로 올리는데, 그 점은 적응형으로 나눈 것이 아닙니다. 면 구성이 값 구간마다 달라 샘플이 <strong>위상 묶음</strong>(같은 면 구성을 가진 샘플의 무리) 여럿으로 나뉘는 스윕은, 묶음 경계를 찾으려고 더한 샘플과 가릴 수 없어 세지 않습니다. 같은 파일의 <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/scripts/recording_summary.py#L169"><code>recording_summary.py:169</code></a>은 "바디 측정값: 형상 N/M개"를 찍습니다.
+          </p>
+          <p>
+            검증 도구는 <code>--responses</code>를 주면 업로드 스윕 피드백(보간 실패와 부피 튐)도 찍습니다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/configurator/scripts/verify-recording.ts#L133-L135">configurator/scripts/verify-recording.ts:133-135</a></p>
+          <pre>    const upload = uploadSweepFeedback(bundle);
+    if (upload.length === 0) env.print("[업로드 스윕] 통과");
+    for (const f of upload) env.print(`[업로드 스윕] ${feedbackLine(f)}`);</pre>
+
+          <h3>6. 위저드의 자동 판정</h3>
+          <p>
+            <code>scripts/fusion-nonlinear-wizard.sh</code>는 세 단계(모델 준비, 업로드와 녹화, 자동 판정)입니다. 마지막 단계는 위 두 도구의 출력에서 줄을 골라 판정하고 <code>&lt;이름&gt;-nonlinear.md</code>에 씁니다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/scripts/fusion-nonlinear-wizard.sh#L262-L266">scripts/fusion-nonlinear-wizard.sh:262-266</a></p>
+          <pre>adaptive=$(grep '^적응형으로 더한 샘플: ' &lt;&lt;&lt; "$summary" || true)
+bodies=$(grep '^바디 측정값: ' &lt;&lt;&lt; "$summary" || true)
+recompute=$(grep -c ' recompute_failed:' &lt;&lt;&lt; "$summary" || true)
+upload=$(grep '^\[업로드 스윕\]' &lt;&lt;&lt; "$sweep" || true)
+jumps=$(grep -c ' volume_jump ' &lt;&lt;&lt; "$upload" || true)</pre>
+          <p>
+            적응형 스윕, 보간 실패, 바디 측정값 셋은 통과·실패로 판정하고, 부피 튐과 재계산 실패로 줄인 쪽은 세기만 합니다. 도구가 실패하면 0으로 적지 않고 판정 칸에 도구 실패를 적습니다.
+          </p>
+          <div class="callout edge">
+            <span class="label">판정 해석</span>
+            세 업로드 모두 보간 실패 판정이 실패로 나왔습니다. 17점으로도 합격선을 넘은 파라미터가 하나 있었다는 뜻입니다. 등받이 각도 42.19°에서 좌판·등받이 부품의 치수 오차가 0.24 mm로 합격선 0.2 mm를 넘었습니다. 등받이 각도가 커질수록 형상이 더 크게 휘어 17점으로도 0.2 mm 안에 들지 못한 것이고, 17점으로도 합격선을 넘는 파라미터는 슬라이더 후보에서 뺀다는 결정(ADR-0012)대로 동작한 것입니다. 그래서 티켓 기록은 이것을 결함이 아니라 모델 성질로 보았습니다. 같은 업로드의 부피 튐은 0개여서, Fusion 업로드에서 이 경고가 실제로 나는 모습은 아직 보지 못했습니다. 경고 계산 자체는 합성 녹화본 시험이 맡습니다.
+          </div>
+        </section>
+
+        <section id="quiz">
+          <h2>퀴즈</h2>
+
+          <div class="quiz-question">
+            <p class="q">한 샘플에서 잘라내기가 다리 바디 <code>본체2</code>를 두 조각으로 갈랐습니다. 조각 P는 Fusion 이름 <code>본체2</code>에 표시 <code>본체2</code>가 붙은 면이 1개이고, 조각 Q는 Fusion 이름 <code>본체8</code>에 그 표시가 붙은 면이 3개입니다. 두 조각은 어떤 이름을 받습니까?</p>
+            <button class="quiz-option">P는 본체2, Q는 본체8이고 Q가 점검에 적힌다</button>
+            <button class="quiz-option">둘 다 본체2를 받아 두 조각의 면 샘플이 섞인다</button>
+            <button class="quiz-option" data-correct>Q는 본체2, P는 본체2:new, P가 점검에 적힌다</button>
+            <button class="quiz-option">P는 본체2, Q는 본체8:new이고 둘 다 적힌다</button>
+            <div class="quiz-feedback" role="status">
+              주인은 표시된 면이 많은 Q라서 Q가 <code>본체2</code>를 가집니다. P는 Fusion 이름 <code>본체2</code>로 돌아가는데, 그 이름이 Q가 주인인 표시와 같으므로 <code>:new</code>가 붙습니다. 점검의 <code>fallback</code>에는 꼬리 없는 Fusion 이름 <code>본체2</code>가 들어갑니다. Fusion 이름이 아니라 표시된 면 수가 주인을 정합니다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">이어 답하기 경로에서 <code>FusionDesignModel(design)</code>을 기본 인자로 만들었다면, 둘째 업로드처럼 업로드 도중 이름이 <code>본체4</code>에서 <code>본체5</code>로 바뀐 바디는 어떻게 됩니까?</p>
+            <button class="quiz-option" data-correct>추가 샘플의 바디 이름이 녹화본과 어긋난다</button>
+            <button class="quiz-option">면 이름도 다시 지어져 모두 <code>:new</code>가 된다</button>
+            <button class="quiz-option">점검이 그 바디를 바디 표시 없음으로 적는다</button>
+            <button class="quiz-option">달라지는 것 없이 업로드 때와 같은 이름이 나온다</button>
+            <div class="quiz-feedback" role="status">
+              기본 인자에서는 <code>clear_tags</code>가 <code>body</code> 속성까지 지우고, <code>_tag_baseline</code>이 지금의 Fusion 이름 <code>본체5</code>를 새로 붙입니다. 녹화본의 기본 형상은 <code>본체4</code>로 적혀 있으므로, 추가 샘플의 면은 짝을 찾지 못합니다. 이 바디는 <code>_tagged</code>가 거짓일 때 이름이 정해지므로 점검에도 적히지 않습니다. 면 이름은 피처와 역할에서 다시 지어도 같으므로 <code>:new</code>가 되지 않습니다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q"><code>_adaptive</code>의 <code>initial</code>에서 범위를 줄인 쪽 끝 값을 빼면, 적응형 샘플을 하나도 더하지 않은 모델에서 위저드의 적응형 판정은 어떻게 됩니까?</p>
+            <button class="quiz-option">줄인 쪽이 없는 스윕에서도 샘플을 더 센다</button>
+            <button class="quiz-option" data-correct>재계산이 실패한 스윕에서는 통과로 잘못 나온다</button>
+            <button class="quiz-option">위상 묶음이 있는 스윕에서 실패로 잘못 나온다</button>
+            <button class="quiz-option">줄인 쪽이 있으면 요점 줄이 아예 사라진다</button>
+            <div class="quiz-feedback" role="status">
+              재계산이 실패하면 <code>_trim_failures</code>가 안쪽 검증점(예: 900 대신 825)을 샘플로 올립니다. 이 값은 다섯 배수 어디에도 맞지 않으니, 끝 값을 빼면 1개로 세어집니다. 위저드는 "없음"이 아니면 통과로 보므로 거짓 통과가 됩니다. 위상 묶음이 있는 스윕은 처음부터 세지 않고, 줄인 쪽이 없는 스윕은 영향이 없습니다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">같은 업로드에서 등받이 각도의 치수 오차는 0.24 mm로 실패였는데, 부피 튐 경고는 0개였습니다. 둘이 함께 나올 수 있는 까닭으로 가장 맞는 것은?</p>
+            <button class="quiz-option">부피는 모든 바디를 더한 값이라 변화가 묻힌다</button>
+            <button class="quiz-option">부피 튐은 등받이 각도 스윕에서 재지 않는다</button>
+            <button class="quiz-option">치수 오차는 바디 측정값이 아니라 면 점으로만 잰다</button>
+            <button class="quiz-option" data-correct>두 검사의 합격선 크기가 서로 크게 다르다</button>
+            <div class="quiz-feedback" role="status">
+              치수 오차는 0.2 mm라는 절대 거리이고, 부피 튐은 보간한 부피에서 20%를 벗어나야 납니다. 몇 백 mm짜리 판에서 0.24 mm 빗나가도 부피로는 20%에 한참 못 미칩니다. 면 점으로 잰다는 것은 사실이지만, 그것만으로는 둘이 엇갈리는 까닭이 되지 않습니다. 부피는 바디마다 따로 재고, 모든 스윕에서 잽니다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">바디 이름을 바디가 아니라 그 바디의 면에 붙이도록 한 결정은 어떤 일반 원칙의 사례에 가장 가깝습니까?</p>
+            <button class="quiz-option">외부 동작은 문서를 따르고 관찰은 믿지 않는다</button>
+            <button class="quiz-option" data-correct>정체성은 실제로 살아남는 층에 매단다</button>
+            <button class="quiz-option">같은 값을 여러 곳에 두지 말고 한곳에만 둔다</button>
+            <button class="quiz-option">실패는 조용히 넘기지 말고 곧바로 멈춘다</button>
+            <div class="quiz-feedback" role="status">
+              Fusion은 재계산에서 바디 이름과 바디 속성을 잃었지만 면 속성은 두 번 모두 지켰습니다. 그래서 바디의 정체를 살아남은 층인 면에 실었습니다. 이 결정은 관찰에 근거한 것이고, 이름을 면마다 되풀이해 적으므로 한곳에만 두는 원칙과는 반대 방향입니다. 표시를 쓰지 못한 바디도 업로드를 멈추지 않고 점검에 적습니다.
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="colophon">
+        Generated with
+        <a href="https://github.com/malav2110/explain-diff-html"
+          >explain-diff-html</a
+        >
+      </footer>
+    </div>
+
+    <script>
+      document.querySelectorAll(".quiz-question").forEach(function (question) {
+        var feedback = question.querySelector(".quiz-feedback");
+
+        // Shuffle the options on every load, so the correct answer's position is
+        // random and a reader cannot fall into answering by position. Each option
+        // is re-inserted before the feedback block, which has to stay last.
+        var shuffled = Array.prototype.slice.call(
+          question.querySelectorAll(".quiz-option"),
+        );
+        for (var i = shuffled.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var swap = shuffled[i];
+          shuffled[i] = shuffled[j];
+          shuffled[j] = swap;
+        }
+        shuffled.forEach(function (option) {
+          question.insertBefore(option, feedback);
+        });
+
+        var options = question.querySelectorAll(".quiz-option");
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            var isCorrect = option.hasAttribute("data-correct");
+            options.forEach(function (other) {
+              other.disabled = true;
+              if (other.hasAttribute("data-correct"))
+                other.classList.add("correct");
+            });
+            if (!isCorrect) option.classList.add("incorrect");
+            feedback.classList.add("show", isCorrect ? "ok" : "bad");
+            feedback.insertBefore(
+              document.createTextNode(isCorrect ? "Correct. " : "Not quite. "),
+              feedback.firstChild,
+            );
+          });
+        });
+      });
+    </script>
+    <script>
+      // Mermaid loads without blocking: the page scripts above run first, and a slow
+      // or blocked CDN never holds up the quiz or the rest of the page. This is the
+      // only permitted external request, and it fires only when a .mermaid block is
+      // present. Leave it in place; it is a no-op on pages without a diagram.
+      (function () {
+        var blocks = document.querySelectorAll(".mermaid");
+        if (!blocks.length) return;
+
+        // mermaid.run() replaces each block's text with an SVG, so the source is
+        // gone after the first render. Stash it, because a theme change has to
+        // parse it again.
+        blocks.forEach(function (block) {
+          block.dataset.source = block.textContent;
+        });
+
+        var darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+        function render() {
+          blocks.forEach(function (block) {
+            block.removeAttribute("data-processed");
+            block.textContent = block.dataset.source;
+          });
+          try {
+            window.mermaid.initialize({
+              startOnLoad: false,
+              theme: darkQuery.matches ? "dark" : "default",
+            });
+          } catch (e) {}
+          Promise.resolve(window.mermaid.run({ nodes: blocks })).catch(
+            function () {},
+          );
+        }
+
+        var s = document.createElement("script");
+        s.src =
+          "https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js";
+        s.integrity =
+          "sha384-T/0lMUdJpd2S1ZHtRiofG3htU3xPCrFVeAQ1UUE2TJwlEJSV5NUwn30kP28n238E";
+        s.crossOrigin = "anonymous";
+        s.onload = function () {
+          render();
+          // Re-render when the reader switches system theme, so the diagram does
+          // not stay light on a dark page.
+          if (darkQuery.addEventListener)
+            darkQuery.addEventListener("change", render);
+        };
+        document.head.appendChild(s);
+      })();
+    </script>
+  </body>
+</html>

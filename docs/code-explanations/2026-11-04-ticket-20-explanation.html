@@ -1,0 +1,912 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>티켓 20: 최종 승인 편집과 반려</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f6f7f9;
+        --text: #1c2024;
+        --muted: #60646c;
+        --border: #d7dbdf;
+        --border-strong: #848c95;
+        --accent: #2f5ee0;
+        --accent-soft: #e8eefc;
+        --edge: #a35608;
+        --edge-soft: #fbefe1;
+        --ok: #1a7f47;
+        --ok-soft: #e4f3ea;
+        --bad: #c62a3b;
+        --bad-soft: #fbe7e9;
+        --measure: 68ch;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181b;
+          --surface: #1f2226;
+          --text: #eceef0;
+          --muted: #9ba1a6;
+          --border: #33383d;
+          --border-strong: #646c75;
+          --accent: #7aa2ff;
+          --accent-soft: #1e2740;
+          --edge: #e08c3a;
+          --edge-soft: #2e2517;
+          --ok: #57c98b;
+          --ok-soft: #17281d;
+          --bad: #f07178;
+          --bad-soft: #2c1a1c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:visited {
+        color: var(--accent);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 2.5rem;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 6rem;
+      }
+      nav.toc {
+        position: sticky;
+        top: 2.5rem;
+        align-self: start;
+        font-size: 0.9rem;
+      }
+      nav.toc strong {
+        display: block;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc li {
+        margin: 0.35rem 0;
+      }
+      nav.toc a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav.toc a:hover {
+        color: var(--accent);
+      }
+      main {
+        min-width: 0;
+      }
+      main > header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1.25rem;
+        margin-bottom: 2rem;
+      }
+      main > header h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.6rem;
+      }
+      main > header .lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: var(--measure);
+      }
+      main > header .provenance {
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        margin: 0.7rem 0 0;
+      }
+      .colophon {
+        grid-column: 1 / -1;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        border-top: 1px solid var(--border);
+        margin: 4rem 0 0;
+        padding: 1.2rem 0 0;
+      }
+      .colophon a {
+        color: inherit;
+      }
+      section {
+        margin-bottom: 3.5rem;
+      }
+      section h2 {
+        font-size: 1.4rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      section h3 {
+        font-size: 1.05rem;
+        margin: 2rem 0 0.6rem;
+      }
+      section p,
+      section ul,
+      section ol {
+        max-width: var(--measure);
+      }
+      li {
+        margin: 0.3rem 0;
+      }
+      /* Code blocks: white-space set here so a filled-in block cannot collapse. */
+      pre,
+      .code-block {
+        white-space: pre-wrap;
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        font:
+          0.86rem/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        tab-size: 2;
+      }
+      pre .del {
+        color: var(--bad);
+      }
+      pre .add {
+        color: var(--ok);
+      }
+      pre .hi {
+        background: var(--accent-soft);
+        border-radius: 3px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--surface);
+        padding: 0.05rem 0.3rem;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      /* A file:line reference linked to the code it names. Wraps a <code> span
+         in prose, or the bare text of a .filename label. */
+      a.srcref {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px solid var(--muted);
+      }
+      a.srcref:hover {
+        border-bottom-color: var(--accent);
+      }
+      a.srcref:hover code {
+        background: var(--accent-soft);
+      }
+      /* Path label for the code block below it. */
+      .filename {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        margin: 1.5rem 0 0.3rem;
+        overflow-wrap: anywhere;
+      }
+      /* Comparison table: one row per case, .yes / .no / .warn on outcome cells. */
+      table.vals {
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.86rem;
+        width: 100%;
+        max-width: 620px;
+      }
+      table.vals th,
+      table.vals td {
+        border: 1px solid var(--border-strong);
+        padding: 0.4rem 0.65rem;
+        text-align: left;
+      }
+      table.vals th {
+        background: var(--surface);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+      table.vals td.yes {
+        background: var(--ok-soft);
+      }
+      table.vals td.no {
+        background: var(--bad-soft);
+      }
+      table.vals td.warn {
+        background: var(--edge-soft);
+      }
+      /* Callouts: .callout for a concept, .callout.edge for a caveat. */
+      .callout {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+        padding: 0.85rem 1.1rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .callout .label {
+        display: block;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+      }
+      .callout.edge {
+        background: var(--edge-soft);
+        border-left-color: var(--edge);
+      }
+      .callout.edge .label {
+        color: var(--edge);
+      }
+      /* Skippable deep-background block. */
+      details.skippable {
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 0.75rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      details.skippable > summary {
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      details.skippable[open] > summary {
+        margin-bottom: 0.75rem;
+      }
+      /* Diagram family 1: simplified app UI mockup. */
+      .ui-mockup {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1.5rem 0;
+        max-width: 560px;
+        font-size: 0.85rem;
+      }
+      .ui-mockup .bar {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0.5rem 0.85rem;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .ui-mockup .body {
+        padding: 1.1rem 0.85rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+      }
+      .mock-caption {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.3rem 0 0;
+        max-width: var(--measure);
+      }
+      /* Diagram family 2: data flow between components, example data on the arrows. */
+      .dataflow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+      /* Each arrow travels with the node it points at. Without this, a flow
+         wider than the column wraps between an arrow and its node, leaving the
+         arrow pointing at nothing and the node stranded on the next line. */
+      .dataflow .step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .dataflow .node {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 175px;
+      }
+      .dataflow .node.terminal {
+        background: var(--surface);
+        border-color: var(--border);
+      }
+      .dataflow .node.pass {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .dataflow .node.fail {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .dataflow .arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.72rem;
+        min-width: 96px;
+      }
+      .dataflow .arrow .line {
+        width: 100%;
+        border-top: 2px solid var(--border);
+        position: relative;
+      }
+      .dataflow .arrow .line::after {
+        content: "\25B6";
+        position: absolute;
+        right: -2px;
+        top: -0.72em;
+        color: var(--border);
+        font-size: 0.7rem;
+      }
+      .dataflow .arrow .data {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.35rem;
+        margin-bottom: 0.2rem;
+        font-family: ui-monospace, monospace;
+      }
+      .flow-label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin: 1.25rem 0 0.25rem;
+      }
+      /* A numbered sequence with one marked position: call stacks, retry
+         counts, any ranked list. Not one of the numbered families; reach for
+         it when a step in an ordered list is the point. */
+      .frames {
+        list-style: none;
+        padding: 0;
+        margin: 1.25rem 0;
+        max-width: 620px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.82rem;
+      }
+      .frames li {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.45rem 0.7rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+      }
+      .frames li.target {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .frames .n {
+        display: inline-block;
+        min-width: 2.2em;
+        color: var(--muted);
+      }
+      /* Diagram family 3: node/recursion tree (ASTs, nesting, recursion) */
+      .tree {
+        margin: 1.5rem 0;
+        font:
+          0.82rem/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      .tnode {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.3rem 0.55rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+        display: inline-block;
+      }
+      .tnode.leaf {
+        background: var(--bg);
+      }
+      .tnode.kept {
+        border-color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tnode.skipped {
+        border-color: var(--muted);
+        color: var(--muted);
+      }
+      .tchildren {
+        margin-left: 1.4rem;
+        border-left: 2px dotted var(--border);
+        padding-left: 0.9rem;
+      }
+      .tnote {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-left: 0.4rem;
+      }
+
+      /* Optional tabular body for .ui-mockup, when the mocked UI is a table. */
+      .mock-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .mock-table th,
+      .mock-table td {
+        border: 1px solid var(--border);
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+      }
+      .mock-table th {
+        background: var(--surface);
+        font-weight: 600;
+      }
+      .mock-table .col-highlight {
+        background: var(--accent-soft);
+      }
+
+      .mermaid {
+        margin: 1.75rem 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .mermaid .edgeLabel,
+      .mermaid .edgeLabel p,
+      .mermaid .edgeLabel span,
+      .mermaid .edgeLabel foreignObject div {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+      }
+      /* Quiz */
+      .quiz-question {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .quiz-question > p.q {
+        font-weight: 600;
+        margin: 0 0 0.85rem;
+      }
+      .quiz-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 0.5rem;
+        font: inherit;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .quiz-option:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .quiz-option.correct {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .quiz-option.incorrect {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .quiz-option:disabled {
+        cursor: default;
+      }
+      .quiz-feedback {
+        display: none;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 7px;
+        margin-top: 0.3rem;
+      }
+      .quiz-feedback.show {
+        display: block;
+      }
+      .quiz-feedback.ok {
+        background: var(--ok-soft);
+      }
+      .quiz-feedback.bad {
+        background: var(--edge-soft);
+      }
+      a:focus-visible,
+      summary:focus-visible,
+      .quiz-option:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+      table.vals td.yes::before,
+      .dataflow .node.pass::before,
+      .tnode.kept::before,
+      .quiz-option.correct::before {
+        content: "\2713\00a0";
+        font-weight: 700;
+      }
+      table.vals td.no::before,
+      .dataflow .node.fail::before,
+      .quiz-option.incorrect::before {
+        content: "\2717\00a0";
+        font-weight: 700;
+      }
+      table.vals td.warn::before {
+        content: "\25B2\00a0";
+        font-weight: 700;
+      }
+      .tnode.skipped::before {
+        content: "\2013\00a0";
+        font-weight: 700;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 1rem;
+          padding: 1.25rem 1.1rem 4rem;
+        }
+        nav.toc {
+          position: static;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+        }
+        body {
+          font-size: 16px;
+        }
+        main > header h1 {
+          font-size: 1.6rem;
+        }
+        table.vals {
+          display: block;
+          overflow-x: auto;
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+<div class="layout">
+<nav class="toc">
+<strong>Contents</strong>
+<ol>
+<li><a href="#background">배경</a></li>
+<li><a href="#intuition">핵심 아이디어</a></li>
+<li><a href="#code">코드 따라가기</a></li>
+<li><a href="#quiz">퀴즈</a></li>
+</ol>
+</nav>
+<main>
+<header>
+<h1>티켓 20: 최종 승인 편집과 반려</h1>
+<p class="lead">운영자가 최종 승인 화면에서 구성기를 직접 만져 보고, 슬라이더 이름을 고치거나 범위를 좁혀 승인하거나, 반려해서 다른 후보를 고르거나 거절 이유를 적어 후보 제시를 다시 받게 한다.</p>
+<p class="provenance">jun-1993-p/threejs-configurator-ai 티켓 20, 최신 커밋 9ed3590, 포함한 커밋: 9ed3590 (티켓 20: 최종 승인 편집과 반려), explained 2026-11-04. References link to this commit.</p>
+</header>
+<section id="background">
+<h2>배경</h2>
+<details class="skippable">
+<summary>이 영역이 처음이면 펼쳐서 읽는 기본 배경</summary>
+
+<p>이 프로젝트는 AI가 쓴 명세(JSON)와 업로드 때 뽑은 스윕으로, 쇼핑몰에 붙이는 구성기 결과물을 만든다. 파이프라인은 정해진 단계로 진행되고 AI는 단계 안에서만 일한다(ADR-0014). 이 문서가 다루는 사람(운영자)의 결정 자리는 후보 선택과 최종 승인이다. 최종 승인은 결과물을 제출하기 직전의 마지막 사람 결정이다.</p>
+<p>명세의 슬라이더에는 이름, 최솟값, 최댓값, 기본값, 한 칸 크기(<code>step</code>)가 있다. 기본값은 업로드한 모델의 값이다. 고정 코어의 슬라이더는 최솟값에서 시작해 <code>step</code>씩 움직인다.</p>
+
+</details>
+
+<p>티켓 19까지의 최종 승인은 승인 단추 하나뿐이었다. 사람 결정 포트(<code>HumanPort.finalApproval</code>)는 <code>{ decision: "approve" }</code>만 돌려주었고, 화면은 슬라이더 이름·범위를 읽기 전용 목록으로 보였다. 최종 승인 뒤에는 늘 제출로 끝났으므로, 운영자는 마음에 안 들어도 후보로 되돌아갈 방법이 없었다.</p>
+<p>새로 쓰는 말은 다음과 같다. <b>고친 내용</b>(<code>SliderEdits</code>)은 슬라이더 id마다 새 이름과 좁힌 최솟값·최댓값이다. <b>반려</b>는 두 가지다. 하나는 이미 받은 후보 카드로 후보 선택에 돌아가는 <code>back: "choice"</code>(다른 후보)이고, 다른 하나는 거절 이유를 한 줄 적어 후보 제시를 다시 받는 <code>back: "candidates"</code>다. <b>거절 이유</b>(<code>rejections</code>)는 새 후보를 만드는 AI 입력에 들어간다.</p>
+<div class="callout"><span class="label">핵심 개념</span><p>최종 승인은 검증을 이미 통과한 명세를 사람이 다듬는 자리다. 그래서 고칠 수 있는 것은 이름과 범위의 좁히기로 한정되고, 기본값은 업로드한 모델의 값이라 고칠 수 없다(코드 주석). 범위 넓히기를 막는 이유는 티켓에 적혀 있지 않다. 이 문서의 추론으로는, 검증을 거치지 않은 범위가 제출에 들어가지 않게 하려는 것으로 보인다.</p></div>
+
+</section>
+<section id="intuition">
+<h2>핵심 아이디어</h2>
+
+<p>서랍장 예시로 보자(값은 설명을 위해 정한 것이다). 슬라이더 <code>body_w</code>가 400~800 mm, 기본값 600, step 10이라고 하자. 운영자가 화면에서 최댓값 칸을 700으로 바꾸면, 화면 스크립트가 그 값으로 구성기를 다시 띄워 슬라이더가 400~700으로 보인다(티켓 기록에 확인한 기록이 있다). 승인 단추를 누르면 서버가 같은 값을 다시 검사한 뒤 제출한다.</p>
+<table class="vals"><tr><th>운영자가 입력</th><th>결과</th><th>이유</th></tr>
+<tr><td>최대 700</td><td class="yes">승인</td><td>검증한 범위 안이고 기본값에서 step의 배수</td></tr>
+<tr><td>최대 900</td><td class="no">막힘</td><td>범위는 좁히기만 할 수 있음</td></tr>
+<tr><td>최소 650</td><td class="no">막힘</td><td>기본값 600이 범위 밖으로 나감</td></tr>
+<tr><td>최소 405</td><td class="no">막힘</td><td>기본값에서 step 10의 배수가 아님</td></tr>
+<tr><td>이름 "d5 폭"</td><td class="no">막힘</td><td>Fusion 파라미터 이름이 들어 있음</td></tr>
+</table>
+
+<p>표의 마지막 행은 이 상품에 Fusion 파라미터 <code>d5</code>가 있다고 가정한 예다. 막힌 답은 파이프라인을 멈추지 않는다. 같은 명세로 최종 승인을 다시 묻고, 오류 문장과 앞서 고친 값을 화면에 다시 채워 보인다. 티켓 기록은 후보 선택의 잘못된 답처럼 멈추지 않는 까닭을 "운영자가 칸 하나만 고치면 되는 일이라서"라고 적는다.</p>
+<p>반려의 두 경로는 되돌아가는 곳이 다르다.</p>
+<p class="flow-label">승인</p>
+<div class="dataflow">
+<div class="node terminal">최종 승인 화면</div>
+<div class="step"><div class="arrow"><span class="data">approve + edits</span><span class="line"></span></div><div class="node pass">승인: 고친 명세로 제출</div></div>
+</div>
+<p class="flow-label">반려 1: 다른 후보</p>
+<div class="dataflow">
+<div class="node terminal">최종 승인 화면</div>
+<div class="step"><div class="arrow"><span class="data">reject / choice</span><span class="line"></span></div><div class="node">이미 받은 후보 카드로 후보 선택</div></div>
+</div>
+<p class="flow-label">반려 2: 거절 이유</p>
+<div class="dataflow">
+<div class="node terminal">최종 승인 화면</div>
+<div class="step"><div class="arrow"><span class="data">reject / candidates + reason</span><span class="line"></span></div><div class="node">거절 이유가 rejections에 쌓이고 후보 제시 다시</div></div>
+</div>
+<div class="callout edge"><span class="label">남긴 한계</span><p>사례 기록에는 고친 내용·거절 이유·버려진 후보를 따로 담지 않았다. 사례 저장소는 티켓 21이라서, 지금은 고친 명세가 사례의 <code>spec</code>에 들어갈 뿐이다. 화면 스크립트의 범위 판정도 서버의 검사기와 겹친다. 브라우저 코드에 서버 모듈을 실을 수 없어서이고, 받아들일지는 서버가 정한다(티켓 리뷰 기록).</p></div>
+
+</section>
+<section id="code">
+<h2>코드 따라가기</h2>
+
+<p>흐름: 결정의 모양(<code>ApprovalDecision</code>, <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/9ed35906345bc86828bf2077b89d50ac707d5d80/configurator/pipeline/runner.ts#L126-L133"><code>configurator/pipeline/runner.ts:126-133</code></a>) → 최종 승인 화면(<code>finalApprovalHtml</code>, <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/9ed35906345bc86828bf2077b89d50ac707d5d80/configurator/pipeline/operator-screens.ts#L196-L237"><code>configurator/pipeline/operator-screens.ts:196-237</code></a>) → 양식 읽기(<code>readFinalApproval</code>, <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/9ed35906345bc86828bf2077b89d50ac707d5d80/configurator/pipeline/operator-screens.ts#L243-L266"><code>configurator/pipeline/operator-screens.ts:243-266</code></a>) → 고친 내용 검사(<code>approvalEditChecker</code>, <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/9ed35906345bc86828bf2077b89d50ac707d5d80/configurator/pipeline/schemas.ts#L430-L455"><code>configurator/pipeline/schemas.ts:430-455</code></a>) → 다시 묻기(<code>finalApproval</code>, <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/9ed35906345bc86828bf2077b89d50ac707d5d80/configurator/pipeline/runner.ts#L401-L411"><code>configurator/pipeline/runner.ts:401-411</code></a>) → 두 고리의 분기(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/9ed35906345bc86828bf2077b89d50ac707d5d80/configurator/pipeline/runner.ts#L646-L656"><code>configurator/pipeline/runner.ts:646-656</code></a>) → 제출(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/9ed35906345bc86828bf2077b89d50ac707d5d80/configurator/pipeline/runner.ts#L417-L421"><code>configurator/pipeline/runner.ts:417-421</code></a>).</p>
+
+<h3>1. 사람 결정의 모양</h3>
+<p>변경 전에는 <code>finalApproval</code>이 승인 한 가지만 돌려주었다. 이제 <code>ApprovalDecision</code>은 세 가지 경우를 판별 태그(<code>decision</code>·<code>back</code> 값으로 경우를 가르는 필드)로 나눈다. 승인은 고친 내용(<code>edits</code>)을 선택적으로 담고, 반려는 <code>back</code>이 <code>choice</code>인지 <code>candidates</code>인지에 따라 거절 이유가 필수가 된다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/9ed35906345bc86828bf2077b89d50ac707d5d80/configurator/pipeline/runner.ts#L126-L133">configurator/pipeline/runner.ts:126-133</a></p>
+<pre>/**
+ * 최종 승인의 사람 결정. 반려하면 이미 받은 후보 카드로 후보 선택에 돌아가거나(back: choice, 사용자 스토리 71),
+ * 거절 이유를 붙여 후보 제시를 다시 한다(back: candidates, 사용자 스토리 72).
+ */
+export type ApprovalDecision =
+  | { decision: "approve"; edits?: SliderEdits }
+  | { decision: "reject"; back: "choice" }
+  | { decision: "reject"; back: "candidates"; reason: string };</pre>
+
+<p>이 결정을 받는 입력에는 앞 결정이 막힌 까닭 <code>errors</code>와 그 결정이 고친 내용 <code>edits</code>가 더해졌다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/9ed35906345bc86828bf2077b89d50ac707d5d80/configurator/pipeline/runner.ts#L243-L248"><code>configurator/pipeline/runner.ts:243-248</code></a>).</p>
+
+<h3>2. 화면: 구성기를 띄우고 고치는 칸을 둔다</h3>
+<p><code>finalApprovalHtml</code>은 구성기를 띄우는 <code>previewHtml</code>(아래 코드)과 고치는 칸 <code>sliderEditHtml</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/9ed35906345bc86828bf2077b89d50ac707d5d80/configurator/pipeline/operator-screens.ts#L151-L163"><code>configurator/pipeline/operator-screens.ts:151-163</code></a>)을 붙여 화면을 만든다. <code>previewHtml</code>은 결과물의 고정 코어 번들(구성기를 그리는 고정 코드), 명세, 스윕 데이터, 스타일 선택을 화면 안에 싣고 구성기를 띄운다. 슬라이더마다 이름·최소·최대 칸이 있고, 범위 칸의 <code>min</code>·<code>max</code> 속성은 좁히기의 한계(승인 전 범위와 기본값)다. 칸 값이 바뀔 때마다 화면 스크립트가 그 값으로 구성기를 다시 띄우고, 범위가 맞지 않는 중간 상태이면 앞의 구성기를 그대로 둔다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/9ed35906345bc86828bf2077b89d50ac707d5d80/configurator/pipeline/operator-screens.ts#L165-L190">configurator/pipeline/operator-screens.ts:165-190</a></p>
+<pre>function previewHtml(spec: Spec, files: ProductFiles): string {
+  const product = `{"spec":${JSON.stringify(spec)},"sweeps":${files["sweeps.json"]},"style":${files["style.json"]}}`;
+  return `&lt;div id="preview" style="max-width:640px"&gt;&lt;/div&gt;
+&lt;script&gt;${inlineScript(files["configurator.js"])}&lt;/script&gt;
+&lt;script type="application/json" id="product"&gt;${inlineJson(product)}&lt;/script&gt;
+&lt;script&gt;
+// 양식이 아래에 있어 문서를 다 읽은 뒤 띄운다
+document.addEventListener("DOMContentLoaded", () =&gt; {
+  const { spec, sweeps, style } = JSON.parse(document.getElementById("product").textContent);
+  const preview = document.getElementById("preview");
+  const form = document.getElementById("approval");
+  let configurator = Configurator.mount(preview, spec, sweeps, style);
+  const show = () =&gt; {
+    const value = (field, id) =&gt; form.elements[field + ${JSON.stringify(EDIT_FIELD_SEPARATOR)} + id].value;
+    const sliders = spec.sliders.map((s) =&gt; ({ ...s, name: value("name", s.id), min: Number(value("min", s.id)), max: Number(value("max", s.id)) }));
+    // 고치는 중이라 범위가 아직 맞지 않으면 앞의 구성기를 그대로 둔다(맞는지는 제출할 때 서버가 본다)
+    if (sliders.some((s) =&gt; !(s.min &lt;= s.default &amp;&amp; s.default &lt;= s.max &amp;&amp; s.min &lt; s.max))) return;
+    configurator.dispose();
+    configurator = Configurator.mount(preview, { ...spec, sliders }, sweeps, style);
+  };
+  // 다시 묻는 화면은 칸에 앞서 고친 값이 있으므로 그 값으로 다시 띄운다
+  show();
+  form.addEventListener("change", show);
+});
+&lt;/script&gt;`;
+}</pre>
+
+<p>반려 단추 둘에는 <code>formnovalidate</code>가 붙어 고치는 칸의 브라우저 검사를 건너뛴다. 반려하면 고친 내용은 쓰지 않기 때문이다. 스크립트 안에 싣는 번들은 <code>&lt;/script</code>를 끊고, JSON은 <code>&lt;</code>를 이스케이프해 요소가 닫히거나 주석이 열리지 않게 한다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/9ed35906345bc86828bf2077b89d50ac707d5d80/configurator/pipeline/operator-screens.ts#L136-L140"><code>configurator/pipeline/operator-screens.ts:136-140</code></a>).</p>
+
+<h3>3. 양식 읽기</h3>
+<p><code>readFinalApproval</code>은 단추의 값(<code>decision</code>)으로 경로를 나눈다. 승인이면 슬라이더마다 이름과 범위를 승인 전 명세와 비교해 달라진 것만 고친 내용에 담는다. 빈 칸은 <code>NaN</code>으로 읽는다. <code>Number("")</code>가 0이라서 빈 칸이 숫자 0으로 통과하는 일을 막으려는 처리이고, 코드 주석은 "빈 칸은 숫자가 아니다"라고만 적는다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/9ed35906345bc86828bf2077b89d50ac707d5d80/configurator/pipeline/operator-screens.ts#L243-L266">configurator/pipeline/operator-screens.ts:243-266</a></p>
+<pre>export function readFinalApproval(form: URLSearchParams, spec: Spec): ApprovalDecision | { errors: string[] } {
+  const decision = form.get("decision");
+  if (decision === "choice") return { decision: "reject", back: "choice" };
+  if (decision === "candidates") {
+    const reason = form.get("reason") ?? "";
+    const errors = rejectionReasonErrors(reason);
+    return errors.length &gt; 0 ? { errors } : { decision: "reject", back: "candidates", reason: reason.trim() };
+  }
+  if (decision !== "approve") return { errors: ["/decision: 승인(approve)하거나 반려(choice, candidates)하세요"] };
+
+  const edits: SliderEdits = {};
+  for (const slider of spec.sliders) {
+    const text = (field: "name" | "min" | "max") =&gt; (form.get(editField(field, slider.id)) ?? "").trim();
+    // 빈 칸은 숫자가 아니다(Number("")는 0)
+    const number = (field: "min" | "max") =&gt; (text(field) === "" ? NaN : Number(text(field)));
+    const edit: SliderEdits[string] = {};
+    if (text("name") !== slider.name) edit.name = text("name");
+    if (number("min") !== slider.min) edit.min = number("min");
+    if (number("max") !== slider.max) edit.max = number("max");
+    if (Object.keys(edit).length &gt; 0) edits[slider.id] = edit;
+  }
+  const errors = approvalEditChecker(spec)(edits);
+  return errors.length &gt; 0 ? { errors } : { decision: "approve", edits };
+}</pre>
+
+
+<h3>4. 고친 내용 검사</h3>
+<p><code>approvalEditChecker</code>가 승인 전 명세 안에서의 변경인지 본다. 범위는 좁히기만 하고(<code>newMin &lt; slider.min</code>이면 오류), 기본값이 범위 안에 남아야 하며(<code>newMin &gt; base</code> 또는 <code>newMax &lt; base</code>이면 오류), 고친 끝은 기본값에서 <code>step</code>의 배수만큼 떨어져 있어야 하고, 한 값뿐인 범위는 안 된다. 숫자로 읽지 못한 칸은 이름 오류를 가리지 않도록 따로 모은다(인용하지 않은 436~439행). 오류 문장은 JSON 경로(<code>/body_w/max: …</code>)로 시작한다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/9ed35906345bc86828bf2077b89d50ac707d5d80/configurator/pipeline/schemas.ts#L421-L424">configurator/pipeline/schemas.ts:421-424</a></p>
+<pre>const onStep = (value: number, { default: base, step }: { default: number; step: number }) =&gt; {
+  const k = (base - value) / step;
+  return Math.abs(k - Math.round(k)) &lt; 1e-9;
+};</pre>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/9ed35906345bc86828bf2077b89d50ac707d5d80/configurator/pipeline/schemas.ts#L440-L453">configurator/pipeline/schemas.ts:440-453</a></p>
+<pre>      const { default: base, step } = slider;
+      const [newMin, newMax] = [min ?? slider.min, max ?? slider.max];
+      const near = (value: number) =&gt; {
+        const k = Math.floor((base - value) / step);
+        return `${base - (k + 1) * step}, ${base - k * step}`;
+      };
+      if (newMin &lt; slider.min) errors.push(`/${id}/min: 범위는 좁히기만 할 수 있습니다. ${slider.min} 이상으로 적으세요`);
+      else if (newMin &gt; base) errors.push(`/${id}/min: 기본값 ${base}(업로드한 모델의 값)이 범위 안에 남도록 ${base} 이하로 적으세요`);
+      else if (min !== undefined &amp;&amp; !onStep(newMin, slider)) errors.push(`/${id}/min: 기본값 ${base}에서 step ${step}의 배수만큼 떨어진 값으로 적으세요(예: ${near(newMin)})`);
+      if (newMax &gt; slider.max) errors.push(`/${id}/max: 범위는 좁히기만 할 수 있습니다. ${slider.max} 이하로 적으세요`);
+      else if (newMax &lt; base) errors.push(`/${id}/max: 기본값 ${base}(업로드한 모델의 값)이 범위 안에 남도록 ${base} 이상으로 적으세요`);
+      else if (max !== undefined &amp;&amp; !onStep(newMax, slider)) errors.push(`/${id}/max: 기본값 ${base}에서 step ${step}의 배수만큼 떨어진 값으로 적으세요(예: ${near(newMax)})`);
+      if (errors.length === 0 &amp;&amp; newMin === newMax) errors.push(`/${id}/max: ${newMin + step} 이상으로 적으세요. 범위가 한 값뿐이면 슬라이더를 움직일 수 없습니다`);
+      return errors;</pre>
+
+
+<h3>5. 실행기: 받아들일 수 있을 때까지 다시 묻기</h3>
+<p><code>approvalErrors</code>는 반려의 거절 이유를 한 줄 검사하고, 승인의 고친 내용은 위 검사기를 거친 뒤 고친 명세로 형식 검사(<code>checkSpec</code>)와 Fusion 파라미터 이름 검사(<code>specReferenceChecker</code>)까지 돌린다. 이름 검사가 여기서 다시 돈다. 운영자가 쓴 이름도 AI가 쓴 이름과 같은 규칙을 받는다. 실행기의 <code>finalApproval</code> 함수(포트 메서드와 이름이 같다)는 오류가 있으면 처리 기록(단계마다 남기는 <code>log</code>)에 <code>{ errors }</code>를 남기고 같은 명세로 다시 묻는다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/9ed35906345bc86828bf2077b89d50ac707d5d80/configurator/pipeline/runner.ts#L391-L411">configurator/pipeline/runner.ts:391-411</a></p>
+<pre>  function approvalErrors(spec: Spec, answer: ApprovalDecision): string[] {
+    if (answer.decision === "reject") return answer.back === "choice" ? [] : rejectionReasonErrors(answer.reason);
+    if (!answer.edits) return [];
+    const errors = approvalEditChecker(spec)(answer.edits);
+    if (errors.length &gt; 0) return errors;
+    const edited = applyEdits(spec, answer.edits);
+    return [...checkSpec(edited), ...specReferenceChecker(uploaded)(edited)];
+  }
+
+  /** 받아들일 수 있는 결정이 올 때까지 최종 승인을 다시 묻는다. 다시 물을 때는 앞 결정의 오류와 고친 내용을 보인다. */
+  async function finalApproval(spec: Spec, files: ProductFiles, judgment: Feedback[]): Promise&lt;ApprovalDecision&gt; {
+    let errors: string[] = [];
+    let edits: SliderEdits = {};
+    for (;;) {
+      const answer = await human.finalApproval({ spec, files, judgment, errors, edits });
+      errors = approvalErrors(spec, answer);
+      edits = answer.decision === "approve" ? (answer.edits ?? {}) : {};
+      if (errors.length === 0) return answer;
+      await log("approval", { errors });
+    }
+  }</pre>
+
+
+<h3>6. 두 고리: 후보 선택과 후보 제시</h3>
+<p>변경 전의 실행기는 후보 제시 고리 하나였다. 이제 그 안에 후보 선택 고리가 하나 더 있다. 승인하면 고친 명세로 제출하고 끝난다. 반려 중 "다른 후보"는 <code>continue</code>로 같은 카드의 후보 선택으로 돌아가고, 거절 이유가 있는 반려는 <code>rejections</code>에 후보와 이유를 쌓은 뒤 <code>break</code>로 안쪽 고리를 나가 후보 제시를 다시 한다. 검증에 실패해 후보를 버리는 경우(<code>failures</code>)도 같은 <code>break</code>다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/9ed35906345bc86828bf2077b89d50ac707d5d80/configurator/pipeline/runner.ts#L646-L656">configurator/pipeline/runner.ts:646-656</a></p>
+<pre>        const answer = await finalApproval(written.spec, files, judgment);
+        await log("approval", answer);
+        if (answer.decision === "reject") {
+          if (answer.back === "choice") continue;
+          rejections.push({ candidate, reason: answer.reason.trim() });
+          break;
+        }
+
+        await submit(applyEdits(written.spec, answer.edits ?? {}), files, candidates, candidate);
+        return { status: "submitted" };
+      }</pre>
+
+<p>후보 제시 입력에는 <code>rejections</code>가 더해졌고(<code>{ candidate, reason }</code> 목록, 이 상품에서 쌓인 것 모두), 지시문은 "그 거절 이유를 따르도록 구성을 고치고, 반려된 후보를 같은 구성으로 다시 내지 않는다"고 적는다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/9ed35906345bc86828bf2077b89d50ac707d5d80/configurator/pipeline/litellm-ai.ts#L82"><code>configurator/pipeline/litellm-ai.ts:82</code></a>).</p>
+
+<h3>7. 제출: 좁힌 명세로 결과물 다시 만들기</h3>
+<p>제출은 <code>submit</code> 함수가 맡는다. 좁힌 범위는 검증한 범위의 부분이므로 다시 검증하지 않고, 결과물의 명세와 스윕 데이터만 그 범위로 다시 만든다. <code>withApprovedSpec</code>은 스윕 데이터를 업로드 묶음과 같은 방법으로 다시 거르므로, 좁힌 범위가 닿지 않는 위상 묶음은 결과물에서 빠진다. 고정 코어 번들과 스타일 선택은 그대로다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/9ed35906345bc86828bf2077b89d50ac707d5d80/configurator/pipeline/assemble.ts#L105-L111">configurator/pipeline/assemble.ts:105-111</a></p>
+<pre>/**
+ * 최종 승인에서 고친 명세로 결과물의 명세와 스윕 데이터를 다시 만든다. 결과물의 스윕 데이터는 이미 업로드 묶음 형식이라 같은 방법으로 다시 거르고,
+ * 좁힌 범위가 닿지 않는 위상 묶음은 빠진다. 고정 코어 번들과 스타일 선택은 그대로다.
+ */
+export function withApprovedSpec(files: ProductFiles, spec: Spec): ProductFiles {
+  return { ...files, "spec.json": JSON.stringify(spec, null, 2), "sweeps.json": JSON.stringify(sweepDataFor(spec, JSON.parse(files["sweeps.json"]))) };
+}</pre>
+
+
+</section>
+<section id="quiz">
+<h2>퀴즈</h2>
+<div class="quiz-question">
+<p class="q">최종 승인에서 슬라이더 범위를 넓힐 수 없게 한 가장 알맞은 이유는?</p>
+<button class="quiz-option">고정 코어가 큰 범위를 못 그린다</button>
+<button class="quiz-option" data-correct>검증은 승인 전 범위에서만 했다</button>
+<button class="quiz-option">넓히면 화면 스크립트가 멈춘다</button>
+<div class="quiz-feedback" role="status">좁힌 범위는 검증을 거친 범위의 일부이므로 다시 검증하지 않고 제출한다. 넓힌 범위는 검증된 적이 없어 뚫림·겹침이나 덧셈 오차가 있을 수 있다. 그래서 넓히기는 막고 좁히기만 받는다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">기본값 500, step 10, 승인 전 범위 400~800인 슬라이더의 최솟값 칸에 405를 적고 승인했다. 결과는?</p>
+<button class="quiz-option">통과해 405가 최솟값이 된다</button>
+<button class="quiz-option">단계가 멈추고 실패로 끝난다</button>
+<button class="quiz-option" data-correct>막히고 같은 명세로 다시 묻는다</button>
+<div class="quiz-feedback" role="status">고정 코어의 슬라이더는 최솟값에서 step씩 움직이므로 405에서 시작하면 500에 닿지 못한다. 기본값에서 step의 배수만큼 떨어진 값(예: 400, 410)이어야 한다. 막힌 답은 멈춤이 아니라 오류 문장을 붙인 재질문이다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">운영자가 슬라이더 이름을 <code>d5 폭</code>으로 고쳐 승인했다. 어디서 걸리는가?</p>
+<button class="quiz-option" data-correct>실행기가 도는 이름 검사</button>
+<button class="quiz-option">구성기를 다시 띄울 때</button>
+<button class="quiz-option">스윕 데이터를 거를 때</button>
+<div class="quiz-feedback" role="status"><code>approvalErrors</code>가 고친 명세에 <code>specReferenceChecker</code>를 돌린다. 이 검사는 명세 작성 때와 같아서 이름에 Fusion 파라미터 이름이 낱말로 있으면 오류를 낸다. 운영자가 쓴 이름도 AI가 쓴 이름과 같은 규칙을 받는다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">운영자가 "반려하고 다른 후보 고르기"를 눌렀다. 바로 이어지는 일은?</p>
+<button class="quiz-option">AI가 후보 제시를 다시 한다</button>
+<button class="quiz-option">같은 후보로 명세를 다시 쓴다</button>
+<button class="quiz-option" data-correct>받은 카드로 후보 선택 다시</button>
+<div class="quiz-feedback" role="status">이 경로는 후보 선택 고리의 <code>continue</code>다. 후보 제시를 다시 하지 않고 이미 받은 카드를 그대로 쓴다. AI가 새 후보를 만드는 경로는 거절 이유를 적은 반려이고, 이때 고친 내용은 쓰이지 않는다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">승인 뒤 제출할 때 검증을 다시 하지 않고 <code>sweeps.json</code>만 다시 거르는 까닭은?</p>
+<button class="quiz-option">검증이 제출 뒤에 따로 돈다</button>
+<button class="quiz-option" data-correct>좁힌 범위는 검증한 범위 안이다</button>
+<button class="quiz-option">스윕 데이터는 검증 대상이 아니다</button>
+<div class="quiz-feedback" role="status">범위를 좁히기만 하므로 검증한 형상의 부분집합이다. 스윕 데이터는 좁힌 범위가 닿지 않는 위상 묶음을 빼려고 다시 거르며, 이 거르기는 업로드 묶음을 거르는 방법과 같다.</div>
+</div>
+
+</section>
+</main>
+<footer class="colophon">Generated with explain-diff-html</footer>
+</div>
+<script>
+      document.querySelectorAll(".quiz-question").forEach(function (question) {
+        var feedback = question.querySelector(".quiz-feedback");
+
+        // Shuffle the options on every load, so the correct answer's position is
+        // random and a reader cannot fall into answering by position. Each option
+        // is re-inserted before the feedback block, which has to stay last.
+        var shuffled = Array.prototype.slice.call(
+          question.querySelectorAll(".quiz-option"),
+        );
+        for (var i = shuffled.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var swap = shuffled[i];
+          shuffled[i] = shuffled[j];
+          shuffled[j] = swap;
+        }
+        shuffled.forEach(function (option) {
+          question.insertBefore(option, feedback);
+        });
+
+        var options = question.querySelectorAll(".quiz-option");
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            var isCorrect = option.hasAttribute("data-correct");
+            options.forEach(function (other) {
+              other.disabled = true;
+              if (other.hasAttribute("data-correct"))
+                other.classList.add("correct");
+            });
+            if (!isCorrect) option.classList.add("incorrect");
+            feedback.classList.add("show", isCorrect ? "ok" : "bad");
+            feedback.insertBefore(
+              document.createTextNode(isCorrect ? "Correct. " : "Not quite. "),
+              feedback.firstChild,
+            );
+          });
+        });
+      });
+    </script>
+</body>
+</html>

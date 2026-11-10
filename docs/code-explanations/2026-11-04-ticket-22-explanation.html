@@ -1,0 +1,895 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>티켓 22: Docker 운영과 모델 예비 전환</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f6f7f9;
+        --text: #1c2024;
+        --muted: #60646c;
+        --border: #d7dbdf;
+        --border-strong: #848c95;
+        --accent: #2f5ee0;
+        --accent-soft: #e8eefc;
+        --edge: #a35608;
+        --edge-soft: #fbefe1;
+        --ok: #1a7f47;
+        --ok-soft: #e4f3ea;
+        --bad: #c62a3b;
+        --bad-soft: #fbe7e9;
+        --measure: 68ch;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181b;
+          --surface: #1f2226;
+          --text: #eceef0;
+          --muted: #9ba1a6;
+          --border: #33383d;
+          --border-strong: #646c75;
+          --accent: #7aa2ff;
+          --accent-soft: #1e2740;
+          --edge: #e08c3a;
+          --edge-soft: #2e2517;
+          --ok: #57c98b;
+          --ok-soft: #17281d;
+          --bad: #f07178;
+          --bad-soft: #2c1a1c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:visited {
+        color: var(--accent);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 2.5rem;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 6rem;
+      }
+      nav.toc {
+        position: sticky;
+        top: 2.5rem;
+        align-self: start;
+        font-size: 0.9rem;
+      }
+      nav.toc strong {
+        display: block;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc li {
+        margin: 0.35rem 0;
+      }
+      nav.toc a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav.toc a:hover {
+        color: var(--accent);
+      }
+      main {
+        min-width: 0;
+      }
+      main > header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1.25rem;
+        margin-bottom: 2rem;
+      }
+      main > header h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.6rem;
+      }
+      main > header .lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: var(--measure);
+      }
+      main > header .provenance {
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        margin: 0.7rem 0 0;
+      }
+      .colophon {
+        grid-column: 1 / -1;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        border-top: 1px solid var(--border);
+        margin: 4rem 0 0;
+        padding: 1.2rem 0 0;
+      }
+      .colophon a {
+        color: inherit;
+      }
+      section {
+        margin-bottom: 3.5rem;
+      }
+      section h2 {
+        font-size: 1.4rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      section h3 {
+        font-size: 1.05rem;
+        margin: 2rem 0 0.6rem;
+      }
+      section p,
+      section ul,
+      section ol {
+        max-width: var(--measure);
+      }
+      li {
+        margin: 0.3rem 0;
+      }
+      /* Code blocks: white-space set here so a filled-in block cannot collapse. */
+      pre,
+      .code-block {
+        white-space: pre-wrap;
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        font:
+          0.86rem/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        tab-size: 2;
+      }
+      pre .del {
+        color: var(--bad);
+      }
+      pre .add {
+        color: var(--ok);
+      }
+      pre .hi {
+        background: var(--accent-soft);
+        border-radius: 3px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--surface);
+        padding: 0.05rem 0.3rem;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      /* A file:line reference linked to the code it names. Wraps a <code> span
+         in prose, or the bare text of a .filename label. */
+      a.srcref {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px solid var(--muted);
+      }
+      a.srcref:hover {
+        border-bottom-color: var(--accent);
+      }
+      a.srcref:hover code {
+        background: var(--accent-soft);
+      }
+      /* Path label for the code block below it. */
+      .filename {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        margin: 1.5rem 0 0.3rem;
+        overflow-wrap: anywhere;
+      }
+      /* Comparison table: one row per case, .yes / .no / .warn on outcome cells. */
+      table.vals {
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.86rem;
+        width: 100%;
+        max-width: 620px;
+      }
+      table.vals th,
+      table.vals td {
+        border: 1px solid var(--border-strong);
+        padding: 0.4rem 0.65rem;
+        text-align: left;
+      }
+      table.vals th {
+        background: var(--surface);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+      table.vals td.yes {
+        background: var(--ok-soft);
+      }
+      table.vals td.no {
+        background: var(--bad-soft);
+      }
+      table.vals td.warn {
+        background: var(--edge-soft);
+      }
+      /* Callouts: .callout for a concept, .callout.edge for a caveat. */
+      .callout {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+        padding: 0.85rem 1.1rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .callout .label {
+        display: block;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+      }
+      .callout.edge {
+        background: var(--edge-soft);
+        border-left-color: var(--edge);
+      }
+      .callout.edge .label {
+        color: var(--edge);
+      }
+      /* Skippable deep-background block. */
+      details.skippable {
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 0.75rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      details.skippable > summary {
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      details.skippable[open] > summary {
+        margin-bottom: 0.75rem;
+      }
+      /* Diagram family 1: simplified app UI mockup. */
+      .ui-mockup {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1.5rem 0;
+        max-width: 560px;
+        font-size: 0.85rem;
+      }
+      .ui-mockup .bar {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0.5rem 0.85rem;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .ui-mockup .body {
+        padding: 1.1rem 0.85rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+      }
+      .mock-caption {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.3rem 0 0;
+        max-width: var(--measure);
+      }
+      /* Diagram family 2: data flow between components, example data on the arrows. */
+      .dataflow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+      /* Each arrow travels with the node it points at. Without this, a flow
+         wider than the column wraps between an arrow and its node, leaving the
+         arrow pointing at nothing and the node stranded on the next line. */
+      .dataflow .step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .dataflow .node {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 175px;
+      }
+      .dataflow .node.terminal {
+        background: var(--surface);
+        border-color: var(--border);
+      }
+      .dataflow .node.pass {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .dataflow .node.fail {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .dataflow .arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.72rem;
+        min-width: 96px;
+      }
+      .dataflow .arrow .line {
+        width: 100%;
+        border-top: 2px solid var(--border);
+        position: relative;
+      }
+      .dataflow .arrow .line::after {
+        content: "\25B6";
+        position: absolute;
+        right: -2px;
+        top: -0.72em;
+        color: var(--border);
+        font-size: 0.7rem;
+      }
+      .dataflow .arrow .data {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.35rem;
+        margin-bottom: 0.2rem;
+        font-family: ui-monospace, monospace;
+      }
+      .flow-label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin: 1.25rem 0 0.25rem;
+      }
+      /* A numbered sequence with one marked position: call stacks, retry
+         counts, any ranked list. Not one of the numbered families; reach for
+         it when a step in an ordered list is the point. */
+      .frames {
+        list-style: none;
+        padding: 0;
+        margin: 1.25rem 0;
+        max-width: 620px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.82rem;
+      }
+      .frames li {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.45rem 0.7rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+      }
+      .frames li.target {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .frames .n {
+        display: inline-block;
+        min-width: 2.2em;
+        color: var(--muted);
+      }
+      /* Diagram family 3: node/recursion tree (ASTs, nesting, recursion) */
+      .tree {
+        margin: 1.5rem 0;
+        font:
+          0.82rem/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      .tnode {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.3rem 0.55rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+        display: inline-block;
+      }
+      .tnode.leaf {
+        background: var(--bg);
+      }
+      .tnode.kept {
+        border-color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tnode.skipped {
+        border-color: var(--muted);
+        color: var(--muted);
+      }
+      .tchildren {
+        margin-left: 1.4rem;
+        border-left: 2px dotted var(--border);
+        padding-left: 0.9rem;
+      }
+      .tnote {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-left: 0.4rem;
+      }
+
+      /* Optional tabular body for .ui-mockup, when the mocked UI is a table. */
+      .mock-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .mock-table th,
+      .mock-table td {
+        border: 1px solid var(--border);
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+      }
+      .mock-table th {
+        background: var(--surface);
+        font-weight: 600;
+      }
+      .mock-table .col-highlight {
+        background: var(--accent-soft);
+      }
+
+      .mermaid {
+        margin: 1.75rem 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .mermaid .edgeLabel,
+      .mermaid .edgeLabel p,
+      .mermaid .edgeLabel span,
+      .mermaid .edgeLabel foreignObject div {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+      }
+      /* Quiz */
+      .quiz-question {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .quiz-question > p.q {
+        font-weight: 600;
+        margin: 0 0 0.85rem;
+      }
+      .quiz-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 0.5rem;
+        font: inherit;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .quiz-option:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .quiz-option.correct {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .quiz-option.incorrect {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .quiz-option:disabled {
+        cursor: default;
+      }
+      .quiz-feedback {
+        display: none;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 7px;
+        margin-top: 0.3rem;
+      }
+      .quiz-feedback.show {
+        display: block;
+      }
+      .quiz-feedback.ok {
+        background: var(--ok-soft);
+      }
+      .quiz-feedback.bad {
+        background: var(--edge-soft);
+      }
+      a:focus-visible,
+      summary:focus-visible,
+      .quiz-option:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+      table.vals td.yes::before,
+      .dataflow .node.pass::before,
+      .tnode.kept::before,
+      .quiz-option.correct::before {
+        content: "\2713\00a0";
+        font-weight: 700;
+      }
+      table.vals td.no::before,
+      .dataflow .node.fail::before,
+      .quiz-option.incorrect::before {
+        content: "\2717\00a0";
+        font-weight: 700;
+      }
+      table.vals td.warn::before {
+        content: "\25B2\00a0";
+        font-weight: 700;
+      }
+      .tnode.skipped::before {
+        content: "\2013\00a0";
+        font-weight: 700;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 1rem;
+          padding: 1.25rem 1.1rem 4rem;
+        }
+        nav.toc {
+          position: static;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+        }
+        body {
+          font-size: 16px;
+        }
+        main > header h1 {
+          font-size: 1.6rem;
+        }
+        table.vals {
+          display: block;
+          overflow-x: auto;
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+<div class="layout">
+<nav class="toc">
+<strong>Contents</strong>
+<ol>
+<li><a href="#background">배경</a></li>
+<li><a href="#intuition">핵심 아이디어</a></li>
+<li><a href="#code">코드 따라가기</a></li>
+<li><a href="#quiz">퀴즈</a></li>
+</ol>
+</nav>
+<main>
+<header>
+<h1>티켓 22: Docker 운영과 모델 예비 전환</h1>
+<p class="lead">서버 전체를 LAN의 로컬 Docker 구성 하나로 띄우고, LiteLLM 설정만으로 Cerebras, Groq, 로컬 모델 사이를 전환하게 한다. 모델이 바뀌어도 파이프라인이 받는 입출력 형식은 그대로 유지한다.</p>
+<p class="provenance">jun-1993-p/threejs-configurator-ai 티켓 22, 최신 커밋 bbe3c6b, 포함한 커밋: 444e9ec (티켓 22: 임베딩 모델 선택 기록), bbe3c6b (티켓 22: Docker 운영과 모델 예비 전환), explained 2026-11-04. References link to this commit.</p>
+</header>
+<section id="background">
+<h2>배경</h2>
+<details class="skippable">
+<summary>이 영역이 처음이면 펼쳐서 읽는 기본 배경</summary>
+
+<p>LiteLLM은 여러 AI 제공자를 OpenAI 호환 API 하나로 중계하는 프록시다. 호출하는 쪽은 <code>model_name</code>(예: <code>llm</code>)만 보내고, 그 이름이 어느 제공자의 어느 모델인지는 프록시 설정이 정한다. Ollama는 모델을 내려받아 로컬에서 돌리는 도구이고 OpenAI 호환 주소를 연다. Docker Compose는 여러 컨테이너(서비스)를 설정 파일 하나로 띄운다.</p>
+<p>추론 모델은 답을 내기 전에 생각을 길게 쓰는 모델이다. 제공자마다 그 생각을 다른 곳에 담는다: 답 본문 앞에 <code>&lt;think&gt;</code> 블록으로 붙이거나, 응답의 별도 필드(<code>reasoning</code>, <code>reasoning_content</code>)에 싣는다.</p>
+
+</details>
+
+<p>이 프로젝트의 파이프라인은 AI 모델 포트(AI를 부르는 코드의 경계)의 LiteLLM 구현(파이프라인이 모델을 부르는 코드 <code>liteLlmAi</code>)으로 단계마다 정해진 <code>model_name</code>을 부른다. 이 커밋 시점의 ADR-0015는 AI 모델을 외부 API로 쓰되 공개된 가중치의 모델(오픈 웨이트)만 쓰고 LiteLLM으로 중계해, 외부 API를 쓸 수 없으면 로컬 머신(운영체제·기종 무관)의 같은 계열 모델로 바꿀 수 있게 하라고 정했다. 상품의 파라미터·명세·렌더링 이미지가 LAN 밖으로 나가는 것은 받아들인 결정이다.</p>
+<p>이 문서의 용어: <b>예비 모델</b>은 외부 API(Cerebras)가 응답하지 않거나 오류를 낼 때 LiteLLM이 대신 부르는 모델이다. Groq, 그다음 로컬 모델 순서다. 파이프라인은 어느 모델이 답했는지 모른다(용어집). <b>경계 1 시험</b>은 같은 합성 서랍장 녹화본(SolidCraft로 만든 시험용 업로드 묶음)으로 업로드부터 제출까지 가는 시험이며, 모델이 바뀌어도 통과해야 한다.</p>
+<p>티켓 22는 두 커밋이다. 앞 커밋(444e9ec)은 코드 없이 티켓 파일에 임베딩 모델 선택 기록만 더했고, 뒤 커밋(bbe3c6b)이 Docker 구성과 코드를 넣었다.</p>
+<div class="callout"><span class="label">핵심 개념</span><p>파이프라인이 아는 것은 <code>llm</code>·<code>vlm</code>·<code>embedding</code> 세 이름과 단계별 입출력 형식뿐이다. 모델 전환과 예비 순서는 <code>docker/litellm/config.yaml</code>만 고쳐 바꾼다.</p></div>
+
+</section>
+<section id="intuition">
+<h2>핵심 아이디어</h2>
+
+<p>모델 이름은 세 가지다. <code>llm</code>은 글 모델, <code>vlm</code>은 그림을 읽는 모델, <code>embedding</code>은 임베딩 모델이다. <code>llm</code>은 Cerebras이고 <code>llm-groq</code>·<code>llm-local</code>이 그 예비 이름이며, <code>vlm</code>도 같은 규칙이다. 호출 한 번이 외부 모델에서 로컬 모델까지 어떻게 떨어지는지를 따라가 보자. 모든 시간은 설정 값이다.</p>
+<p class="flow-label">llm과 vlm: 외부 둘, 그다음 로컬</p>
+<div class="dataflow">
+<div class="node terminal">파이프라인: model=llm</div>
+<div class="step"><div class="arrow"><span class="data">20분까지 기다림</span><span class="line"></span></div><div class="node">LiteLLM: Cerebras 시도</div></div>
+<div class="step"><div class="arrow"><span class="data">120초 넘거나 오류</span><span class="line"></span></div><div class="node">llm-groq 시도</div></div>
+<div class="step"><div class="arrow"><span class="data">120초 넘거나 오류</span><span class="line"></span></div><div class="node pass">llm-local 시도 (최대 900초)</div></div>
+</div>
+
+<p>외부 API 둘이 모두 120초씩 답하지 않으면 240초가 지나고, 로컬 모델이 최대 900초 일해도 합쳐서 1,140초(19분)다. 파이프라인의 기본 제한 20분(1,200초)은 그보다 길게 잡았다(<code>docs/docker.md</code>와 코드 주석이 같은 취지로 적는다). 변경 전에는 Node fetch의 기본 제한(헤더 300초)에 걸려, 외부 둘(240초) 뒤 로컬 모델이 답하는 중에 파이프라인이 끊길 수 있었다(티켓의 "리뷰 뒤 반영과 남긴 것" 항목).</p>
+<p class="flow-label">embedding: 예비 없이 늘 로컬</p>
+<div class="dataflow">
+<div class="node terminal">파이프라인: model=embedding</div>
+<div class="step"><div class="arrow"><span class="data">항상</span><span class="line"></span></div><div class="node pass">로컬 Ollama embeddinggemma</div></div>
+</div>
+
+<p>임베딩이 늘 로컬인 이유는 Cerebras·Groq에 임베딩 API가 없기 때문이다. 앞 커밋의 선택 기록에 따르면 모델은 로컬 Ollama의 <code>embeddinggemma</code>(308M, 768차원)다. 서랍장 사례 4개를 "3단 원목 서랍장 / 폭과 높이만 조절, 칸 수 고정"으로 검색해 보니 같은 3단 원목 사례가 0.900, 5단 칸 수 선택이 0.770, 철제 서류 서랍장이 0.715, 1단 협탁형이 0.665로 순위가 상식에 맞았다. 다른 후보로 <code>bge-m3</code>(568M, 1024차원)가 있고, 티켓 기록에 따르면 모델을 바꾸면 사례 저장소(비슷한 과거 사례를 찾는 저장소, 티켓 21)가 벡터 길이 변화를 보고 색인을 다시 만든다.</p>
+<p>모델이 바뀌면 같은 단계에 다른 모양의 답이 온다. 이 변경이 실제로 본 세 모양과 빈 답 하나를 시험으로 고정한다. 추론 모델은 답 전에 생각을 쓰는 모델이고, 제공자마다 그 생각을 담는 곳이 다르다. 파이프라인이 벗겨 내는 일은 4절의 <code>readJson</code>이 한다.</p>
+<table class="vals"><tr><th>제공자</th><th>추론이 담기는 곳</th><th>답(content)</th></tr>
+<tr><td>Cerebras·Groq의 gpt-oss</td><td>reasoning 필드</td><td class="yes">JSON 문장</td></tr>
+<tr><td>LiteLLM이 옮긴 답</td><td>reasoning_content 필드</td><td class="yes">JSON 문장</td></tr>
+<tr><td>로컬 추론 모델</td><td>content 앞 &lt;think&gt; 블록</td><td class="warn">블록을 벗겨야 JSON</td></tr>
+<tr><td>추론만 하다 끝난 답</td><td>-</td><td class="no">content가 null</td></tr>
+</table>
+<div class="callout edge"><span class="label">남은 일</span><p>실제 키로 Cerebras와 Groq 순서가 도는지, Cerebras의 VLM 이름 <code>qwen3.8-27b</code>가 실제 모델 이름인지는 확인하지 못했다. 티켓 26(Fusion 실물 확인)으로 옮겼다. 로컬 <code>gpt-oss:20b</code>·<code>qwen3-vl:8b</code>는 내려받지 않아(약 13GB, 6GB) 로컬 채팅 예비는 <code>qwen2.5:3b</code>로만 확인했다. 수동 확인 기록은 티켓 파일에 있다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/bbe3c6b08180a547484141197842e0ddb61952c5/.scratch/configurator-pipeline/issues/22-docker-and-fallback.md?plain=1#L32-L37"><code>.scratch/configurator-pipeline/issues/22-docker-and-fallback.md:32-37</code></a>).</p></div>
+
+</section>
+<section id="code">
+<h2>코드 따라가기</h2>
+
+<p>흐름: 구성 파일들(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/bbe3c6b08180a547484141197842e0ddb61952c5/docker-compose.yml#L1-L61"><code>docker-compose.yml:1-61</code></a>) → 비밀값(<code>.env</code>) → 모델 설정(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/bbe3c6b08180a547484141197842e0ddb61952c5/docker/litellm/config.yaml#L6-L55"><code>docker/litellm/config.yaml:6-55</code></a>) → 파이프라인의 호출 제한(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/bbe3c6b08180a547484141197842e0ddb61952c5/configurator/pipeline/litellm-ai.ts#L162-L191"><code>configurator/pipeline/litellm-ai.ts:162-191</code></a>) → 답 읽기(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/bbe3c6b08180a547484141197842e0ddb61952c5/configurator/pipeline/litellm-ai.ts#L125-L140"><code>configurator/pipeline/litellm-ai.ts:125-140</code></a>) → 시험(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/bbe3c6b08180a547484141197842e0ddb61952c5/docker/tests/test_litellm_config.py#L1-L56"><code>docker/tests/test_litellm_config.py:1-56</code></a>, <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/bbe3c6b08180a547484141197842e0ddb61952c5/configurator/test/litellm-ai.test.ts#L300-L326"><code>configurator/test/litellm-ai.test.ts:300-326</code></a>).</p>
+
+<h3>1. Docker 구성: 서비스 넷</h3>
+<p><code>docker-compose.yml</code> 하나에 <code>server</code>(업로드 서버, 8000), <code>litellm</code>(모델 중계, 4000), <code>ollama</code>(로컬 모델, 포트를 열지 않음), <code>pipeline</code>(실행 도구)이 있다. <code>pipeline</code>은 <code>tools</code> 프로필이라 늘 떠 있지 않고 <code>docker compose run --rm pipeline …</code>으로만 돈다. 이미지 안 배치는 저장소와 같게 <code>/app</code> 아래에 두어 <code>schema/</code>·<code>data/</code>를 같은 상대 경로로 찾게 했다. <code>data/</code>와 <code>fixtures/</code>(<code>server</code>는 <code>fixtures/private</code>만)는 컨테이너 밖 폴더를 연결한다(실제 상품 데이터는 이미지에 넣지 않는다). 운영 안내는 <code>docs/docker.md</code>다.</p>
+<p>LAN에 열리는 프록시가 키 없이 뜨지 않도록, <code>LITELLM_MASTER_KEY</code>가 비어 있으면 compose가 시작하지 않는다(<code>${VAR:?메시지}</code> 형식). 외부 API 키는 비어도 뜬다. <code>.env.example</code>은 그러면 그 API가 실패하고 다음 예비로 넘어간다고 적는다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/bbe3c6b08180a547484141197842e0ddb61952c5/docker-compose.yml#L19-L36">docker-compose.yml:19-36</a></p>
+<pre>  litellm:
+    # 확인한 LiteLLM 1.106.6. 판 번호 태그가 없어 main-stable의 digest로 고정한다
+    image: ghcr.io/berriai/litellm:main-stable@sha256:37e2dafb088a7723beb998590682957386dfc83ffea1848486f8e0e5cfac0b06
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    # 값은 docker compose가 저장소 루트의 .env에서 읽어 넣는다
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?.env에 LITELLM_MASTER_KEY를 정하세요(.env.example 참고)}
+      CEREBRAS_API_KEY: ${CEREBRAS_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      LOCAL_MODEL_URL: ${LOCAL_MODEL_URL:-http://ollama:11434/v1}
+      EMBEDDING_MODEL_URL: ${EMBEDDING_MODEL_URL:-http://ollama:11434/v1}
+    volumes:
+      - ./docker/litellm/config.yaml:/app/config.yaml:ro
+    ports:
+      - "4000:4000"
+    depends_on:
+      - ollama
+    restart: unless-stopped</pre>
+
+<p>이미지는 확인한 판으로 고정했다. LiteLLM은 판 번호 태그가 없어 확인한 1.106.6의 <code>main-stable</code> digest를, Ollama는 <code>0.40.13</code>을 쓴다. <code>.dockerignore</code>는 <code>.env</code>, <code>data</code>, <code>fixtures</code>를 이미지에서 뺀다.</p>
+
+<h3>2. 비밀값은 저장소 밖 환경 파일로</h3>
+<p><code>.env.example</code>이 필요한 변수를 보인다: <code>LITELLM_MASTER_KEY</code>, <code>CEREBRAS_API_KEY</code>, <code>GROQ_API_KEY</code>, 로컬 모델 주소 <code>LOCAL_MODEL_URL</code>, 임베딩 주소 <code>EMBEDDING_MODEL_URL</code>. 실제 <code>.env</code>는 <code>.gitignore</code> 대상이다. 프록시 키는 예시 파일에서 비워 두었다. 예시 값을 그대로 쓰면 알려진 키로 LAN에 열리기 때문이다.</p>
+
+<h3>3. 모델 설정: 이름은 고정, 모델만 갈아 끼운다</h3>
+<p><code>llm</code>과 <code>vlm</code>은 각각 Cerebras 모델을 가리키고, <code>llm-groq</code>·<code>vlm-groq</code>, <code>llm-local</code>·<code>vlm-local</code>이 같은 계열의 예비다. 로컬 모델은 Ollama 전용 공급자 대신 OpenAI 호환 API(<code>openai/…</code>)와 <code>LOCAL_MODEL_URL</code>로 부른다. 그래서 Ollama, LM Studio, llama.cpp 어느 것이든, 어느 운영체제든 주소만 바꾸면 된다. 로컬 모델은 키를 보지 않지만 OpenAI 호환 호출에는 값이 있어야 해서 <code>api_key: local</code>을 적고, 이 값을 로컬 모델의 표지로도 쓴다(시험이 읽는다).</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/bbe3c6b08180a547484141197842e0ddb61952c5/docker/litellm/config.yaml#L15-L22">docker/litellm/config.yaml:15-22</a></p>
+<pre>  - model_name: llm-local
+    litellm_params:
+      model: openai/gpt-oss:20b
+      api_base: os.environ/LOCAL_MODEL_URL
+      # Ollama는 키를 보지 않지만 OpenAI 호환 호출에는 값이 있어야 한다. 로컬 모델의 표지로도 쓴다(docker/tests)
+      api_key: local
+      # CPU에서 도는 로컬 모델은 느리다
+      timeout: 900</pre>
+
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/bbe3c6b08180a547484141197842e0ddb61952c5/docker/litellm/config.yaml#L39-L55">docker/litellm/config.yaml:39-55</a></p>
+<pre>  - model_name: embedding
+    litellm_params:
+      model: openai/embeddinggemma
+      api_base: os.environ/EMBEDDING_MODEL_URL
+      api_key: local
+
+router_settings:
+  # 외부 API가 이 시간(초) 안에 답하지 않으면 응답하지 않는 것으로 보고 예비로 넘어간다
+  timeout: 120
+  # 다시 묻지 않고 바로 예비 모델로 넘어간다. 다시 물으면 응답하지 않는 API를 제한 시간만큼 한 번 더 기다린다
+  num_retries: 0
+  fallbacks:
+    - llm: [llm-groq, llm-local]
+    - vlm: [vlm-groq, vlm-local]
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY</pre>
+
+<p><code>num_retries: 0</code>은 같은 모델에 다시 묻지 않고 바로 예비로 넘어가게 한다. 다시 물으면 응답하지 않는 외부 API를 제한 시간만큼 한 번 더 기다리기 때문이다. 임베딩에는 예비를 두지 않았다.</p>
+
+<h3>4. 파이프라인의 호출 제한과 답 읽기</h3>
+<p><code>liteLlmAi</code>는 이제 한 번 묻고 기다리는 시간을 <code>timeoutMs</code>(기본 20분)로 정한다. Node의 HTTP 클라이언트 undici가 두는 기본 제한(헤더·본문 300초)을 <code>Agent</code> 설정으로 끄고 <code>AbortSignal.timeout</code>으로만 기다린다. 넘기면 "LiteLLM이 N초 안에 답하지 않았습니다(모델)"로 실패한다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/bbe3c6b08180a547484141197842e0ddb61952c5/configurator/pipeline/litellm-ai.ts#L162-L191">configurator/pipeline/litellm-ai.ts:162-191</a></p>
+<pre>export function liteLlmAi({ baseUrl, apiKey, models, timeoutMs = DEFAULT_TIMEOUT_MS }: LiteLlmOptions): AiPort {
+  const chat = apiUrl(baseUrl, "v1/chat/completions");
+  // 기다리는 시간은 signal 하나로 정하고, undici 자체 제한(헤더·본문 300초)은 끈다
+  const dispatcher = new Agent({ headersTimeout: 0, bodyTimeout: 0 });
+    const timedOut = (error: unknown): never =&gt; {
+      throw (error as Error).name === "TimeoutError" ? new Error(`LiteLLM이 ${timeoutMs / 1000}초 안에 답하지 않았습니다(${models[stage]})`) : error;
+    };
+    const response = await fetch(chat, {
+      method: "POST",
+      dispatcher,
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: { "content-type": "application/json", ...authorization(apiKey) },
+      body: JSON.stringify({
+        model: models[stage],
+        messages: [
+          { role: "system", content: instructions },
+          { role: "user", content },
+        ],
+      }),
+    }).catch(timedOut);
+    if (!response.ok) throw new Error(`LiteLLM 호출 실패(${models[stage]}): ${response.status} ${await response.text()}`);
+    const body = (await response.json().catch(timedOut)) as { choices: { message: { content: string | null } }[] };
+    return readJson(body.choices[0].message.content);</pre>
+
+<p>위 발췌에서 <code>ask</code> 함수의 선언과 요청 내용(<code>content</code>)을 만드는 줄(166~172행)은 이 변경과 관계없어 뺐다. 답을 읽는 쪽은 로컬 추론 모델이 content 앞에 붙이는 <code>&lt;think&gt;</code> 블록을 벗기고, 추론만 하다 끝나 content가 <code>null</code>인 답은 빈 문장으로 읽는다. 빈 문장은 JSON이 아니므로 실행기(파이프라인을 진행하는 코드)의 형식 검사가 같은 단계를 다시 묻는다. 변경 전에는 <code>&lt;think&gt;</code>가 붙으면 형식 오류를 되풀이했다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/bbe3c6b08180a547484141197842e0ddb61952c5/configurator/pipeline/litellm-ai.ts#L125-L140">configurator/pipeline/litellm-ai.ts:125-140</a></p>
+<pre>/** 로컬 추론 모델(Ollama 등)이 답 앞에 붙이는 추론 블록. Cerebras·Groq은 추론을 content 밖의 필드에 싣는다. */
+const THINK_BLOCK = /^\s*&lt;think&gt;[\s\S]*?&lt;\/think&gt;/;
+
+/**
+ * 모델이 낸 문장을 JSON으로 읽는다. 지시해도 코드 블록으로 감싸는 모델이 있어 감싼 것은 벗긴다.
+ * 읽을 수 없으면 문장 그대로 돌려줘, 실행기의 형식 검사에 걸려 다시 묻게 한다.
+ * 추론만 하다 끝난 답은 content가 null이라 빈 문장으로 본다.
+ */
+function readJson(raw: string | null): unknown {
+  const content = (raw ?? "").replace(THINK_BLOCK, "");
+  try {
+    return JSON.parse(content.match(CODE_BLOCK)?.[1] ?? content);
+  } catch {
+    return content;
+  }
+}</pre>
+
+
+<h3>5. 시험: 설정 시험과 경계 1</h3>
+<p><code>docker/tests/test_litellm_config.py</code>(pytest)는 설정이 약속을 지키는지 본다: 파이프라인이 부르는 세 이름이 있는지, <code>llm</code>·<code>vlm</code>이 Groq 다음 로컬로 넘어가는지, 임베딩이 로컬이고 예비가 없는지, 로컬이 환경에서 받은 OpenAI 호환 주소를 쓰는지, 외부 키와 프록시 키가 모두 <code>os.environ/</code>으로 읽히는지. 커밋 전 검사와 pytest의 <code>testpaths</code>에 <code>docker/</code>가 더해졌다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/bbe3c6b08180a547484141197842e0ddb61952c5/docker/tests/test_litellm_config.py#L30-L35">docker/tests/test_litellm_config.py:30-35</a></p>
+<pre>def test_외부_모델은_Groq_다음_로컬_예비_모델로_넘어간다() -&gt; None:
+    for name in ["llm", "vlm"]:
+        assert deployments[name]["model"].startswith("cerebras/")
+        chain = fallbacks[name]
+        assert [deployments[t]["model"].split("/")[0] for t in chain[:-1]] == ["groq"]
+        assert is_local(chain[-1]), f"{name}의 마지막 예비 모델은 로컬 모델이어야 한다"</pre>
+
+<p>경계 1 시험은 응답의 세 모양마다 같은 서랍장 녹화본으로 제출까지 가며, 다섯 단계를 단계마다 한 번씩만 묻고 형식 오류로 다시 묻지 않았음을 센다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/bbe3c6b08180a547484141197842e0ddb61952c5/configurator/test/litellm-ai.test.ts#L311-L326">configurator/test/litellm-ai.test.ts:311-326</a></p>
+<pre>for (const [shape, answer] of ANSWER_SHAPES) {
+  test(`모델을 바꿔도 같은 녹화본으로 제출까지 간다: ${shape}`, async () =&gt; {
+    const { result, store, llm } = await run({
+      parts: [answer(JSON.stringify(parts))],
+      candidates: [answer(JSON.stringify(candidates))],
+      style: [answer(JSON.stringify({ style: "natural" }))],
+      spec: [answer(JSON.stringify(spec))],
+      judgment: [answer(JSON.stringify({ problems: [] }))],
+    });
+
+    assert.equal(result.status, "submitted");
+    assert.deepEqual(JSON.parse(store.submissions[0].files["spec.json"]), spec);
+    // 형식 오류로 다시 묻지 않고 단계마다 한 번씩만 물었다
+    assert.equal(llm.requests.length, 5);
+  });
+}</pre>
+
+
+</section>
+<section id="quiz">
+<h2>퀴즈</h2>
+<div class="quiz-question">
+<p class="q">외부 API 둘이 120초씩 답하지 않을 때 로컬 모델까지 가는 데 걸리는 최대 시간과, 파이프라인의 기본 대기 시간(20분)의 관계는?</p>
+<button class="quiz-option">1,200초로 기본 대기와 같다</button>
+<button class="quiz-option" data-correct>1,140초이고 기본 대기가 더 길다</button>
+<button class="quiz-option">2,040초로 기본 대기를 넘는다</button>
+<div class="quiz-feedback" role="status">120 + 120 + 900 = 1,140초(19분)다. 기본 20분(1,200초)이 그보다 길어야 예비 모델이 답하는 중에 파이프라인이 끊기지 않는다. 1,200초는 기본값이고, 2,040초는 로컬 제한을 두 번 센 값이다.</div>
+</div>
+<div class="quiz-question">
+<p class="q"><code>num_retries</code>를 0으로 둔 까닭에 가장 알맞은 것은?</p>
+<button class="quiz-option">예비 모델이 늘 먼저 답해야 한다</button>
+<button class="quiz-option">LiteLLM은 재시도를 지원하지 않는다</button>
+<button class="quiz-option" data-correct>응답 없는 API를 또 기다리지 않는다</button>
+<div class="quiz-feedback" role="status">같은 모델에 다시 묻는 동안 응답하지 않는 외부 API를 제한 시간(120초)만큼 한 번 더 기다리게 된다. 바로 예비로 넘어가는 편이 낫다. 다른 두 선택지는 사실이 아니다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">사례 저장소의 임베딩에 예비 모델을 두지 않은 이유는?</p>
+<button class="quiz-option" data-correct>외부 API에 임베딩 API가 없다</button>
+<button class="quiz-option">로컬 모델이 외부보다 빠르다</button>
+<button class="quiz-option">임베딩은 사례마다 한 번뿐이다</button>
+<div class="quiz-feedback" role="status">Cerebras와 Groq에는 임베딩 API가 없어서 임베딩은 늘 로컬에서 돈다. 작은 모델이라 CPU로 충분하다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">gpt-oss의 <code>reasoning</code> 필드와 로컬 모델의 <code>&lt;think&gt;</code> 블록은 파이프라인에서 각각 어떻게 다뤄지는가?</p>
+<button class="quiz-option">둘 다 답에 포함해 형식 검사에 보낸다</button>
+<button class="quiz-option">둘 다 벗기는 단계가 따로 있다</button>
+<button class="quiz-option" data-correct>필드는 읽지 않고, 블록은 벗긴다</button>
+<div class="quiz-feedback" role="status">포트는 응답의 content만 읽으므로 별도 필드는 처음부터 보지 않는다. content 앞에 붙은 <code>&lt;think&gt;</code> 블록은 <code>readJson</code>이 벗긴다. 그래서 모양이 다른 세 답이 같은 JSON으로 읽혀 제출까지 간다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">운영 중 <code>llm</code>이 가리키는 Cerebras 모델을 같은 계열의 다른 모델로 바꾸려 한다. 무엇을 고치는가?</p>
+<button class="quiz-option">litellm-ai.ts의 모델 이름 표</button>
+<button class="quiz-option" data-correct>config.yaml의 model 값</button>
+<button class="quiz-option">compose 파일의 서비스 정의</button>
+<div class="quiz-feedback" role="status">파이프라인은 <code>model_name</code>(<code>llm</code>)만 부르고 실제 모델은 LiteLLM 설정이 정한다. 설정의 <code>model</code> 값을 바꾸고 <code>docker compose restart litellm</code>으로 반영하면 된다(docs/docker.md). 파이프라인 코드와 compose는 그대로다. 같은 계열이어야 하는 까닭은 단계별 입출력 형식이 유지되어야 해서다.</div>
+</div>
+
+</section>
+</main>
+<footer class="colophon">Generated with explain-diff-html</footer>
+</div>
+<script>
+      document.querySelectorAll(".quiz-question").forEach(function (question) {
+        var feedback = question.querySelector(".quiz-feedback");
+
+        // Shuffle the options on every load, so the correct answer's position is
+        // random and a reader cannot fall into answering by position. Each option
+        // is re-inserted before the feedback block, which has to stay last.
+        var shuffled = Array.prototype.slice.call(
+          question.querySelectorAll(".quiz-option"),
+        );
+        for (var i = shuffled.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var swap = shuffled[i];
+          shuffled[i] = shuffled[j];
+          shuffled[j] = swap;
+        }
+        shuffled.forEach(function (option) {
+          question.insertBefore(option, feedback);
+        });
+
+        var options = question.querySelectorAll(".quiz-option");
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            var isCorrect = option.hasAttribute("data-correct");
+            options.forEach(function (other) {
+              other.disabled = true;
+              if (other.hasAttribute("data-correct"))
+                other.classList.add("correct");
+            });
+            if (!isCorrect) option.classList.add("incorrect");
+            feedback.classList.add("show", isCorrect ? "ok" : "bad");
+            feedback.insertBefore(
+              document.createTextNode(isCorrect ? "Correct. " : "Not quite. "),
+              feedback.firstChild,
+            );
+          });
+        });
+      });
+    </script>
+</body>
+</html>

@@ -1,0 +1,1005 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>티켓 24: SolidCraft 합성 녹화본</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f6f7f9;
+        --text: #1c2024;
+        --muted: #60646c;
+        --border: #d7dbdf;
+        --border-strong: #848c95;
+        --accent: #2f5ee0;
+        --accent-soft: #e8eefc;
+        --edge: #a35608;
+        --edge-soft: #fbefe1;
+        --ok: #1a7f47;
+        --ok-soft: #e4f3ea;
+        --bad: #c62a3b;
+        --bad-soft: #fbe7e9;
+        --measure: 68ch;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181b;
+          --surface: #1f2226;
+          --text: #eceef0;
+          --muted: #9ba1a6;
+          --border: #33383d;
+          --border-strong: #646c75;
+          --accent: #7aa2ff;
+          --accent-soft: #1e2740;
+          --edge: #e08c3a;
+          --edge-soft: #2e2517;
+          --ok: #57c98b;
+          --ok-soft: #17281d;
+          --bad: #f07178;
+          --bad-soft: #2c1a1c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:visited {
+        color: var(--accent);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 2.5rem;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 6rem;
+      }
+      nav.toc {
+        position: sticky;
+        top: 2.5rem;
+        align-self: start;
+        font-size: 0.9rem;
+      }
+      nav.toc strong {
+        display: block;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc li {
+        margin: 0.35rem 0;
+      }
+      nav.toc a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav.toc a:hover {
+        color: var(--accent);
+      }
+      main {
+        min-width: 0;
+      }
+      main > header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1.25rem;
+        margin-bottom: 2rem;
+      }
+      main > header h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.6rem;
+      }
+      main > header .lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: var(--measure);
+      }
+      main > header .provenance {
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        margin: 0.7rem 0 0;
+      }
+      .colophon {
+        grid-column: 1 / -1;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        border-top: 1px solid var(--border);
+        margin: 4rem 0 0;
+        padding: 1.2rem 0 0;
+      }
+      .colophon a {
+        color: inherit;
+      }
+      section {
+        margin-bottom: 3.5rem;
+      }
+      section h2 {
+        font-size: 1.4rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      section h3 {
+        font-size: 1.05rem;
+        margin: 2rem 0 0.6rem;
+      }
+      section p,
+      section ul,
+      section ol {
+        max-width: var(--measure);
+      }
+      li {
+        margin: 0.3rem 0;
+      }
+      /* Code blocks: white-space set here so a filled-in block cannot collapse. */
+      pre,
+      .code-block {
+        white-space: pre-wrap;
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        font:
+          0.86rem/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        tab-size: 2;
+      }
+      pre .del {
+        color: var(--bad);
+      }
+      pre .add {
+        color: var(--ok);
+      }
+      pre .hi {
+        background: var(--accent-soft);
+        border-radius: 3px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--surface);
+        padding: 0.05rem 0.3rem;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      /* A file:line reference linked to the code it names. Wraps a <code> span
+         in prose, or the bare text of a .filename label. */
+      a.srcref {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px solid var(--muted);
+      }
+      a.srcref:hover {
+        border-bottom-color: var(--accent);
+      }
+      a.srcref:hover code {
+        background: var(--accent-soft);
+      }
+      /* Path label for the code block below it. */
+      .filename {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        margin: 1.5rem 0 0.3rem;
+        overflow-wrap: anywhere;
+      }
+      /* Comparison table: one row per case, .yes / .no / .warn on outcome cells. */
+      table.vals {
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.86rem;
+        width: 100%;
+        max-width: 620px;
+      }
+      table.vals th,
+      table.vals td {
+        border: 1px solid var(--border-strong);
+        padding: 0.4rem 0.65rem;
+        text-align: left;
+      }
+      table.vals th {
+        background: var(--surface);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+      table.vals td.yes {
+        background: var(--ok-soft);
+      }
+      table.vals td.no {
+        background: var(--bad-soft);
+      }
+      table.vals td.warn {
+        background: var(--edge-soft);
+      }
+      /* Callouts: .callout for a concept, .callout.edge for a caveat. */
+      .callout {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+        padding: 0.85rem 1.1rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .callout .label {
+        display: block;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+      }
+      .callout.edge {
+        background: var(--edge-soft);
+        border-left-color: var(--edge);
+      }
+      .callout.edge .label {
+        color: var(--edge);
+      }
+      /* Skippable deep-background block. */
+      details.skippable {
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 0.75rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      details.skippable > summary {
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      details.skippable[open] > summary {
+        margin-bottom: 0.75rem;
+      }
+      /* Diagram family 1: simplified app UI mockup. */
+      .ui-mockup {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1.5rem 0;
+        max-width: 560px;
+        font-size: 0.85rem;
+      }
+      .ui-mockup .bar {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0.5rem 0.85rem;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .ui-mockup .body {
+        padding: 1.1rem 0.85rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+      }
+      .mock-caption {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.3rem 0 0;
+        max-width: var(--measure);
+      }
+      /* Diagram family 2: data flow between components, example data on the arrows. */
+      .dataflow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+      /* Each arrow travels with the node it points at. Without this, a flow
+         wider than the column wraps between an arrow and its node, leaving the
+         arrow pointing at nothing and the node stranded on the next line. */
+      .dataflow .step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .dataflow .node {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 175px;
+      }
+      .dataflow .node.terminal {
+        background: var(--surface);
+        border-color: var(--border);
+      }
+      .dataflow .node.pass {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .dataflow .node.fail {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .dataflow .arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.72rem;
+        min-width: 96px;
+      }
+      .dataflow .arrow .line {
+        width: 100%;
+        border-top: 2px solid var(--border);
+        position: relative;
+      }
+      .dataflow .arrow .line::after {
+        content: "\25B6";
+        position: absolute;
+        right: -2px;
+        top: -0.72em;
+        color: var(--border);
+        font-size: 0.7rem;
+      }
+      .dataflow .arrow .data {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.35rem;
+        margin-bottom: 0.2rem;
+        font-family: ui-monospace, monospace;
+      }
+      .flow-label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin: 1.25rem 0 0.25rem;
+      }
+      /* A numbered sequence with one marked position: call stacks, retry
+         counts, any ranked list. Not one of the numbered families; reach for
+         it when a step in an ordered list is the point. */
+      .frames {
+        list-style: none;
+        padding: 0;
+        margin: 1.25rem 0;
+        max-width: 620px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.82rem;
+      }
+      .frames li {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.45rem 0.7rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+      }
+      .frames li.target {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .frames .n {
+        display: inline-block;
+        min-width: 2.2em;
+        color: var(--muted);
+      }
+      /* Diagram family 3: node/recursion tree (ASTs, nesting, recursion) */
+      .tree {
+        margin: 1.5rem 0;
+        font:
+          0.82rem/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      .tnode {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.3rem 0.55rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+        display: inline-block;
+      }
+      .tnode.leaf {
+        background: var(--bg);
+      }
+      .tnode.kept {
+        border-color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tnode.skipped {
+        border-color: var(--muted);
+        color: var(--muted);
+      }
+      .tchildren {
+        margin-left: 1.4rem;
+        border-left: 2px dotted var(--border);
+        padding-left: 0.9rem;
+      }
+      .tnote {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-left: 0.4rem;
+      }
+
+      /* Optional tabular body for .ui-mockup, when the mocked UI is a table. */
+      .mock-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .mock-table th,
+      .mock-table td {
+        border: 1px solid var(--border);
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+      }
+      .mock-table th {
+        background: var(--surface);
+        font-weight: 600;
+      }
+      .mock-table .col-highlight {
+        background: var(--accent-soft);
+      }
+
+      .mermaid {
+        margin: 1.75rem 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .mermaid .edgeLabel,
+      .mermaid .edgeLabel p,
+      .mermaid .edgeLabel span,
+      .mermaid .edgeLabel foreignObject div {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+      }
+      /* Quiz */
+      .quiz-question {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .quiz-question > p.q {
+        font-weight: 600;
+        margin: 0 0 0.85rem;
+      }
+      .quiz-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 0.5rem;
+        font: inherit;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .quiz-option:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .quiz-option.correct {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .quiz-option.incorrect {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .quiz-option:disabled {
+        cursor: default;
+      }
+      .quiz-feedback {
+        display: none;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 7px;
+        margin-top: 0.3rem;
+      }
+      .quiz-feedback.show {
+        display: block;
+      }
+      .quiz-feedback.ok {
+        background: var(--ok-soft);
+      }
+      .quiz-feedback.bad {
+        background: var(--edge-soft);
+      }
+      a:focus-visible,
+      summary:focus-visible,
+      .quiz-option:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+      table.vals td.yes::before,
+      .dataflow .node.pass::before,
+      .tnode.kept::before,
+      .quiz-option.correct::before {
+        content: "\2713\00a0";
+        font-weight: 700;
+      }
+      table.vals td.no::before,
+      .dataflow .node.fail::before,
+      .quiz-option.incorrect::before {
+        content: "\2717\00a0";
+        font-weight: 700;
+      }
+      table.vals td.warn::before {
+        content: "\25B2\00a0";
+        font-weight: 700;
+      }
+      .tnode.skipped::before {
+        content: "\2013\00a0";
+        font-weight: 700;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 1rem;
+          padding: 1.25rem 1.1rem 4rem;
+        }
+        nav.toc {
+          position: static;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+        }
+        body {
+          font-size: 16px;
+        }
+        main > header h1 {
+          font-size: 1.6rem;
+        }
+        table.vals {
+          display: block;
+          overflow-x: auto;
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <nav class="toc">
+        <strong>목차</strong>
+        <ol>
+          <li><a href="#background">배경</a></li>
+          <li><a href="#intuition">핵심 아이디어</a></li>
+          <li><a href="#code">코드 따라가기</a></li>
+          <li><a href="#quiz">퀴즈</a></li>
+        </ol>
+      </nav>
+      <main>
+        <header>
+          <h1>티켓 24: SolidCraft 합성 녹화본</h1>
+          <p class="lead">Fusion 실물로 녹화본을 만들기 어려운 동안 쓸 시험 데이터를 SolidCraft로 만든다. 스크립트가 SolidCraft 모델의 파라미터를 단독 스윕해, 애드인과 같은 업로드 묶음 형식의 파일을 낸다.</p>
+          <p class="provenance">jun-1993-p/threejs-configurator-ai 티켓 24 (커밋 7da5f7b) at 7da5f7b, explained 2026-11-04. References link to this commit.</p>
+        </header>
+<section id="background">
+<h2>배경</h2>
+<details class="skippable">
+<summary>업로드 묶음과 스윕이 낯설다면 펼쳐서 읽는다.</summary>
+<p>이 프로젝트는 Fusion 모델을 쇼핑몰의 three.js <strong>구성기</strong>로 바꾼다. 구성기는 브라우저에서 Fusion을 다시 계산할 수 없으므로, Fusion 애드인이 업로드 때 파라미터를 하나씩 바꿔 가며 형상을 미리 뽑아 둔다. 그 결과 묶음이 <strong>업로드 묶음</strong>이고, 파라미터 하나만 움직여 뽑은 형상 모음이 <strong>단독 스윕</strong>이다(티켓 01).</p>
+<p>개발자가 Fusion 실물로 이 묶음을 만들어 줘야 뒤 티켓들을 시험할 수 있는데, 실제 상품 녹화본은 공개 저장소에 올릴 수 없고 Fusion을 돌릴 환경도 늘 있는 것은 아니다. 그래서 같은 형식의 시험 데이터를 다른 도구로 만든다.</p>
+</details>
+<p><strong>SolidCraft</strong>는 이 프로젝트가 쓰는 독립 파라메트릭 CAD 프로그램이다. 명령행 도구 <code>solidcraft-cli</code>는 호출할 때마다 설계 파일을 새로 열어 명령 스크립트를 실행하고 JSON 결과를 돌려준다. 이 티켓에서 만드는 <strong>합성 녹화본</strong>(용어집: SolidCraft 등 Fusion이 아닌 도구로 만든 시험용 업로드 묶음)은 실제 상품이 아니므로 저장소에 둘 수 있고, 녹화본 대신 쓴다.</p>
+<p>티켓 01에서 애드인 핵심 <code>run_upload</code>가 Fusion을 <code>FusionModel</code> 인터페이스(Protocol) 뒤로 숨겨 두었다. 같은 인터페이스를 SolidCraft로 구현하면 스윕 순서와 묶음 조립은 그대로 재사용할 수 있다. 이 티켓의 설계 전체가 이 한 가지 기회에 기댄다.</p>
+<div class="callout">
+<span class="label">핵심 개념</span>
+<strong>면 이름과 모서리 이름</strong>(ADR-0016): SolidCraft는 면에 피처 기준 이름을 붙이고, 모서리는 맞닿는 두 면 이름을 세로선으로 이은 <code>면A|면B</code>로 부른다. 같은 쌍의 모서리가 여럿이면 <code>~순번</code>이 붙는다. 이 이름은 샘플 사이에서 같은 면을 짝짓는 열쇠가 된다. 이 티켓은 이름과 모서리 끝점을 빠짐없이 담는 일까지 하고, 점 배치를 이름에 맞추는 일은 티켓 25에서 한다.
+</div>
+<div class="callout edge">
+<span class="label">알려진 한계</span>
+이 티켓의 격자는 면의 경계 범위(사각 범위)에 n×n 점을 깐다. 구멍이 있는 면에서는 일부 점이 면 밖의 표면 위에 찍힌다. 코드 주석이 이 점을 티켓 25(경계 맞춤 격자)로 미뤘다고 적어 두었다.
+</div>
+</section>
+
+<section id="intuition">
+<h2>핵심 아이디어</h2>
+<p>Fusion 어댑터가 하는 일을 SolidCraft로 흉내 낸다. 다만 <code>solidcraft-cli</code>가 호출마다 설계를 새로 열기 때문에, 어댑터는 "지금 바뀌어 있는 파라미터 값"을 자기 기억(<code>_overrides</code>)에 두고, 형상이 필요할 때마다 그 값들을 처음부터 다시 적용하는 스크립트를 한 번에 돌린다. 원본 설계 파일은 저장하지 않으므로 바뀌지 않는다.</p>
+<p>예를 들어 <code>body_w</code>를 기본값의 0.75배로 스윕하는 샘플 하나를 뽑을 때, CLI 스크립트는 이런 명령을 순서대로 담는다: 파라미터 변경, 문서 검사(피처 오류 확인), 바디마다 면 목록과 모서리 목록, 바디 측정. 결과 한 덩어리에서 재계산 성공 여부, 면과 모서리, 부피와 바운딩 박스가 모두 나온다. <code>restore_parameter</code>는 기억에서 해당 값을 빼기만 하면 되므로 "되돌리기"가 공짜다.</p>
+<p>그 위에 얹은 변화는 세 가지다.</p>
+<ul>
+<li>업로드 묶음 스키마에 선택 필드를 더했다: <code>source</code>, 면의 <code>name</code>과 <code>geometry</code>, 샘플의 <code>edges</code>와 <code>bodies</code>. 스키마가 <code>additionalProperties: false</code>라서 필드를 더하지 않으면 새 데이터가 검사에서 거절된다. 모두 선택 필드이므로 기존 묶음은 그대로 유효하다.</li>
+<li>애드인 핵심 <code>run_upload</code>가 <code>source</code>와 <code>extra_sweeps</code>를 받는다. 사용자 파라미터가 아닌 스케치 치수(서랍장의 <code>d6</code> 같은 것)도 이름을 넘기면 함께 스윕한다.</li>
+<li>평면과 원기둥 면의 격자 점을 직접 계산하는 <code>synthetic/grid.py</code>를 새로 만들었다. SolidCraft에는 (u,v)에서 좌표를 얻는 계산이 없기 때문이다.</li>
+</ul>
+
+<p class="flow-label">합성 녹화본이 만들어지는 흐름(예시 데이터)</p>
+<div class="dataflow">
+<div class="node terminal">drawer.sc + --extra d6</div>
+<div class="step"><div class="arrow"><span class="data">body_w = 0.75배</span><span class="line"></span></div><div class="node">SolidCraftModel: 명령 스크립트 조립</div></div>
+<div class="step"><div class="arrow"><span class="data">면·모서리·부피 JSON</span><span class="line"></span></div><div class="node">solidcraft-cli run</div></div>
+<div class="step"><div class="arrow"><span class="data">면별 n×n 점</span><span class="line"></span></div><div class="node">run_upload: 묶음 조립</div></div>
+<div class="step"><div class="arrow"><span class="data">묶음 JSON</span><span class="line"></span></div><div class="node pass">bundle_errors 통과 때만 파일 쓰기</div></div>
+</div>
+
+<div class="callout edge">
+<span class="label">조용한 실패</span>
+SolidCraft는 속 비우기가 실패해도 피처 오류를 내지 않는다. 티켓 구현 기록은 <code>body_d=10</code>에서 면만 줄고 오류가 없었다고 적었다. 그래서 <code>recompute_failed</code>는 피처 오류가 있을 때만 붙는다. 이런 조용한 실패는 티켓 10의 위상 비교가 잡을 몫이라고 기록되어 있다.
+</div>
+</section>
+
+<section id="code">
+<h2>코드 따라가기</h2>
+<p><strong>흐름:</strong> 명령행 스크립트 → SolidCraft 어댑터(CLI 실행, 상태 캐시) → 격자 계산 → 애드인 핵심의 묶음 조립 → 스키마와 점 수 검사 → 파일 쓰기.</p>
+
+<h3>1. 진입점: 묶음을 파일로 쓰는 "서버"</h3>
+<p>스크립트는 애드인 핵심 <code>run_upload</code>를 그대로 부른다. 서버 자리에는 업로드 대신 묶음을 검사해 파일로 쓰는 <code>BundleFile</code>을 꽂는다. 검사는 서버가 쓰는 <code>bundle_errors</code> 그대로이므로 합성 녹화본은 서버가 받는 녹화본과 같은 기준을 통과한다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/7da5f7b91e36be01b75add3621a98576ec75f47d/synthetic/make_recording.py#L25-L47">synthetic/make_recording.py:25-47</a></p>
+<pre>class BundleFile:
+    """업로드 대신 묶음을 검사해 파일로 쓰는 ServerClient."""
+
+    def __init__(self, path: Path) -&gt; None:
+        self.path = path
+
+    def ping(self) -&gt; bool:
+        return True
+
+    def upload(self, bundle: dict[str, Any]) -&gt; str:
+        errors = bundle_errors(bundle)
+        if errors:
+            raise ValueError("업로드 묶음 검사 실패:\n" + "\n".join(errors))
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text(json.dumps(bundle, ensure_ascii=False), encoding="utf-8")
+        return str(self.path)
+
+
+def make_recording(design: Path, out: Path, extra: list[str], cli: str | None = None) -&gt; Path:
+    model = SolidCraftModel(cli_runner(design, cli))
+    written = run_upload(model, BundleFile(out), print, source="solidcraft", extra_sweeps=extra)
+    assert written is not None
+    return Path(written)</pre>
+<p>검사에 실패하면 예외가 나고 파일은 쓰이지 않는다. 평면과 원기둥이 아닌 면이 있을 때의 오류도 같은 방식으로 파일을 쓰기 전에 끝난다. 이 스크립트가 애드인 핵심을 불러 쓰려고 <code>addin/ConfiguratorUploader</code>를 <code>sys.path</code> 맨 앞에 넣는 것(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/7da5f7b91e36be01b75add3621a98576ec75f47d/synthetic/make_recording.py#L16-L17"><code>synthetic/make_recording.py:16-17</code></a>)이 애드인과 서버, 합성 쪽을 한 저장소에서 이어 붙이는 방법이다.</p>
+
+<h3>2. 애드인 핵심의 확장</h3>
+<p>핵심은 두 곳이 바뀌었다. 먼저 <code>run_upload</code>가 <code>source</code>(기본 <code>"fusion"</code>)와 <code>extra_sweeps</code>를 받아, 스윕 대상을 "사용자 파라미터이거나 이름을 넘긴 것"으로 넓힌다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/7da5f7b91e36be01b75add3621a98576ec75f47d/addin/ConfiguratorUploader/uploader/core.py#L139-L159">addin/ConfiguratorUploader/uploader/core.py:139-159</a></p>
+<pre>def run_upload(
+    model: FusionModel,
+    server: ServerClient,
+    notify: Callable[[str], None],
+    source: str = "fusion",
+    extra_sweeps: Sequence[str] = (),
+) -&gt; str | None:
+    """extra_sweeps: 사용자 파라미터가 아니어도 단독 스윕할 파라미터 이름(예: 이름 없는 스케치 치수)."""
+    if not server.ping():
+        notify("서버에 연결할 수 없습니다. 스윕을 시작하지 않았습니다.")
+        return None
+    parameters = model.parameters()
+    baseline = _shape_json(model)
+    bundle = {
+        "schema_version": SCHEMA_VERSION,
+        "units": "mm",
+        "source": source,
+        "grid": {"n": GRID_N},
+        "parts": _parts(model.bodies(), baseline["faces"]),
+        "baseline": baseline,
+        "sweeps": [_sweep(model, p) for p in parameters if p.is_user or p.name in extra_sweeps],</pre>
+<p>다음으로 형상 하나를 JSON으로 만드는 <code>_shape_json</code>이 생겼다. 면은 항상 담고, 모델이 <code>TopologyModel</code>(모서리와 바디 측정값을 주는 모델)이면 <code>edges</code>와 <code>bodies</code>도 담는다. <code>TopologyModel</code>은 별도의 <code>runtime_checkable</code> Protocol이다. 새 메서드를 <code>FusionModel</code>에 넣지 않고 따로 둔 덕분에 Fusion 어댑터는 코드를 바꾸지 않았다(티켓 구현 기록도 "Fusion 어댑터는 바뀌지 않았다"고 적었다). 따로 둔 이유는 코드에 적혀 있지 않다. 어댑터가 새 메서드를 구현하지 않아도 되게 하려는 것으로 읽히는데, 이것은 내 추정이다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/7da5f7b91e36be01b75add3621a98576ec75f47d/addin/ConfiguratorUploader/uploader/core.py#L108-L120">addin/ConfiguratorUploader/uploader/core.py:108-120</a></p>
+<pre>def _shape_json(model: FusionModel) -&gt; dict[str, Any]:
+    """현재 형상의 면과, 모델이 주면 모서리와 바디 측정값."""
+    shape: dict[str, Any] = {"faces": [_face_json(f) for f in model.sample_faces(GRID_N)]}
+    if isinstance(model, TopologyModel):
+        shape["edges"] = [
+            {"body": e.body, "name": e.name, "start": list(e.start), "mid": list(e.mid), "end": list(e.end)}
+            for e in model.sample_edges()
+        ]
+        shape["bodies"] = [
+            {"name": b.body, "volume": b.volume, "bbox": {"min": list(b.bbox_min), "max": list(b.bbox_max)}}
+            for b in model.measure_bodies()
+        ]
+    return shape</pre>
+<p>재계산이 실패한 샘플은 여전히 <code>{"faces": []}</code>만 담는다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/7da5f7b91e36be01b75add3621a98576ec75f47d/addin/ConfiguratorUploader/uploader/core.py#L128-L129"><code>addin/ConfiguratorUploader/uploader/core.py:128-129</code></a>).</p>
+
+<h3>3. SolidCraft 어댑터: CLI 실행</h3>
+<p>실행기는 명령 목록을 임시 폴더의 JSON 스크립트로 쓰고 <code>solidcraft-cli run</code>을 부른다. 설계 파일은 <code>--in</code>으로 읽기만 한다. <code>--allow-errors</code>는 피처가 실패해도 결과를 받아 재계산 실패로 기록하기 위한 옵션이다(코드 주석).</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/7da5f7b91e36be01b75add3621a98576ec75f47d/synthetic/solidcraft_model.py#L28-L48">synthetic/solidcraft_model.py:28-48</a></p>
+<pre>def cli_runner(design: Path, cli: str | None = None) -&gt; Runner:
+    """명령 목록을 `solidcraft-cli run --in design`으로 돌려 명령별 결과를 돌려주는 실행기."""
+    exe = cli or os.environ.get("SOLIDCRAFT_CLI", DEFAULT_CLI)
+
+    def run(commands: list[dict[str, Any]]) -&gt; list[Any]:
+        with tempfile.TemporaryDirectory() as tmp:
+            script, out = Path(tmp) / "script.json", Path(tmp) / "out.json"
+            script.write_text(json.dumps({"commands": commands}), encoding="utf-8")
+            # --allow-errors: 피처가 실패해도 결과를 받아 재계산 실패로 기록한다
+            done = subprocess.run(
+                [exe, "run", str(script), "--in", str(design), "--results", "--allow-errors", "--json-out", str(out)],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+            )
+            if done.returncode != 0 or not out.is_file():
+                raise RuntimeError(f"solidcraft-cli 실행 실패({done.returncode}): {done.stderr.strip()}")
+            result: list[Any] = json.loads(out.read_text(encoding="utf-8"))
+            return result
+
+    return run</pre>
+
+<h3>4. SolidCraft 어댑터: 상태 하나를 한 번에 얻기</h3>
+<p><code>_state</code>가 어댑터의 중심이다. 지금의 파라미터 덮어쓰기 목록(<code>key</code>)이 지난번과 같으면 캐시를 돌려주고, 다르면 스크립트를 조립해 CLI를 한 번 돌린다. 스크립트는 파라미터 변경, 문서 검사, 바디마다 면과 모서리, 바디 측정 순이다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/7da5f7b91e36be01b75add3621a98576ec75f47d/synthetic/solidcraft_model.py#L109-L139">synthetic/solidcraft_model.py:109-139</a></p>
+<pre>    def _state(self) -&gt; dict[str, Any]:
+        key = tuple(self._overrides.items())
+        if self._cache is not None and self._cache[0] == key:
+            return self._cache[1]
+        commands: list[dict[str, Any]] = [
+            {"command": "parameters.change", "params": {"name": n, "expression": e}} for n, e in key
+        ]
+        commands.append(
+            {"command": "document.inspect", "params": {"sketches": False, "measure": False, "joints": False}}
+        )
+        for body in self._bodies:
+            commands.append({"command": "model.faces", "params": {"body": body}})
+            commands.append({"command": "model.edges", "params": {"body": body}})
+        commands.append({"command": "inspect.measure", "params": {}})
+        try:
+            results = self._run(commands)
+        except RuntimeError:
+            # 바디가 사라지는 등 명령 자체가 실패한 경우
+            state: dict[str, Any] = {"ok": False}
+        else:
+            changes, inspected = results[: len(key)], results[len(key)]
+            per_body = results[len(key) + 1 : -1]
+            ok = not any(c["errors"] for c in changes) and not any(f["error"] for f in inspected["timeline"])
+            state = {
+                "ok": ok,
+                "faces": {per_body[2 * i]["body"]: per_body[2 * i]["faces"] for i in range(len(self._bodies))},
+                "edges": {per_body[2 * i + 1]["body"]: per_body[2 * i + 1]["edges"] for i in range(len(self._bodies))},
+                "bodies": results[-1]["bodies"],
+            }
+        self._cache = (key, state)
+        return state</pre>
+<p>재계산이 성공했다는 판정(<code>ok</code>)은 "파라미터 변경 명령이 오류를 내지 않았고, 타임라인에 오류 피처가 없다"이다. 명령 자체가 실패하는 경우(바디가 사라지는 등)는 <code>RuntimeError</code>로 잡아 <code>ok: False</code>로 기록한다. <code>set_parameter</code>는 이 상태의 <code>ok</code>를 돌려주고, <code>restore_parameter</code>는 덮어쓰기에서 이름을 빼기만 한다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/7da5f7b91e36be01b75add3621a98576ec75f47d/synthetic/solidcraft_model.py#L98-L107"><code>synthetic/solidcraft_model.py:98-107</code></a>). mm가 아닌 단위의 파라미터는 아직 바꿀 수 없어서 <code>ValueError</code>를 낸다.</p>
+
+<h3>5. 면 이름과 모서리 이름 풀기</h3>
+<p>모서리 이름 <code>면A|면B</code>를 두 면으로 나눌 때 단순히 세로선에서 자르면 안 된다. 필렛 면 이름(<code>F3:blend:F1:-x|F1:-y</code>)에도 세로선이 들어 있기 때문이다. <code>edge_faces</code>는 세로선마다 "왼쪽도 오른쪽도 실제 면 이름인 자리"를 찾는다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/7da5f7b91e36be01b75add3621a98576ec75f47d/synthetic/solidcraft_model.py#L55-L64">synthetic/solidcraft_model.py:55-64</a></p>
+<pre>def edge_faces(edge_name: str, face_names: set[str]) -&gt; tuple[str, str]:
+    """모서리 이름 "면A|면B" 또는 "면A|면B~순번"을 두 면 이름으로 나눈다.
+
+    필렛 면 이름(F3:blend:F1:-x|F1:-y)에도 세로선이 있으므로, 나눈 두 쪽이 모두 면 이름인 자리를 찾는다.
+    """
+    base = edge_name.rsplit("~", 1)[0] if "~" in edge_name else edge_name
+    for i, ch in enumerate(base):
+        if ch == "|" and base[:i] in face_names and base[i + 1 :] in face_names:
+            return base[:i], base[i + 1 :]
+    raise ValueError(f"모서리 {edge_name}: 두 면 이름으로 나눌 수 없습니다")</pre>
+
+<h3>6. 면마다 격자 점 찍기</h3>
+<p><code>sample_faces</code>는 바디의 모든 면을 돌며, 그 면이 포함된 모서리를 모아 경계로 삼고, 면의 종류에 따라 격자를 부른다. 원기둥은 <code>cylinder</code> 정보가, 평면은 <code>plane_normal</code>이 있다. 둘 다 없으면 면 이름과 함께 오류를 내고, 앞의 <code>BundleFile</code>이 쓰이기 전이므로 파일은 만들어지지 않는다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/7da5f7b91e36be01b75add3621a98576ec75f47d/synthetic/solidcraft_model.py#L141-L162">synthetic/solidcraft_model.py:141-162</a></p>
+<pre>    def sample_faces(self, grid_n: int) -&gt; list[FaceSample]:
+        state = self._state()
+        samples = []
+        for body in self._bodies:
+            names = {f["name"] for f in state["faces"][body]}
+            edge_pairs = [(edge_faces(e["name"], names), e) for e in state["edges"][body]]
+            for face in state["faces"][body]:
+                name = face["name"]
+                bound = [_edge(e) for pair, e in edge_pairs if name in pair]
+                if face.get("cylinder"):
+                    c = face["cylinder"]
+                    origin, axis, radius = _point(c["origin"]), _point(c["axis"]), float(c["radius"])
+                    surface, points = "cylinder", cylinder_grid(origin, axis, radius, bound, grid_n)
+                    geometry = {"type": "cylinder", "origin": list(origin), "axis": list(axis), "radius": radius}
+                elif face.get("plane_normal"):
+                    normal = _point(face["plane_normal"])
+                    surface, points = "plane", plane_grid(normal, bound, grid_n)
+                    geometry = {"type": "plane", "normal": list(normal)}
+                else:
+                    raise UnsupportedFaceError(f"{body} 면 {name}: 평면과 원기둥만 다룹니다")
+                samples.append(FaceSample(body=body, surface=surface, points=points, name=name, geometry=geometry))
+        return samples</pre>
+<p>평면 격자는 경계 모서리 점(시작, 중간, 끝, 원호의 가장 바깥 점)을 면 안의 두 축 u, v에 투영해 최솟값과 최댓값으로 사각 범위를 정하고 그 범위를 n등분한다. 두 축은 법선과 가장 덜 평행한 월드 축으로 잡아 샘플이 달라도 같은 규칙으로 정해진다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/7da5f7b91e36be01b75add3621a98576ec75f47d/synthetic/grid.py#L110-L121">synthetic/grid.py:110-121</a></p>
+<pre>def plane_grid(normal: Vec, edges: list[Edge], n: int) -&gt; list[Vec]:
+    """평면 면의 경계 범위에 n×n 점을 찍는다."""
+    u, v = _frame(normal)
+    origin = _mul(_unit(normal), _dot(edges[0].start, _unit(normal)))
+    points = _edge_points(edges, [u, v])
+    us = [_dot(_sub(p, origin), u) for p in points]
+    vs = [_dot(_sub(p, origin), v) for p in points]
+    return [
+        _add(origin, _add(_mul(u, pu), _mul(v, pv)))
+        for pu in _steps(min(us), max(us), n)
+        for pv in _steps(min(vs), max(vs), n)
+    ]</pre>
+<p>원기둥 격자는 u가 각도, v가 축 방향이다. 경계 점들의 각도를 덮는 가장 짧은 호(가장 큰 빈틈의 반대쪽, <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/7da5f7b91e36be01b75add3621a98576ec75f47d/synthetic/grid.py#L124-L130"><code>synthetic/grid.py:124-130</code></a>)와 축 방향의 최소~최대를 범위로 삼는다. 반원기둥이나 필렛 사분원기둥에서도 해당 각도 범위에만 점이 찍힌다는 것이 시험의 내용이다(<code>test_필렛_사분원기둥은_90도_범위에만_점을_찍는다</code>).</p>
+
+<h3>7. 스키마, 시험, 저장된 결과</h3>
+<p>스키마에는 위에서 본 선택 필드와 공용 정의 <code>vector</code>(숫자 3개), <code>edges</code>, <code>bodies</code>가 들어갔다. 면 이름은 <code>name</code>, 표면은 평면이면 법선, 원기둥이면 원점·축·반지름인 <code>geometry</code>로 담는다. 필수 필드는 늘리지 않아서 티켓 01의 기존 묶음이 계속 유효하다.</p>
+<p>시험은 모두 새로 15개가 더해졌다: 격자 6개, 어댑터 8개, 통합 1개(<code>test_서랍장_합성_녹화본이_검사를_통과하고_원본은_바뀌지_않는다</code>). 결과물은 <code>fixtures/synthetic/drawer.json</code>이다. 사용자 파라미터 4개와 <code>--extra</code>로 넘긴 <code>d6</code>, 합쳐 5개 스윕에 25개 샘플이 들어 있다.</p>
+<div class="callout edge">
+<span class="label">만들다 찾은 모델 오류</span>
+서랍장 모델 <code>solidcraft-test/drawer.sc</code>에서 몸통 속 비우기 면을 지정하는 점이 (0, 0, 350)이었다. <code>body_h=350</code>에서 이 점이 윗모서리 위에 놓여 면이 11개에서 10개로 줄었다(티켓 구현 기록: 몸통 부피 13,608,864 mm³, 손 계산 17,994,528 mm³). 서랍과 같은 방식으로 높이와 무관한 (0, 0, 9)로 고쳤고, 이제 25개 샘플 모두 면 22개에 부피가 손 계산과 일치한다. 통합 시험이 이 조건을 확인한다.
+</div>
+</section>
+
+<section id="quiz">
+<h2>퀴즈</h2>
+<div class="quiz-question">
+<p class="q"><code>SolidCraftModel</code>은 바꾼 파라미터 값을 기억해 두고 형상이 필요할 때마다 처음부터 다시 적용한다. 이렇게 한 이유로 가장 알맞은 것은?</p>
+<button class="quiz-option">재계산 횟수를 줄여 시간을 아끼려고</button>
+<button class="quiz-option">원본 설계 파일을 계속 열어 둘 수 없어서</button>
+<button class="quiz-option" data-correct>CLI가 호출마다 설계를 새로 열어서</button>
+<div class="quiz-feedback" role="status">CLI는 호출이 끝나면 상태를 버리고 다음 호출에서 설계를 다시 연다. 그래서 파라미터 변경 명령을 매번 같은 스크립트 앞에 붙여야 하고, <code>restore_parameter</code>는 기억에서 빼기만 하면 된다. 원본 파일이 바뀌지 않는 것은 저장하지 않기 때문이다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">모서리 이름 <code>A|B|C</code>이고 이 바디의 면 이름이 <code>A|B</code>와 <code>C</code>뿐이라면 <code>edge_faces</code>는 무엇을 돌려줄까?</p>
+<button class="quiz-option" data-correct><code>("A|B", "C")</code></button>
+<button class="quiz-option"><code>("A", "B|C")</code></button>
+<button class="quiz-option"><code>ValueError</code></button>
+<div class="quiz-feedback" role="status">첫 세로선(앞이 <code>A</code>)은 <code>A</code>가 면 이름이 아니라 건너뛰고, 둘째 세로선은 앞 <code>A|B</code>와 뒤 <code>C</code>가 모두 면 이름이라 거기서 나눈다. 필렛 면 이름처럼 이름 자체에 세로선이 있어도 풀리는 이유다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">속 비우기가 조용히 실패해 면만 줄어들고 피처 오류는 없다. 이 티켓의 코드는 그 샘플을 어떻게 기록할까?</p>
+<button class="quiz-option">부피가 줄었으므로 실패로 기록한다</button>
+<button class="quiz-option">면 개수가 다르므로 실패로 기록한다</button>
+<button class="quiz-option" data-correct>ok로 기록하고 티켓 10이 판별한다</button>
+<div class="quiz-feedback" role="status"><code>ok</code>는 변경 명령 오류와 타임라인 오류 피처로만 정한다. 면 수나 부피는 판정에 쓰지 않는다. 이런 조용한 실패는 위상 비교를 하는 티켓 10이 맡는 것으로 기록되어 있다.</div>
+</div>
+<div class="quiz-question">
+<p class="q"><code>_shape_json</code>이 <code>isinstance(model, TopologyModel)</code>로 모서리와 바디 측정값을 담을지 정한다. <code>FusionModel</code> 자체에 메서드를 더하는 대신 이렇게 한 효과는?</p>
+<button class="quiz-option">서버가 두 필드를 필수로 요구하지 않게 해 준다</button>
+<button class="quiz-option" data-correct>Fusion 어댑터가 새 메서드 없이도 동작한다</button>
+<button class="quiz-option">면 이름이 샘플 사이에서 자동으로 짝지어진다</button>
+<div class="quiz-feedback" role="status"><code>FusionModel</code>에 메서드를 더하면 실제 Fusion 어댑터도 구현해야 하고, 이 환경에서는 그것을 시험할 수 없다. 별도 Protocol이면 어댑터는 손대지 않는다. 두 필드가 선택 필드인 것은 스키마가 정하는 일이라 이 구조와 별개이고, 면 짝짓기는 이 티켓 범위가 아니다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">가운데 구멍이 뚫린 평면에 <code>plane_grid</code>로 n×n 점을 찍는다. 점은 어디에 놓일까?</p>
+<button class="quiz-option">구멍 위는 피해 면 위에만 놓인다</button>
+<button class="quiz-option" data-correct>사각 범위에 깔려 일부는 구멍 위에</button>
+<button class="quiz-option">구멍 가장자리 근처에만 촘촘하게 놓인다</button>
+<div class="quiz-feedback" role="status"><code>plane_grid</code>는 경계 점의 투영 최솟값과 최댓값으로 사각 범위를 정해 균등하게 나눈다. 안쪽 구멍은 고려하지 않으므로 일부 점이 면 밖에 놓인다. 모듈 설명이 이 한계를 적고 티켓 25로 미루었다.</div>
+</div>
+</section>
+
+      </main>
+
+      <footer class="colophon">
+        Generated with
+        <a href="https://github.com/malav2110/explain-diff-html"
+          >explain-diff-html</a
+        >
+      </footer>
+    </div>
+
+    <script>
+      document.querySelectorAll(".quiz-question").forEach(function (question) {
+        var feedback = question.querySelector(".quiz-feedback");
+
+        // Shuffle the options on every load, so the correct answer's position is
+        // random and a reader cannot fall into answering by position. Each option
+        // is re-inserted before the feedback block, which has to stay last.
+        var shuffled = Array.prototype.slice.call(
+          question.querySelectorAll(".quiz-option"),
+        );
+        for (var i = shuffled.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var swap = shuffled[i];
+          shuffled[i] = shuffled[j];
+          shuffled[j] = swap;
+        }
+        shuffled.forEach(function (option) {
+          question.insertBefore(option, feedback);
+        });
+
+        var options = question.querySelectorAll(".quiz-option");
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            var isCorrect = option.hasAttribute("data-correct");
+            options.forEach(function (other) {
+              other.disabled = true;
+              if (other.hasAttribute("data-correct"))
+                other.classList.add("correct");
+            });
+            if (!isCorrect) option.classList.add("incorrect");
+            feedback.classList.add("show", isCorrect ? "ok" : "bad");
+            feedback.insertBefore(
+              document.createTextNode(isCorrect ? "Correct. " : "Not quite. "),
+              feedback.firstChild,
+            );
+          });
+        });
+      });
+    </script>
+    <script>
+      // Mermaid loads without blocking: the page scripts above run first, and a slow
+      // or blocked CDN never holds up the quiz or the rest of the page. This is the
+      // only permitted external request, and it fires only when a .mermaid block is
+      // present. Leave it in place; it is a no-op on pages without a diagram.
+      (function () {
+        var blocks = document.querySelectorAll(".mermaid");
+        if (!blocks.length) return;
+
+        // mermaid.run() replaces each block's text with an SVG, so the source is
+        // gone after the first render. Stash it, because a theme change has to
+        // parse it again.
+        blocks.forEach(function (block) {
+          block.dataset.source = block.textContent;
+        });
+
+        var darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+        function render() {
+          blocks.forEach(function (block) {
+            block.removeAttribute("data-processed");
+            block.textContent = block.dataset.source;
+          });
+          try {
+            window.mermaid.initialize({
+              startOnLoad: false,
+              theme: darkQuery.matches ? "dark" : "default",
+            });
+          } catch (e) {}
+          Promise.resolve(window.mermaid.run({ nodes: blocks })).catch(
+            function () {},
+          );
+        }
+
+        var s = document.createElement("script");
+        s.src =
+          "https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js";
+        s.integrity =
+          "sha384-T/0lMUdJpd2S1ZHtRiofG3htU3xPCrFVeAQ1UUE2TJwlEJSV5NUwn30kP28n238E";
+        s.crossOrigin = "anonymous";
+        s.onload = function () {
+          render();
+          // Re-render when the reader switches system theme, so the diagram does
+          // not stay light on a dark page.
+          if (darkQuery.addEventListener)
+            darkQuery.addEventListener("change", render);
+        };
+        document.head.appendChild(s);
+      })();
+    </script>
+  </body>
+</html>

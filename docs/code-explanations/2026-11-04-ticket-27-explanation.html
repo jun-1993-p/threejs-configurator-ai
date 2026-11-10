@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>티켓 27: VLM에 보내는 그림을 모음 그림으로 묶기</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f6f7f9;
+        --text: #1c2024;
+        --muted: #60646c;
+        --border: #d7dbdf;
+        --border-strong: #848c95;
+        --accent: #2f5ee0;
+        --accent-soft: #e8eefc;
+        --edge: #a35608;
+        --edge-soft: #fbefe1;
+        --ok: #1a7f47;
+        --ok-soft: #e4f3ea;
+        --bad: #c62a3b;
+        --bad-soft: #fbe7e9;
+        --measure: 68ch;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181b;
+          --surface: #1f2226;
+          --text: #eceef0;
+          --muted: #9ba1a6;
+          --border: #33383d;
+          --border-strong: #646c75;
+          --accent: #7aa2ff;
+          --accent-soft: #1e2740;
+          --edge: #e08c3a;
+          --edge-soft: #2e2517;
+          --ok: #57c98b;
+          --ok-soft: #17281d;
+          --bad: #f07178;
+          --bad-soft: #2c1a1c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:visited {
+        color: var(--accent);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 2.5rem;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 6rem;
+      }
+      nav.toc {
+        position: sticky;
+        top: 2.5rem;
+        align-self: start;
+        font-size: 0.9rem;
+      }
+      nav.toc strong {
+        display: block;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc li {
+        margin: 0.35rem 0;
+      }
+      nav.toc a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav.toc a:hover {
+        color: var(--accent);
+      }
+      main {
+        min-width: 0;
+      }
+      main > header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1.25rem;
+        margin-bottom: 2rem;
+      }
+      main > header h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.6rem;
+      }
+      main > header .lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: var(--measure);
+      }
+      main > header .provenance {
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        margin: 0.7rem 0 0;
+      }
+      .colophon {
+        grid-column: 1 / -1;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        border-top: 1px solid var(--border);
+        margin: 4rem 0 0;
+        padding: 1.2rem 0 0;
+      }
+      .colophon a {
+        color: inherit;
+      }
+      section {
+        margin-bottom: 3.5rem;
+      }
+      section h2 {
+        font-size: 1.4rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      section h3 {
+        font-size: 1.05rem;
+        margin: 2rem 0 0.6rem;
+      }
+      section p,
+      section ul,
+      section ol {
+        max-width: var(--measure);
+      }
+      li {
+        margin: 0.3rem 0;
+      }
+      /* Code blocks: white-space set here so a filled-in block cannot collapse. */
+      pre,
+      .code-block {
+        white-space: pre-wrap;
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        font:
+          0.86rem/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        tab-size: 2;
+      }
+      pre .del {
+        color: var(--bad);
+      }
+      pre .add {
+        color: var(--ok);
+      }
+      pre .hi {
+        background: var(--accent-soft);
+        border-radius: 3px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--surface);
+        padding: 0.05rem 0.3rem;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      /* A file:line reference linked to the code it names. Wraps a <code> span
+         in prose, or the bare text of a .filename label. */
+      a.srcref {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px solid var(--muted);
+      }
+      a.srcref:hover {
+        border-bottom-color: var(--accent);
+      }
+      a.srcref:hover code {
+        background: var(--accent-soft);
+      }
+      /* Path label for the code block below it. */
+      .filename {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        margin: 1.5rem 0 0.3rem;
+        overflow-wrap: anywhere;
+      }
+      /* Comparison table: one row per case, .yes / .no / .warn on outcome cells. */
+      table.vals {
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.86rem;
+        width: 100%;
+        max-width: 620px;
+      }
+      table.vals th,
+      table.vals td {
+        border: 1px solid var(--border-strong);
+        padding: 0.4rem 0.65rem;
+        text-align: left;
+      }
+      table.vals th {
+        background: var(--surface);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+      table.vals td.yes {
+        background: var(--ok-soft);
+      }
+      table.vals td.no {
+        background: var(--bad-soft);
+      }
+      table.vals td.warn {
+        background: var(--edge-soft);
+      }
+      /* Callouts: .callout for a concept, .callout.edge for a caveat. */
+      .callout {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+        padding: 0.85rem 1.1rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .callout .label {
+        display: block;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+      }
+      .callout.edge {
+        background: var(--edge-soft);
+        border-left-color: var(--edge);
+      }
+      .callout.edge .label {
+        color: var(--edge);
+      }
+      /* Skippable deep-background block. */
+      details.skippable {
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 0.75rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      details.skippable > summary {
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      details.skippable[open] > summary {
+        margin-bottom: 0.75rem;
+      }
+      /* Diagram family 1: simplified app UI mockup. */
+      .ui-mockup {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1.5rem 0;
+        max-width: 560px;
+        font-size: 0.85rem;
+      }
+      .ui-mockup .bar {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0.5rem 0.85rem;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .ui-mockup .body {
+        padding: 1.1rem 0.85rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+      }
+      .mock-caption {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.3rem 0 0;
+        max-width: var(--measure);
+      }
+      /* Diagram family 2: data flow between components, example data on the arrows. */
+      .dataflow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+      /* Each arrow travels with the node it points at. Without this, a flow
+         wider than the column wraps between an arrow and its node, leaving the
+         arrow pointing at nothing and the node stranded on the next line. */
+      .dataflow .step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .dataflow .node {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 175px;
+      }
+      .dataflow .node.terminal {
+        background: var(--surface);
+        border-color: var(--border);
+      }
+      .dataflow .node.pass {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .dataflow .node.fail {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .dataflow .arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.72rem;
+        min-width: 96px;
+      }
+      .dataflow .arrow .line {
+        width: 100%;
+        border-top: 2px solid var(--border);
+        position: relative;
+      }
+      .dataflow .arrow .line::after {
+        content: "\25B6";
+        position: absolute;
+        right: -2px;
+        top: -0.72em;
+        color: var(--border);
+        font-size: 0.7rem;
+      }
+      .dataflow .arrow .data {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.35rem;
+        margin-bottom: 0.2rem;
+        font-family: ui-monospace, monospace;
+      }
+      .flow-label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin: 1.25rem 0 0.25rem;
+      }
+      /* A numbered sequence with one marked position: call stacks, retry
+         counts, any ranked list. Not one of the numbered families; reach for
+         it when a step in an ordered list is the point. */
+      .frames {
+        list-style: none;
+        padding: 0;
+        margin: 1.25rem 0;
+        max-width: 620px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.82rem;
+      }
+      .frames li {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.45rem 0.7rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+      }
+      .frames li.target {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .frames .n {
+        display: inline-block;
+        min-width: 2.2em;
+        color: var(--muted);
+      }
+      /* Diagram family 3: node/recursion tree (ASTs, nesting, recursion) */
+      .tree {
+        margin: 1.5rem 0;
+        font:
+          0.82rem/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      .tnode {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.3rem 0.55rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+        display: inline-block;
+      }
+      .tnode.leaf {
+        background: var(--bg);
+      }
+      .tnode.kept {
+        border-color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tnode.skipped {
+        border-color: var(--muted);
+        color: var(--muted);
+      }
+      .tchildren {
+        margin-left: 1.4rem;
+        border-left: 2px dotted var(--border);
+        padding-left: 0.9rem;
+      }
+      .tnote {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-left: 0.4rem;
+      }
+
+      /* Optional tabular body for .ui-mockup, when the mocked UI is a table. */
+      .mock-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .mock-table th,
+      .mock-table td {
+        border: 1px solid var(--border);
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+      }
+      .mock-table th {
+        background: var(--surface);
+        font-weight: 600;
+      }
+      .mock-table .col-highlight {
+        background: var(--accent-soft);
+      }
+
+      .mermaid {
+        margin: 1.75rem 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .mermaid .edgeLabel,
+      .mermaid .edgeLabel p,
+      .mermaid .edgeLabel span,
+      .mermaid .edgeLabel foreignObject div {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+      }
+      /* Quiz */
+      .quiz-question {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .quiz-question > p.q {
+        font-weight: 600;
+        margin: 0 0 0.85rem;
+      }
+      .quiz-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 0.5rem;
+        font: inherit;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .quiz-option:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .quiz-option.correct {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .quiz-option.incorrect {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .quiz-option:disabled {
+        cursor: default;
+      }
+      .quiz-feedback {
+        display: none;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 7px;
+        margin-top: 0.3rem;
+      }
+      .quiz-feedback.show {
+        display: block;
+      }
+      .quiz-feedback.ok {
+        background: var(--ok-soft);
+      }
+      .quiz-feedback.bad {
+        background: var(--edge-soft);
+      }
+      a:focus-visible,
+      summary:focus-visible,
+      .quiz-option:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+      table.vals td.yes::before,
+      .dataflow .node.pass::before,
+      .tnode.kept::before,
+      .quiz-option.correct::before {
+        content: "\2713\00a0";
+        font-weight: 700;
+      }
+      table.vals td.no::before,
+      .dataflow .node.fail::before,
+      .quiz-option.incorrect::before {
+        content: "\2717\00a0";
+        font-weight: 700;
+      }
+      table.vals td.warn::before {
+        content: "\25B2\00a0";
+        font-weight: 700;
+      }
+      .tnode.skipped::before {
+        content: "\2013\00a0";
+        font-weight: 700;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 1rem;
+          padding: 1.25rem 1.1rem 4rem;
+        }
+        nav.toc {
+          position: static;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+        }
+        body {
+          font-size: 16px;
+        }
+        main > header h1 {
+          font-size: 1.6rem;
+        }
+        table.vals {
+          display: block;
+          overflow-x: auto;
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+<div class="layout">
+<nav class="toc">
+<strong>목차</strong>
+<ol>
+<li><a href="#background">배경</a></li>
+<li><a href="#intuition">핵심 아이디어</a></li>
+<li><a href="#code">코드 따라가기</a></li>
+<li><a href="#quiz">퀴즈</a></li>
+</ol>
+</nav>
+<main>
+<header>
+<h1>티켓 27: VLM에 보내는 그림을 모음 그림으로 묶기</h1>
+<p class="lead">VLM이 요청 하나에 받는 그림 수가 3장으로 제한되어 있어, 부품 탐색과 AI 판정이 보내는 여러 그림을 칸을 이어 붙인 모음 그림으로 묶고, 그래도 넘으면 AI 판정을 나눠 묻는다.</p>
+<p class="provenance">jun-1993-p/threejs-configurator-ai 티켓 27, 기준 커밋 4b504e6 (포함한 커밋: 4b504e6), 2026-11-04 작성. References link to this commit.</p>
+</header>
+<section id="background">
+<h2>배경</h2>
+<details class="skippable">
+<summary>처음 보는 사람을 위한 배경</summary>
+<p>VLM(그림을 읽는 언어 모델)은 글과 그림을 함께 받아 글로 답한다. 이 프로젝트는 AI를 외부 API로 부르고(ADR-0015), 그 사이에 LiteLLM 프록시를 둔다. 파이프라인 실행기는 AI를 "포트"(<code>AiPort</code>)로만 알고 있고, 포트 뒤에서 실제로 LiteLLM에 요청을 보내는 것이 <code>liteLlmAi</code>다. 그림은 요청에 base64 PNG로 붙는다.</p>
+</details>
+<p>AI가 그림을 보는 단계는 둘이다. <strong>부품 탐색</strong>은 기본 형상을 여섯 방향에서 그린 그림을 보고 부품(서랍, 몸통, 상판 등)을 찾는다. <strong>AI 판정</strong>은 수치 검증을 모두 통과한 뒤 슬라이더 끝값과 모서리 조합을 그린 <strong>렌더링</strong>을 보고 뚫림, 겹침, 비례 깨짐만 찾는다(수치로 잡을 수 없는 것만 본다).</p>
+<p>티켓 26 6절의 실행 기록에서 Groq VLM(<code>qwen/qwen3.8-27b</code>)이 요청 하나에 그림을 3장까지만 받는다는 것이 드러났다. 그런데 부품 탐색은 6장을 보내고, AI 판정은 슬라이더가 n개일 때 2n + 4·C(n,2)장을 보낸다. 슬라이더가 둘이면 8장, 셋이면 18장, 넷이면 32장이다. 그래서 파이프라인이 첫 단계에서 멈췄다.</p>
+<div class="callout">
+<span class="label">용어(GLOSSARY.md)</span>
+<p><strong>모음 그림</strong>은 여러 장의 그림을 크기를 바꾸지 않고 칸으로 격자에 이어 붙인 그림 한 장이다. 한 장에 3×3칸까지다. 문장에는 칸마다 어떤 그림인지(몇째 모음 그림의 몇째 줄 몇째 칸)를 적는다.</p>
+</div>
+<div class="callout edge">
+<span class="label">주의</span>
+<p>AI 판정은 슬라이더 끝값끼리 크기 차이가 보여야 의미가 있다. 렌더링은 모두 같은 축척으로 그려지므로, 모음 그림으로 묶을 때 크기를 바꾸면 이 차이가 사라진다. 티켓의 네 번째 조건이 이것이다.</p>
+</div>
+</section>
+<section id="intuition">
+<h2>핵심 아이디어</h2>
+<p>핵심 아이디어는 "그림 수 제한은 요청에 붙는 파일 수 제한이지, 보이는 칸 수 제한이 아니다"이다. 칸 아홉 개를 한 장에 붙이면 요청 하나로 최대 27장 분량(3장 × 9칸)을 보낼 수 있다. 대신 모델이 어느 칸이 무엇인지 알려면 문장에 칸 배치를 적어야 한다. 예컨대 부품 탐색의 여섯 방향 그림은 3칸 × 2줄 모음 그림 한 장이 되고, 문장에는 이렇게 간다.</p>
+<table class="vals">
+<thead><tr><th>입력 순서</th><th>방향(from)</th><th>sheet</th><th>row</th><th>column</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>+X</td><td>1</td><td>1</td><td>1</td></tr>
+<tr><td>2</td><td>-X</td><td>1</td><td>1</td><td>2</td></tr>
+<tr><td>3</td><td>+Y</td><td>1</td><td>1</td><td>3</td></tr>
+<tr><td>4</td><td>-Y</td><td>1</td><td>2</td><td>1</td></tr>
+<tr><td>5</td><td>+Z</td><td>1</td><td>2</td><td>2</td></tr>
+<tr><td>6</td><td>-Z</td><td>1</td><td>2</td><td>3</td></tr>
+</tbody>
+</table>
+<p>(방향 이름과 순서는 이 설명을 위한 예시다. 실제 순서는 실행기가 정한다.) 320×240 칸이면 이 모음 그림은 3·320+2·4 = 968, 2·240+4 = 484로 968×484다. 칸 사이는 4픽셀 회색 경계다.</p>
+<p>AI 판정은 한 걸음 더 간다. 모음 그림이 3장을 넘기면 렌더링을 순서대로 나눠 요청을 여러 번 보낸다. 슬라이더 넷, 렌더링 32장이면 첫 요청이 27장(모음 그림 3장), 둘째 요청이 5장(모음 그림 1장)이다. 각 요청의 답에서 나온 문제 목록(<code>problems</code>)을 하나로 합쳐 실행기에는 하나의 답으로 돌려준다.</p>
+<div class="dataflow">
+<div class="node terminal">렌더링 32장</div>
+<div class="step"><div class="arrow"><span class="data">27장 + 5장</span><span class="line"></span></div><div class="node">나눔</div></div>
+<div class="step"><div class="arrow"><span class="data">모음 그림 3장 / 1장</span><span class="line"></span></div><div class="node">VLM 요청 둘</div></div>
+<div class="step"><div class="arrow"><span class="data">problems 둘</span><span class="line"></span></div><div class="node">합침</div></div>
+<div class="step"><div class="arrow"><span class="data">ok: 답 하</span><span class="line"></span></div><div class="node pass">답 하나</div></div>
+</div>
+<p>이 변경은 포트 안에서 끝난다. 실행기의 단계, 형식 검사, 다시 묻기는 바뀌지 않는다.</p>
+</section>
+<section id="code">
+<h2>코드 따라가기</h2>
+<p>흐름: <code>liteLlmAi</code>의 부품 탐색 또는 AI 판정 → 그림을 모음 그림으로 묶는 <code>imageSheets</code> → 칸 위치를 문장에 싣고 요청 → (AI 판정만) 나눈 답 합치기.</p>
+<h3>1. 모음 그림 만들기</h3>
+<p>새 파일 <code>image-sheet.ts</code>가 격자 크기(3×3칸)와 경계(4픽셀, 어두운 회색)를 정한다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/4b504e6afb480eab9ce2c3aa050a576aef59e9a1/configurator/pipeline/image-sheet.ts#L8-L15">configurator/pipeline/image-sheet.ts:8-15</a></p>
+<pre>/** 모음 그림 한 장의 격자. 320×240 칸이면 한 장이 968×728이다. */
+export const SHEET_COLUMNS = 3;
+const SHEET_ROWS = 3;
+export const SHEET_CELLS = SHEET_COLUMNS * SHEET_ROWS;
+
+/** 칸 사이 경계(픽셀)와 색. 렌더링 바탕색(밝은 회색)과 구별되게 어둡게 둔다. */
+const GAP = 4;
+const GAP_COLOR: Rgb = [120, 120, 120];</pre>
+<p><code>imageSheets</code>는 PNG(base64) 목록을 받아 모음 그림 목록과 칸 위치를 돌려준다. PNG를 읽어(<code>decodePng</code>, 8비트 RGB에 비월 없는 형식만 받는다. 입력이 이 프로젝트의 렌더러가 만든 그림뿐이기 때문이다) 크기를 바꾸지 않고 칸에 붙인다. 칸 크기는 가장 큰 그림에 맞추고 작은 그림은 칸 왼쪽 위에 그대로 놓는다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/4b504e6afb480eab9ce2c3aa050a576aef59e9a1/configurator/pipeline/image-sheet.ts#L68-L95">configurator/pipeline/image-sheet.ts:68-95</a></p>
+<pre>export function imageSheets(images: string[]): { sheets: string[]; cells: Cell[] } {
+  if (images.length === 0) return { sheets: [], cells: [] };
+  const decoded = images.map((image) =&gt; decodePng(Buffer.from(image, "base64")));
+  const cellWidth = Math.max(...decoded.map((d) =&gt; d.width));
+  const cellHeight = Math.max(...decoded.map((d) =&gt; d.height));
+  const cells = decoded.map((_, i) =&gt; ({
+    sheet: Math.floor(i / SHEET_CELLS) + 1,
+    row: Math.floor((i % SHEET_CELLS) / SHEET_COLUMNS) + 1,
+    column: (i % SHEET_COLUMNS) + 1,
+  }));
+  const sheets: string[] = [];
+  for (let start = 0; start &lt; decoded.length; start += SHEET_CELLS) {
+    const onSheet = decoded.slice(start, start + SHEET_CELLS);
+    const columns = Math.min(SHEET_COLUMNS, onSheet.length);
+    const rows = Math.ceil(onSheet.length / SHEET_COLUMNS);
+    const width = columns * cellWidth + (columns - 1) * GAP;
+    const height = rows * cellHeight + (rows - 1) * GAP;
+    const rgb = new Uint8Array(width * height * 3);
+    for (let i = 0; i &lt; width * height; i++) rgb.set(GAP_COLOR, i * 3);
+    onSheet.forEach((image, k) =&gt; {
+      const { row, column } = cells[start + k];
+      const [left, top] = [(column - 1) * (cellWidth + GAP), (row - 1) * (cellHeight + GAP)];
+      for (let y = 0; y &lt; image.height; y++) rgb.set(image.rgb.subarray(y * image.width * 3, (y + 1) * image.width * 3), ((top + y) * width + left) * 3);
+    });
+    sheets.push(encodePng(rgb, width, height).toString("base64"));
+  }
+  return { sheets, cells };
+}</pre>
+<p>칸 위치는 입력 순서 <code>i</code>에서 정해진다: 모음 그림 번호는 <code>⌊i/9⌋+1</code>, 줄은 <code>⌊(i mod 9)/3⌋+1</code>, 칸은 <code>(i mod 3)+1</code>. 11번째 그림(<code>i</code>=10)이면 둘째 모음 그림의 첫째 줄 둘째 칸이다. 렌더러의 <code>encodePng</code>를 내보내 모음 그림을 같은 방식으로 다시 인코딩한다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/4b504e6afb480eab9ce2c3aa050a576aef59e9a1/configurator/pipeline/render.ts#L135"><code>configurator/pipeline/render.ts:135</code></a>).</p>
+<h3>2. 설정: 그림 수 제한</h3>
+<p><code>liteLlmAi</code>의 옵션 <code>maxImages</code>가 요청 하나에 붙일 모음 그림 수다. 기본값 3은 Groq VLM의 제한이다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/4b504e6afb480eab9ce2c3aa050a576aef59e9a1/configurator/pipeline/litellm-ai.ts#L27"><code>configurator/pipeline/litellm-ai.ts:27</code></a>). 실행 도구는 환경 변수 <code>LITELLM_VLM_MAX_IMAGES</code>로 바꾼다. 0이나 NaN을 막는 검사가 만들 때 있다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/4b504e6afb480eab9ce2c3aa050a576aef59e9a1/configurator/pipeline/litellm-ai.ts#L176"><code>litellm-ai.ts:176</code></a>). 티켓의 리뷰 기록에 따르면 0이면 판정이 끝나지 않거나 그림 없이 통과했다.</p>
+<h3>3. 부품 탐색: 한 장으로</h3>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/4b504e6afb480eab9ce2c3aa050a576aef59e9a1/configurator/pipeline/litellm-ai.ts#L211-L214">configurator/pipeline/litellm-ai.ts:211-214</a></p>
+<pre>    findParts: ({ views, ...input }) =&gt; {
+      const { sheets, cells } = imageSheets(views.map((v) =&gt; v.image));
+      return ask("parts", `${PARTS_PROMPT}\n${OUTPUT_RULES(PARTS_SCHEMA)}`, { ...input, views: views.map((v, i) =&gt; ({ from: v.from, ...cells[i] })) }, sheets);
+    },</pre>
+<p>여섯 방향 그림이 한 장으로 가고, <code>views</code>는 <code>{ from, sheet, row, column }</code> 목록이 된다. 지시문도 바뀌어 칸마다 어느 쪽에서 본 그림인지와 모음 그림이 무엇인지(<code>SHEET_RULE</code>, <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/4b504e6afb480eab9ce2c3aa050a576aef59e9a1/configurator/pipeline/litellm-ai.ts#L86"><code>litellm-ai.ts:86</code></a>)를 알린다. 부품 탐색은 나누지 않는다. 여섯 칸은 늘 한 장이고 그림 수 제한은 1 이상이기 때문이다.</p>
+<h3>4. AI 판정: 나눠 묻고 합치기</h3>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/4b504e6afb480eab9ce2c3aa050a576aef59e9a1/configurator/pipeline/litellm-ai.ts#L221-L243">configurator/pipeline/litellm-ai.ts:221-243</a></p>
+<pre>    judge: async ({ renders, ...input }) =&gt; {
+      const problems: unknown[] = [];
+      let merged = {};
+      for (let start = 0; start &lt; renders.length; start += maxImages * SHEET_CELLS) {
+        const part = renders.slice(start, start + maxImages * SHEET_CELLS);
+        const { sheets, cells } = imageSheets(part.map((r) =&gt; r.image));
+        const answer = await ask(
+          "judgment",
+          `${JUDGMENT_PROMPT}\n${OUTPUT_RULES(judgmentSchema(part.map((r) =&gt; r.name)))}`,
+          { ...input, renders: part.map(({ name, values }, i) =&gt; ({ name, values, ...cells[i] })) },
+          sheets,
+        );
+        // 형식이 틀린 답은 그대로 돌려줘 실행기의 형식 검사에 걸리게 한다. 다시 물을 때는 나눈 요청을 모두 다시 묻는다.
+        const found = (answer as { problems?: unknown } | null)?.problems;
+        if (!Array.isArray(found)) return answer;
+        // 이 요청에 보내지 않은 렌더링은 모델이 보지 못한 그림이라 짚은 문제를 버린다. 모르는 이름은 남겨 형식 검사에 걸리게 한다.
+        const elsewhere = new Set(renders.filter((r) =&gt; !part.includes(r)).map((r) =&gt; r.name));
+        problems.push(...found.filter((p) =&gt; !elsewhere.has((p as { image?: string } | null)?.image as string)));
+        // problems 밖의 필드도 남겨, 출력 형식에 없는 필드는 실행기의 형식 검사에 걸리게 한다
+        merged = { ...merged, ...(answer as object) };
+      }
+      return { ...merged, problems };
+    },</pre>
+<p>반복은 요청마다 <code>maxImages * SHEET_CELLS</code>개(기본 27개) 렌더링을 잘라 묻는다. 출력 형식의 그림 이름은 그 요청의 렌더링 이름만 허용한다. 처리 중 결정이 셋 있다.</p>
+<ul>
+<li>형식이 틀린 답(<code>problems</code>가 목록이 아님)은 합치지 않고 그대로 돌려줘 실행기의 형식 검사에 걸리게 한다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/4b504e6afb480eab9ce2c3aa050a576aef59e9a1/configurator/pipeline/litellm-ai.ts#L235"><code>litellm-ai.ts:235</code></a>).</li>
+<li>그 요청에 보내지 않은 렌더링을 짚은 문제는 버린다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/4b504e6afb480eab9ce2c3aa050a576aef59e9a1/configurator/pipeline/litellm-ai.ts#L237"><code>litellm-ai.ts:237</code></a>). 티켓 기록에 따르면 실행기는 합친 답을 전체 렌더링 이름으로 검사하므로, 모델이 보지 못한 그림을 짚은 답이 걸리지 않고 지나가기 때문이다.</li>
+<li><code>problems</code> 밖의 필드와 모르는 이름은 남겨 형식 검사에 걸리게 한다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/4b504e6afb480eab9ce2c3aa050a576aef59e9a1/configurator/pipeline/litellm-ai.ts#L240"><code>litellm-ai.ts:240</code></a>).</li>
+</ul>
+<div class="callout edge">
+<span class="label">티켓이 남긴 한계</span>
+<p>실행기가 다시 물을 때 주는 <code>rejected</code>·<code>schemaErrors</code>는 합친 답 기준이라 나눈 요청 모두에 간다. 실행기의 다시 묻기를 바꾸지 않는다는 요구 때문이다. 오류 문장이 렌더링 이름을 짚으므로 모델이 자기 요청 몫을 가릴 수 있다고 본다(티켓의 판단). 실제 모델에서 다시 묻기가 늘면 요청별로 나눈다. 또 렌더링이 27장을 넘으면(슬라이더 넷부터) 끝값 렌더링과 일부 모서리 조합이 다른 요청으로 가는데, 끝값 렌더링이 앞에 있어 첫 요청에 함께 들어가므로 끝값끼리는 늘 나란히 본다.</p>
+</div>
+<h3>5. 시험</h3>
+<p><code>litellm-ai.test.ts</code>에 시험 다섯 개가 더해졌다. 32장 렌더링이 3장과 1장 두 요청으로 가는지, 둘째 모음 그림의 가운데 칸이 원래 픽셀 그대로인지(같은 축척), 나눈 답 하나가 형식이 틀리면 그 답을 돌려주는지, 보내지 않은 렌더링을 짚은 문제가 버려지는지, 그림 수 제한이 잘못되면 포트를 만들지 않는지를 본다.</p>
+</section>
+<section id="quiz">
+<h2>퀴즈</h2>
+<div class="quiz-question">
+<p class="q">슬라이더가 넷이라 렌더링이 32장일 때, 기본 설정에서 AI 판정은 몇 번 묻는가?</p>
+<button class="quiz-option">한 번이다. 모음 그림 4장을 한 요청에 붙인다</button>
+<button class="quiz-option">세 번이다. 모음 그림 3장씩 요청한다</button>
+<button class="quiz-option" data-correct>두 번이다. 27장과 5장으로 나눈다</button>
+<div class="quiz-feedback" role="status">요청 하나에 모음 그림 3장 × 9칸 = 27칸까지 붙는다. 32장에서 27장을 잘라 첫 요청, 남은 5장이 둘째 요청이다. 그림 수 제한은 모음 그림 수에 걸리지 칸 수에 걸리지 않는다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">320×240 렌더링 아홉 장 사이에 200×100 렌더링이 하나 섞여 있다. 그 렌더링은 모음 그림에서 어떻게 놓이는가?</p>
+<button class="quiz-option" data-correct>그대로 왼쪽 위에 놓고 남는 곳은 경계색</button>
+<button class="quiz-option">칸에 맞게 늘려 칸을 가득 채운다</button>
+<button class="quiz-option">칸 가운데에 놓고 주변은 렌더링 바탕색이다</button>
+<button class="quiz-option">칸에 들어가게 줄이되 비율은 지킨다</button>
+<div class="quiz-feedback" role="status"><code>imageSheets</code>는 칸 크기를 가장 큰 그림에 맞추고 작은 그림은 왼쪽 위에 붙인다. 크기를 바꾸면 슬라이더 끝값끼리 크기 차이가 사라지므로 같은 축척 요구가 깨진다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">입력 순서로 11번째 렌더링(i=10)이 놓이는 칸은?</p>
+<button class="quiz-option">첫째 모음 그림 둘째 줄 첫째 칸</button>
+<button class="quiz-option">둘째 모음 그림 둘째 줄 첫째 칸</button>
+<button class="quiz-option">첫째 모음 그림 첫째 줄 첫째 칸</button>
+<button class="quiz-option" data-correct>둘째 모음 그림 첫째 줄 둘째 칸</button>
+<div class="quiz-feedback" role="status">한 장은 9칸이므로 i=10은 둘째 모음 그림(⌊10/9⌋+1)이고, 그 안에서 10 mod 9 = 1번째(0부터)이므로 첫째 줄(⌊1/3⌋+1)의 둘째 칸(1 mod 3 + 1)이다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">요청을 나눠 묻는 AI 판정에서, 어느 요청이 그 요청에 보내지 않은 렌더링을 짚은 문제를 돌려주면 버리는 까닭은?</p>
+<button class="quiz-option">그 요청의 출력 형식이 다른 이름을 막아 형식 오류로 다시 묻게 되기 때문이다</button>
+<button class="quiz-option" data-correct>실행기는 합친 답을 전체 이름으로 검사해 그런 문제를 걸러 내지 못하기 때문이다</button>
+<button class="quiz-option">같은 렌더링을 두 요청이 짚으면 문제가 중복되어 피드백이 두 번 나가기 때문이다</button>
+<div class="quiz-feedback" role="status">형식 검사는 합친 답을 전체 렌더링 이름으로 검사하므로 보내지 않은 이름도 유효한 이름이다. 그래서 포트 안에서 버린다. 모르는 이름은 반대로 남겨 형식 검사에서 걸리게 한다. (중복 이유는 실행기가 별도로 <code>; </code>로 이어 붙인다.)</div>
+</div>
+<div class="quiz-question">
+<p class="q">부품 탐색은 AI 판정과 달리 그림 수 제한을 넘는 경우를 나누지 않는다. 가장 알맞은 까닭은?</p>
+<button class="quiz-option">부품 탐색의 답은 부품 목록이라 합칠 수 없기 때문이다</button>
+<button class="quiz-option">부품 탐색은 첫 단계라 실패해도 다시 물으면 되기 때문이다</button>
+<button class="quiz-option" data-correct>여섯 칸이 늘 모음 그림 한 장이고 제한은 1 이상이기 때문이다</button>
+<div class="quiz-feedback" role="status">여섯 방향은 3×3칸 안에 들어가므로 모음 그림이 늘 한 장이고, 제한은 만들 때 1 이상의 정수로 검사한다. 어느 설정에서도 그림 수 제한을 넘지 않는다.</div>
+</div>
+</section>
+</main>
+<footer class="colophon">
+        Generated with
+        <a href="https://github.com/malav2110/explain-diff-html"
+          >explain-diff-html</a
+        >
+      </footer>
+</div>
+<script>
+      document.querySelectorAll(".quiz-question").forEach(function (question) {
+        var feedback = question.querySelector(".quiz-feedback");
+
+        // Shuffle the options on every load, so the correct answer's position is
+        // random and a reader cannot fall into answering by position. Each option
+        // is re-inserted before the feedback block, which has to stay last.
+        var shuffled = Array.prototype.slice.call(
+          question.querySelectorAll(".quiz-option"),
+        );
+        for (var i = shuffled.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var swap = shuffled[i];
+          shuffled[i] = shuffled[j];
+          shuffled[j] = swap;
+        }
+        shuffled.forEach(function (option) {
+          question.insertBefore(option, feedback);
+        });
+
+        var options = question.querySelectorAll(".quiz-option");
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            var isCorrect = option.hasAttribute("data-correct");
+            options.forEach(function (other) {
+              other.disabled = true;
+              if (other.hasAttribute("data-correct"))
+                other.classList.add("correct");
+            });
+            if (!isCorrect) option.classList.add("incorrect");
+            feedback.classList.add("show", isCorrect ? "ok" : "bad");
+            feedback.insertBefore(
+              document.createTextNode(isCorrect ? "Correct. " : "Not quite. "),
+              feedback.firstChild,
+            );
+          });
+        });
+      });
+    </script>
+</body>
+</html>

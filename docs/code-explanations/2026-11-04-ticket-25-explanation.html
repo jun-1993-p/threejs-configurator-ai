@@ -1,0 +1,1042 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>티켓 25: 경계 맞춤 격자 (SolidCraft 쪽)</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f6f7f9;
+        --text: #1c2024;
+        --muted: #60646c;
+        --border: #d7dbdf;
+        --border-strong: #848c95;
+        --accent: #2f5ee0;
+        --accent-soft: #e8eefc;
+        --edge: #a35608;
+        --edge-soft: #fbefe1;
+        --ok: #1a7f47;
+        --ok-soft: #e4f3ea;
+        --bad: #c62a3b;
+        --bad-soft: #fbe7e9;
+        --measure: 68ch;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181b;
+          --surface: #1f2226;
+          --text: #eceef0;
+          --muted: #9ba1a6;
+          --border: #33383d;
+          --border-strong: #646c75;
+          --accent: #7aa2ff;
+          --accent-soft: #1e2740;
+          --edge: #e08c3a;
+          --edge-soft: #2e2517;
+          --ok: #57c98b;
+          --ok-soft: #17281d;
+          --bad: #f07178;
+          --bad-soft: #2c1a1c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:visited {
+        color: var(--accent);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 2.5rem;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 6rem;
+      }
+      nav.toc {
+        position: sticky;
+        top: 2.5rem;
+        align-self: start;
+        font-size: 0.9rem;
+      }
+      nav.toc strong {
+        display: block;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc li {
+        margin: 0.35rem 0;
+      }
+      nav.toc a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav.toc a:hover {
+        color: var(--accent);
+      }
+      main {
+        min-width: 0;
+      }
+      main > header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1.25rem;
+        margin-bottom: 2rem;
+      }
+      main > header h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.6rem;
+      }
+      main > header .lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: var(--measure);
+      }
+      main > header .provenance {
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        margin: 0.7rem 0 0;
+      }
+      .colophon {
+        grid-column: 1 / -1;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        border-top: 1px solid var(--border);
+        margin: 4rem 0 0;
+        padding: 1.2rem 0 0;
+      }
+      .colophon a {
+        color: inherit;
+      }
+      section {
+        margin-bottom: 3.5rem;
+      }
+      section h2 {
+        font-size: 1.4rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      section h3 {
+        font-size: 1.05rem;
+        margin: 2rem 0 0.6rem;
+      }
+      section p,
+      section ul,
+      section ol {
+        max-width: var(--measure);
+      }
+      li {
+        margin: 0.3rem 0;
+      }
+      /* Code blocks: white-space set here so a filled-in block cannot collapse. */
+      pre,
+      .code-block {
+        white-space: pre-wrap;
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        font:
+          0.86rem/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        tab-size: 2;
+      }
+      pre .del {
+        color: var(--bad);
+      }
+      pre .add {
+        color: var(--ok);
+      }
+      pre .hi {
+        background: var(--accent-soft);
+        border-radius: 3px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--surface);
+        padding: 0.05rem 0.3rem;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      /* A file:line reference linked to the code it names. Wraps a <code> span
+         in prose, or the bare text of a .filename label. */
+      a.srcref {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px solid var(--muted);
+      }
+      a.srcref:hover {
+        border-bottom-color: var(--accent);
+      }
+      a.srcref:hover code {
+        background: var(--accent-soft);
+      }
+      /* Path label for the code block below it. */
+      .filename {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        margin: 1.5rem 0 0.3rem;
+        overflow-wrap: anywhere;
+      }
+      /* Comparison table: one row per case, .yes / .no / .warn on outcome cells. */
+      table.vals {
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.86rem;
+        width: 100%;
+        max-width: 620px;
+      }
+      table.vals th,
+      table.vals td {
+        border: 1px solid var(--border-strong);
+        padding: 0.4rem 0.65rem;
+        text-align: left;
+      }
+      table.vals th {
+        background: var(--surface);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+      table.vals td.yes {
+        background: var(--ok-soft);
+      }
+      table.vals td.no {
+        background: var(--bad-soft);
+      }
+      table.vals td.warn {
+        background: var(--edge-soft);
+      }
+      /* Callouts: .callout for a concept, .callout.edge for a caveat. */
+      .callout {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+        padding: 0.85rem 1.1rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .callout .label {
+        display: block;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+      }
+      .callout.edge {
+        background: var(--edge-soft);
+        border-left-color: var(--edge);
+      }
+      .callout.edge .label {
+        color: var(--edge);
+      }
+      /* Skippable deep-background block. */
+      details.skippable {
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 0.75rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      details.skippable > summary {
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      details.skippable[open] > summary {
+        margin-bottom: 0.75rem;
+      }
+      /* Diagram family 1: simplified app UI mockup. */
+      .ui-mockup {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1.5rem 0;
+        max-width: 560px;
+        font-size: 0.85rem;
+      }
+      .ui-mockup .bar {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0.5rem 0.85rem;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .ui-mockup .body {
+        padding: 1.1rem 0.85rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+      }
+      .mock-caption {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.3rem 0 0;
+        max-width: var(--measure);
+      }
+      /* Diagram family 2: data flow between components, example data on the arrows. */
+      .dataflow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+      /* Each arrow travels with the node it points at. Without this, a flow
+         wider than the column wraps between an arrow and its node, leaving the
+         arrow pointing at nothing and the node stranded on the next line. */
+      .dataflow .step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .dataflow .node {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 175px;
+      }
+      .dataflow .node.terminal {
+        background: var(--surface);
+        border-color: var(--border);
+      }
+      .dataflow .node.pass {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .dataflow .node.fail {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .dataflow .arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.72rem;
+        min-width: 96px;
+      }
+      .dataflow .arrow .line {
+        width: 100%;
+        border-top: 2px solid var(--border);
+        position: relative;
+      }
+      .dataflow .arrow .line::after {
+        content: "\25B6";
+        position: absolute;
+        right: -2px;
+        top: -0.72em;
+        color: var(--border);
+        font-size: 0.7rem;
+      }
+      .dataflow .arrow .data {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.35rem;
+        margin-bottom: 0.2rem;
+        font-family: ui-monospace, monospace;
+      }
+      .flow-label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin: 1.25rem 0 0.25rem;
+      }
+      /* A numbered sequence with one marked position: call stacks, retry
+         counts, any ranked list. Not one of the numbered families; reach for
+         it when a step in an ordered list is the point. */
+      .frames {
+        list-style: none;
+        padding: 0;
+        margin: 1.25rem 0;
+        max-width: 620px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.82rem;
+      }
+      .frames li {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.45rem 0.7rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+      }
+      .frames li.target {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .frames .n {
+        display: inline-block;
+        min-width: 2.2em;
+        color: var(--muted);
+      }
+      /* Diagram family 3: node/recursion tree (ASTs, nesting, recursion) */
+      .tree {
+        margin: 1.5rem 0;
+        font:
+          0.82rem/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      .tnode {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.3rem 0.55rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+        display: inline-block;
+      }
+      .tnode.leaf {
+        background: var(--bg);
+      }
+      .tnode.kept {
+        border-color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tnode.skipped {
+        border-color: var(--muted);
+        color: var(--muted);
+      }
+      .tchildren {
+        margin-left: 1.4rem;
+        border-left: 2px dotted var(--border);
+        padding-left: 0.9rem;
+      }
+      .tnote {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-left: 0.4rem;
+      }
+
+      /* Optional tabular body for .ui-mockup, when the mocked UI is a table. */
+      .mock-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .mock-table th,
+      .mock-table td {
+        border: 1px solid var(--border);
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+      }
+      .mock-table th {
+        background: var(--surface);
+        font-weight: 600;
+      }
+      .mock-table .col-highlight {
+        background: var(--accent-soft);
+      }
+
+      .mermaid {
+        margin: 1.75rem 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .mermaid .edgeLabel,
+      .mermaid .edgeLabel p,
+      .mermaid .edgeLabel span,
+      .mermaid .edgeLabel foreignObject div {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+      }
+      /* Quiz */
+      .quiz-question {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .quiz-question > p.q {
+        font-weight: 600;
+        margin: 0 0 0.85rem;
+      }
+      .quiz-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 0.5rem;
+        font: inherit;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .quiz-option:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .quiz-option.correct {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .quiz-option.incorrect {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .quiz-option:disabled {
+        cursor: default;
+      }
+      .quiz-feedback {
+        display: none;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 7px;
+        margin-top: 0.3rem;
+      }
+      .quiz-feedback.show {
+        display: block;
+      }
+      .quiz-feedback.ok {
+        background: var(--ok-soft);
+      }
+      .quiz-feedback.bad {
+        background: var(--edge-soft);
+      }
+      a:focus-visible,
+      summary:focus-visible,
+      .quiz-option:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+      table.vals td.yes::before,
+      .dataflow .node.pass::before,
+      .tnode.kept::before,
+      .quiz-option.correct::before {
+        content: "\2713\00a0";
+        font-weight: 700;
+      }
+      table.vals td.no::before,
+      .dataflow .node.fail::before,
+      .quiz-option.incorrect::before {
+        content: "\2717\00a0";
+        font-weight: 700;
+      }
+      table.vals td.warn::before {
+        content: "\25B2\00a0";
+        font-weight: 700;
+      }
+      .tnode.skipped::before {
+        content: "\2013\00a0";
+        font-weight: 700;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 1rem;
+          padding: 1.25rem 1.1rem 4rem;
+        }
+        nav.toc {
+          position: static;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+        }
+        body {
+          font-size: 16px;
+        }
+        main > header h1 {
+          font-size: 1.6rem;
+        }
+        table.vals {
+          display: block;
+          overflow-x: auto;
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <nav class="toc">
+        <strong>목차</strong>
+        <ol>
+          <li><a href="#background">배경</a></li>
+          <li><a href="#intuition">핵심 아이디어</a></li>
+          <li><a href="#code">코드 따라가기</a></li>
+          <li><a href="#quiz">퀴즈</a></li>
+        </ol>
+      </nav>
+      <main>
+        <header>
+          <h1>티켓 25: 경계 맞춤 격자 (SolidCraft 쪽)</h1>
+          <p class="lead">면의 점을 매개변수 범위 격자 대신, 면 경계에 맞춘 점으로 바꾼다. 모서리 위의 점과 경계에 대한 상대 위치로 정한 안쪽 점으로 이루어지며, 구멍이 있는 면에서도 점이 면 밖으로 나가지 않는다. 이 티켓은 SolidCraft 합성 녹화본과 서버 검사 쪽을 다루고, Fusion 쪽은 사람 확인이 남았다.</p>
+          <p class="provenance">jun-1993-p/threejs-configurator-ai 티켓 25 (커밋 eba2692, 배경 결정 b60d054의 ADR-0016) at eba2692, explained 2026-11-04. References link to this commit.</p>
+        </header>
+<section id="background">
+<h2>배경</h2>
+<details class="skippable">
+<summary>스윕, 꼭짓점 짝짓기, 위상 변화가 낯설다면 펼쳐서 읽는다.</summary>
+<p>구성기는 브라우저에서 CAD 모델을 다시 계산하지 못한다. 대신 업로드 때 파라미터 값을 바꿔 가며 뽑아 둔 형상 표본(<strong>스윕</strong>)을 받아, 슬라이더 위치에 맞게 표본 사이를 섞는다(ADR-0002). 섞으려면 표본 A의 꼭짓점 하나와 표본 B의 꼭짓점 하나가 같은 곳을 가리켜야 한다. 이 1:1 짝이 "꼭짓점 짝짓기"다.</p>
+<p>짝이 맞으려면 같은 면 구성의 표본끼리 점 개수와 순서가 같아야 한다. 면 구성이 바뀌는 지점(예: 폭이 늘자 칸막이가 하나 더 생김)은 <strong>위상 변화</strong>이고, 그런 표본은 따로 묶어서 다룬다(ADR-0005).</p>
+</details>
+<p>티켓 01과 24까지의 방식은 면의 매개변수 범위(u,v)에 n×n 격자를 찍는 것이었다. 사각 판이면 점이 전부 면 위에 놓이지만, ADR-0016이 지적하는 문제는 <strong>트림된 면</strong>(구멍 있는 판, 원형 상판)이다. 매개변수 범위는 트림 전 표면의 사각 범위라서 일부 점이 면 밖의 표면 위에 찍힌다. ADR에는 이 문제의 구체적인 사례가 있다. 폭 18 mm 고리 모양 서랍 테두리의 점 수가 서랍 깊이에 따라 58개씩 늘고 줄었다. 바깥 범위 비율로 깐 격자선이 고정 폭 테두리와 구멍 사이를 넘나들기 때문이다.</p>
+<p>ADR-0016은 ADR-0002의 "꼭짓점 짝짓기" 절을 대체하는 결정이다. 용어집은 이 결과를 <strong>경계 맞춤 격자</strong>라 부른다.</p>
+<div class="callout">
+<span class="label">핵심 개념</span>
+<strong>경계 맞춤 격자</strong>: 한 면의 점 집합으로, 경계 모서리 위의 점과 경계에 대한 상대 위치로 정한 안쪽 점으로 이루어진다. 연결(삼각형)은 기본 형상에서 한 번 정한다. 샘플 사이의 꼭짓점 짝은 이 점들의 번호로 정해진다.
+</div>
+<p>이 티켓 이름 뒤의 "SolidCraft 쪽"이라는 말은 범위를 뜻한다. Fusion에서 같은 이름과 점을 만드는 일은 사람 확인이 필요해 남겨 두었다(티켓 파일의 마지막 미완 항목).</p>
+</section>
+
+<section id="intuition">
+<h2>핵심 아이디어</h2>
+<p>핵심은 "점의 번호가 곧 짝"이게 만드는 것이다. 기본 형상에서 면마다 <strong>배치</strong>(어떤 점을 어떤 규칙으로 만들지의 목록)를 한 번 만들어 두고, 이후 모든 샘플에서는 같은 이름의 면에 그 배치를 그대로 놓는다. 점의 개수와 순서는 배치가 정하므로 샘플이 달라도 같다.</p>
+<p>점의 규칙은 두 종류다.</p>
+<ul>
+<li><strong>경계 점</strong>: "모서리 e의 비율 t 위치"다. 예를 들어 길이 120 mm 모서리를 점 간격 50 mm로 나누면 <code>ceil(120/50) = 3</code>등분이라 t = 0, 1/3, 2/3에 점이 생긴다(끝점은 이어지는 모서리의 시작점이다). 샘플에서 모서리가 180 mm가 되어도 규칙은 같은 t이므로 점이 늘어나지 않고 모서리를 따라 벌어진다. 나누는 수는 그 모서리 하나만으로 정해지기 때문에, 같은 모서리를 공유하는 두 면은 그 위에 같은 점을 둔다.</li>
+<li><strong>안쪽 점</strong>: "경계 점 셋과 무게중심 좌표"다. 기본 형상에서 경계 점만으로 면을 삼각형으로 나눈 뒤, 안쪽 점마다 그 점을 감싸는 삼각형 안의 비율을 기억한다.</li>
+</ul>
+<p>무게중심 좌표로 안쪽 점이 어떻게 따라가는지 장난감 수치로 보자. 기본 형상의 삼각형이 A(0, 0), B(100, 0), C(0, 40)이고 안쪽 점이 q = (25, 10)이라면 무게는 (0.5, 0.25, 0.25)다(0.5·A + 0.25·B + 0.25·C = (25, 10)). 다른 샘플에서 C가 (0, 80)으로 올라가면 q는 0.5·(0, 0) + 0.25·(100, 0) + 0.25·(0, 80) = (25, 20)에 놓인다. 삼각형이 뒤집히지 않는 한 점은 삼각형 안에 머문다. 삼각형 꼭짓점이 모두 경계 위에 있으므로 면 안에 머문다는 보장이 따라온다는 것이 모듈 설명의 논리다.</p>
+
+<p class="flow-label">한 면의 점이 만들어지고 놓이는 흐름(예시 데이터)</p>
+<div class="dataflow">
+<div class="node terminal">기본 형상 면의 모서리 3개와 표면</div>
+<div class="step"><div class="arrow"><span class="data">간격 h = 대각선 / 16</span><span class="line"></span></div><div class="node">build_layout: 경계 점 규칙, 삼각형, 안쪽 점 규칙</div></div>
+<div class="step"><div class="arrow"><span class="data">배치(점 규칙 목록)</span><span class="line"></span></div><div class="node">SolidCraftModel이 (바디, 면 이름)별로 기억</div></div>
+<div class="step"><div class="arrow"><span class="data">샘플의 모서리, C=(0, 80)</span><span class="line"></span></div><div class="node">place: 같은 규칙으로 점 놓기</div></div>
+<div class="step"><div class="arrow"><span class="data">면 이름 + 점</span><span class="line"></span></div><div class="node pass">서버: 이름으로 짝짓고 점 수 확인</div></div>
+</div>
+
+<p>서버는 이름으로 면을 짝짓는다. 짝은 이름이 같으면서 표면 종류와 방향도 맞아야 한다. 짝이 하나로 정해지지 않는 샘플은 거절하지 않고 <strong>위상 변화</strong>(<code>changed</code>)로 알린다. 이 처리는 티켓 10과 11이 쓸 것이라고 코드 주석이 적었다.</p>
+
+<div class="callout edge">
+<span class="label">기존 녹화본은 더 이상 유효하지 않다</span>
+면 <code>name</code>과 샘플별 <code>edges</code>, 기본 형상 면의 <code>triangles</code>가 필수가 되었다. 티켓 구현 기록은 기존 n×n 녹화본이 새 스키마를 통과하지 못한다고 적었고, 그래서 <code>fixtures/synthetic/drawer.json</code>을 새 형식으로 다시 만들었다. Fusion 어댑터의 <code>sample_edges</code>는 <code>NotImplementedError</code>를 내므로 지금 Fusion 업로드는 막혀 있다.
+</div>
+</section>
+
+<section id="code">
+<h2>코드 따라가기</h2>
+<p><strong>흐름:</strong> 스키마(필수 필드) → 애드인 핵심(모서리와 연결 포함) → SolidCraft 어댑터(점 간격, 배치 기억) → 경계 점과 안쪽 점 계산(<code>fitted.py</code>) → 서버의 이름 짝짓기와 점 수 검사.</p>
+
+<h3>1. 계약: 스키마가 필수로 바꾼 것</h3>
+<p>티켓 24에서 선택이던 필드가 필수가 되었다. 면은 <code>name</code>이 필수이고(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/eba2692edc66cf4cd082d243507addb53608aef3/schema/upload-bundle.schema.json#L104"><code>schema/upload-bundle.schema.json:104</code></a>), 샘플은 <code>edges</code>를 필수로 담으며(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/eba2692edc66cf4cd082d243507addb53608aef3/schema/upload-bundle.schema.json#L85"><code>schema/upload-bundle.schema.json:85</code></a>), 기본 형상의 면은 거기에 더해 <code>triangles</code>를 필수로 담는다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/eba2692edc66cf4cd082d243507addb53608aef3/schema/upload-bundle.schema.json#L60"><code>schema/upload-bundle.schema.json:60</code></a>). 연결 정보를 기본 형상에만 두는 것이 "연결은 한 번만 정한다"의 형식이다.</p>
+
+<h3>2. 애드인 핵심: 모서리가 기본 기능이 되고 연결은 기본 형상에만 담긴다</h3>
+<p><code>sample_edges</code>가 <code>FusionModel</code> 인터페이스에 들어왔다. 티켓 24에서 모서리와 바디 측정값을 함께 묶었던 <code>TopologyModel</code>은 바디 측정값만 남은 <code>MeasuringModel</code>으로 줄었다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/eba2692edc66cf4cd082d243507addb53608aef3/addin/ConfiguratorUploader/uploader/core.py#L57-L70">addin/ConfiguratorUploader/uploader/core.py:57-70</a></p>
+<pre>class FusionModel(Protocol):
+    def parameters(self) -&gt; list[ParameterInfo]: ...
+    def bodies(self) -&gt; list[BodyInfo]: ...
+    def set_parameter(self, name: str, value: float) -&gt; bool: ...
+    def restore_parameter(self, parameter: ParameterInfo) -&gt; None: ...
+    def sample_faces(self, grid_n: int) -&gt; list[FaceSample]: ...
+<span class="add">    def sample_edges(self) -&gt; list[EdgeSample]: ...</span>
+
+
+@runtime_checkable
+<span class="del">class TopologyModel(Protocol):</span>
+<span class="del">    """모서리와 바디 측정값까지 주는 모델. 지금은 SolidCraft 합성 녹화본만 해당한다."""</span>
+<span class="add">class MeasuringModel(Protocol):</span>
+<span class="add">    """바디 측정값까지 주는 모델. 지금은 SolidCraft 합성 녹화본만 해당한다."""</span>
+
+<span class="del">    def sample_edges(self) -&gt; list[EdgeSample]: ...</span>
+    def measure_bodies(self) -&gt; list[BodyMeasure]: ...</pre>
+<p>JSON을 만드는 쪽은 <code>baseline</code> 플래그 하나로 연결의 유무를 나눈다. 기본 형상일 때만 면에 <code>triangles</code>가 담긴다. 재계산이 실패한 샘플도 이제 <code>{"faces": [], "edges": []}</code>를 담아 필수 필드를 채운다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/eba2692edc66cf4cd082d243507addb53608aef3/addin/ConfiguratorUploader/uploader/core.py#L101-L127">addin/ConfiguratorUploader/uploader/core.py:101-127</a></p>
+<pre>def _face_json(face: FaceSample, with_triangles: bool) -&gt; dict[str, Any]:
+    out: dict[str, Any] = {"body": face.body, "surface": face.surface}
+    if face.name is not None:
+        out["name"] = face.name
+    if face.geometry is not None:
+        out["geometry"] = face.geometry
+    out["points"] = [list(p) for p in face.points]
+    if with_triangles and face.triangles is not None:
+        out["triangles"] = [list(t) for t in face.triangles]
+    return out
+
+
+def _shape_json(model: FusionModel, baseline: bool = False) -&gt; dict[str, Any]:
+    """현재 형상의 면과 모서리, 모델이 주면 바디 측정값. 연결은 기본 형상에만 담는다."""
+    shape: dict[str, Any] = {
+        "faces": [_face_json(f, baseline) for f in model.sample_faces(GRID_N)],
+        "edges": [
+            {"body": e.body, "name": e.name, "start": list(e.start), "mid": list(e.mid), "end": list(e.end)}
+            for e in model.sample_edges()
+        ],
+    }
+    if isinstance(model, MeasuringModel):
+        shape["bodies"] = [
+            {"name": b.body, "volume": b.volume, "bbox": {"min": list(b.bbox_min), "max": list(b.bbox_max)}}
+            for b in model.measure_bodies()
+        ]
+    return shape</pre>
+<p>Fusion 어댑터에는 <code>sample_edges</code>가 있지만 호출하면 <code>NotImplementedError</code>를 낸다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/eba2692edc66cf4cd082d243507addb53608aef3/addin/ConfiguratorUploader/uploader/fusion_model.py#L108-L110"><code>addin/ConfiguratorUploader/uploader/fusion_model.py:108-110</code></a>). 피처 기준 면 이름과 모서리 이름 쌍을 Fusion에서 만들 수 있는지 아직 확인하지 않았다는 사유가 메시지에 적혀 있다.</p>
+
+<h3>3. SolidCraft 어댑터: 간격을 정하고 배치를 기억한다</h3>
+<p>점 간격은 바디 바운딩 박스 대각선을 <code>2(n-1)</code>로 나눈 값이다(<code>n = GRID_N = 9</code>이므로 대각선/16). 대각선은 어댑터가 만들어질 때 재서 모든 샘플에 같게 쓴다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/eba2692edc66cf4cd082d243507addb53608aef3/synthetic/solidcraft_model.py#L95-L96"><code>synthetic/solidcraft_model.py:95-96</code></a>). 배치는 <code>(바디, 면 이름)</code>을 열쇠로 처음 본 순간에 만들고 이후에는 재사용한다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/eba2692edc66cf4cd082d243507addb53608aef3/synthetic/solidcraft_model.py#L174-L188">synthetic/solidcraft_model.py:174-188</a></p>
+<pre>                # 기본 형상에 없던 면(위상 변화)은 그 샘플의 형상으로 새 배치를 만든다
+                key = (body, name)
+                if key not in self._layouts:
+                    self._layouts[key] = build_layout(surface, bound, spacing)
+                layout = self._layouts[key]
+                samples.append(
+                    FaceSample(
+                        body=body,
+                        surface="cylinder" if isinstance(surface, Cylinder) else "plane",
+                        points=place(layout, surface, bound),
+                        name=name,
+                        geometry=geometry,
+                        triangles=layout.triangles,
+                    )
+                )</pre>
+<p>주석대로 기본 형상에 없던 이름의 면은 그 샘플에서 새 배치를 얻는다. 어댑터가 처음 만나는 형상이 기본 형상이므로 첫 호출이 곧 기본 형상 배치를 만든다. 간격에 쓰는 대각선과 면 경계(<code>bound</code>)는 이름을 열쇠로 한 모서리 딕셔너리로 바뀌었다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/eba2692edc66cf4cd082d243507addb53608aef3/synthetic/solidcraft_model.py#L158"><code>synthetic/solidcraft_model.py:158</code></a>). 경계 점의 규칙이 모서리를 이름으로 가리키기 때문이다.</p>
+
+<h3>4. 경계 점: 모서리를 이어 고리를 만들고 비율로 나눈다</h3>
+<p>배치를 만들 때 먼저 모서리를 끝점끼리 이어 닫힌 고리로 묶는다. 구멍이 있는 면이면 고리가 둘 이상이다. 고리마다 모서리를 <code>edge_segments</code>만큼 나눠 <code>(모서리 이름, 비율 t)</code> 규칙을 만든다. 모서리를 거꾸로 지나가면 t가 <code>1 - i/k</code>가 된다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/eba2692edc66cf4cd082d243507addb53608aef3/synthetic/fitted.py#L146-L152">synthetic/fitted.py:146-152</a></p>
+<pre>def edge_segments(e: Edge, spacing: float) -&gt; int:
+    """모서리를 나누는 수. 모서리 하나로만 정해진다."""
+    count = max(1, math.ceil(edge_length(e) / spacing - 1e-9))
+    arc = _arc(e)
+    if arc is not None:
+        count = max(count, math.ceil(arc.sweep / MAX_ARC_STEP - 1e-9))
+    return count</pre>
+<p>원호 모서리는 길이 기준에 더해 <code>MAX_ARC_STEP</code>(15°)마다 적어도 한 번 나눈다. 곡선이 너무 성기게 잘리지 않게 하려는 규칙이다. 원호의 모양은 시작, 중간, 끝 세 점으로 알아낸다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/eba2692edc66cf4cd082d243507addb53608aef3/synthetic/fitted.py#L111-L127"><code>synthetic/fitted.py:111-127</code></a>).</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/eba2692edc66cf4cd082d243507addb53608aef3/synthetic/fitted.py#L331-L362">synthetic/fitted.py:331-362</a></p>
+<pre>def _loops(edges: dict[str, Edge], spacing: float) -&gt; list[list[PointSpec]]:
+    """모서리를 끝점으로 이어 고리로 만들고, 고리마다 경계 점 규칙을 순서대로 낸다."""
+    scale = max(edge_length(e) for e in edges.values()) or 1.0
+    tol = 1e-6 * scale
+
+    def same(p: Vec, q: Vec) -&gt; bool:
+        d = _sub(p, q)
+        return math.sqrt(_dot(d, d)) &lt;= tol
+
+    unused = dict(edges)
+    loops = []
+    while unused:
+        name, e = next(iter(unused.items()))
+        del unused[name]
+        chain = [(name, e, True)]
+        start, cur = e.start, e.end
+        while not same(cur, start):
+            nxt = next(((n, x, True) for n, x in unused.items() if same(x.start, cur)), None) or next(
+                ((n, x, False) for n, x in unused.items() if same(x.end, cur)), None
+            )
+            if nxt is None:
+                raise ValueError(f"모서리 {name}에서 시작한 경계가 닫히지 않습니다")
+            del unused[nxt[0]]
+            chain.append(nxt)
+            cur = nxt[1].end if nxt[2] else nxt[1].start
+        specs = []
+        for n, x, forward in chain:
+            k = edge_segments(x, spacing)
+            for i in range(k):
+                specs.append(PointSpec(kind="boundary", edge=n, t=i / k if forward else 1 - i / k))
+        loops.append(specs)
+    return loops</pre>
+
+<h3>5. 면을 삼각형으로 나누고 안쪽 점을 얻는다</h3>
+<p><code>build_layout</code>은 경계 점을 면의 2차원 좌표(평면은 (u,v), 원기둥은 (각도×반지름, 높이))로 옮기고, 넓이가 가장 큰 고리를 바깥 고리, 나머지를 구멍으로 본다. 구멍은 이음선으로 바깥 고리에 이어 하나의 고리로 만든 뒤 귀 자르기로 삼각형을 얻는다. 이 삼각형 꼭짓점은 모두 경계 점이다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/eba2692edc66cf4cd082d243507addb53608aef3/synthetic/fitted.py#L369-L392">synthetic/fitted.py:369-392</a></p>
+<pre>def build_layout(surface: Surface, edges: dict[str, Edge], spacing: float) -&gt; FaceLayout:
+    """기본 형상의 면 하나에 대한 경계 맞춤 격자 배치."""
+    loops = _loops(edges, spacing)
+    specs = [s for loop in loops for s in loop]
+    pts3 = [_boundary_point(s, edges) for s in specs]
+    cut = _cylinder_cut(surface, pts3) if isinstance(surface, Cylinder) else 0.0
+    chart = _Chart(surface, pts3[0], cut)
+    pts = [chart.to2d(p) for p in pts3]
+
+    index_loops, offset = [], 0
+    for loop in loops:
+        index_loops.append(list(range(offset, offset + len(loop))))
+        offset += len(loop)
+    index_loops.sort(key=lambda lp: -abs(_signed_area(lp, pts)))
+    outer, holes = index_loops[0], index_loops[1:]
+    if _signed_area(outer, pts) &lt; 0:
+        outer.reverse()
+    for h in holes:
+        if _signed_area(h, pts) &gt; 0:
+            h.reverse()
+    poly = outer
+    for h in sorted(holes, key=lambda lp: -max(pts[i][0] for i in lp)):
+        poly = _bridge(poly, h, pts)
+    boundary_tris = _earcut(poly, pts)</pre>
+<p>귀 자르기는 자를 수 있는 귀 중 <strong>대각선이 가장 짧은 것</strong>부터 자른다. 코드 주석은 이유를 이렇게 적었다. 폭이 좁은 띠에서 삼각형이 띠의 양쪽 변만 이어, 띠의 길이가 바뀌어도 삼각형이 뒤집히지 않는다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/eba2692edc66cf4cd082d243507addb53608aef3/synthetic/fitted.py#L259-L264">synthetic/fitted.py:259-264</a></p>
+<pre>def _earcut(poly: list[int], pts: list[Vec2]) -&gt; list[tuple[int, int, int]]:
+    """반시계 방향 단순 다각형(이음선으로 구멍을 이은 것 포함)의 귀 자르기.
+
+    자를 수 있는 귀 중 대각선이 가장 짧은 귀부터 자른다. 그래야 폭이 좁은 띠에서 삼각형이 띠의 양쪽 변만
+    잇게 되어, 띠의 길이가 바뀌어도 삼각형이 뒤집히지 않는다.
+    """</pre>
+<p>원기둥은 같은 계산을 (각도×반지름, 높이) 평면에서 하고 원기둥 위로 되돌린다. 각도는 경계 각도 사이의 가장 큰 빈틈 한가운데에서 잘라 펼친다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/eba2692edc66cf4cd082d243507addb53608aef3/synthetic/fitted.py#L187-L197"><code>synthetic/fitted.py:187-197</code></a>).</p>
+<p>안쪽 점은 이 삼각형 위에 간격 <code>spacing</code>의 격자를 깔아 얻는다. 경계에서 <code>spacing/4</code>보다 가까운 점은 버린다. 점마다 감싸는 삼각형과 무게를 규칙으로 저장하고, 그 삼각형을 새 점 기준으로 쪼개 연결을 갱신한다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/eba2692edc66cf4cd082d243507addb53608aef3/synthetic/fitted.py#L394-L424">synthetic/fitted.py:394-424</a></p>
+<pre>    # 안쪽 점: 간격 spacing의 격자 중 경계에서 spacing/4보다 먼 점
+    segments = [(pts[lp[i]], pts[lp[(i + 1) % len(lp)]]) for lp in index_loops for i in range(len(lp))]
+    xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+    nx = max(0, math.floor((max(xs) - min(xs)) / spacing))
+    ny = max(0, math.floor((max(ys) - min(ys)) / spacing))
+    x0 = (min(xs) + max(xs)) / 2 - nx * spacing / 2
+    y0 = (min(ys) + max(ys)) / 2 - ny * spacing / 2
+    tris = list(boundary_tris)
+    for i in range(nx + 1):
+        for j in range(ny + 1):
+            q = (x0 + i * spacing, y0 + j * spacing)
+            host = next(
+                (t for t in boundary_tris if _contains(_barycentric(q, pts[t[0]], pts[t[1]], pts[t[2]]))), None
+            )
+            if host is None or min(_dist_to_seg(q, a, b) for a, b in segments) &lt; spacing / 4:
+                continue
+            w = _barycentric(q, pts[host[0]], pts[host[1]], pts[host[2]])
+            new = len(pts)
+            specs.append(PointSpec(kind="interior", corners=host, weights=w))
+            pts.append(q)
+            # elided: 이 점을 감싸는 삼각형(변 위면 두 삼각형)을 점 기준 세 삼각형으로 나누는 연결 갱신
+    return FaceLayout(specs=specs, triangles=tris, cut=cut)</pre>
+<p>이렇게 만든 배치를 샘플에 놓는 <code>place</code>가 위의 장난감 계산을 그대로 한다. 경계 점은 샘플의 모서리 위 비율 위치로, 안쪽 점은 놓인 경계 점들의 2차원 좌표에 저장된 무게를 곱해 얻는다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/eba2692edc66cf4cd082d243507addb53608aef3/synthetic/fitted.py#L427-L437">synthetic/fitted.py:427-437</a></p>
+<pre>def place(layout: FaceLayout, surface: Surface, edges: dict[str, Edge]) -&gt; list[Vec]:
+    """배치를 한 샘플의 면에 놓는다. 점 수와 순서는 배치가 정한다."""
+    boundary = [_boundary_point(s, edges) for s in layout.specs if s.kind == "boundary"]
+    chart = _Chart(surface, boundary[0], layout.cut)
+    flat = [chart.to2d(p) for p in boundary]
+    out = list(boundary)
+    for s in layout.specs[len(boundary) :]:
+        (a, b, c), (wa, wb, wc) = s.corners, s.weights
+        q = (wa * flat[a][0] + wb * flat[b][0] + wc * flat[c][0], wa * flat[a][1] + wb * flat[b][1] + wc * flat[c][1])
+        out.append(chart.to3d(q))
+    return out</pre>
+
+<h3>6. 서버: 이름으로 짝짓고 점 수를 확인한다</h3>
+<p>서버의 검사는 "면마다 n×n 점"에서 "이름이 짝지어진 면은 기본 형상과 점 수가 같다"로 바뀌었다. 짝은 (바디, 면 이름) 집합이 기본 형상과 정확히 같아야 하고, 이름이 같은 면의 표면 종류와 방향도 맞아야 한다. 하나라도 어긋나면 <code>None</code>이고, 그 샘플은 위상 변화다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/eba2692edc66cf4cd082d243507addb53608aef3/server/bundle.py#L38-L48">server/bundle.py:38-48</a></p>
+<pre>def pair_faces(baseline: list[dict[str, Any]], sample: list[dict[str, Any]]) -&gt; list[int] | None:
+    """샘플의 면마다 짝인 기본 형상 면의 번호. 짝이 하나로 정해지지 않으면 None(위상 변화)."""
+    keys = [(f["body"], f["name"]) for f in baseline]
+    index = {k: i for i, k in enumerate(keys)}
+    sample_keys = [(f["body"], f["name"]) for f in sample]
+    if len(index) != len(keys) or len(set(sample_keys)) != len(sample_keys) or set(sample_keys) != set(keys):
+        return None
+    pairs = [index[k] for k in sample_keys]
+    if not all(_same_surface(baseline[i], f) for i, f in zip(pairs, sample, strict=True)):
+        return None
+    return pairs</pre>
+<p>기하 확인(<code>_same_surface</code>)은 이름 짝짓기를 보조하는 확인이다. 평면 법선은 방향까지, 원기둥 축은 방향 없이 <code>0.999</code> 이상 나란해야 한다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/eba2692edc66cf4cd082d243507addb53608aef3/server/bundle.py#L26-L35"><code>server/bundle.py:26-35</code></a>). 이름이 같아도 법선이 뒤집힌 면은 짝이 아니라는 시험이 있다. <code>sample_topology</code>는 샘플마다 <code>same</code>, <code>changed</code>, <code>failed</code>를 돌려준다.</p>
+<p><code>bundle_errors</code>는 두 가지를 거절한다. 기본 형상 면의 <code>triangles</code>가 점 개수 밖을 가리키는 경우, 그리고 짝지어진 샘플 면의 점 수가 기본 형상과 다른 경우다. 위상 변화나 재계산 실패 샘플은 건너뛴다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/eba2692edc66cf4cd082d243507addb53608aef3/server/bundle.py#L76-L92">server/bundle.py:76-92</a></p>
+<pre>    baseline = bundle["baseline"]["faces"]
+    for face in baseline:
+        n = len(face["points"])
+        if any(i &gt;= n for tri in face["triangles"] for i in tri):
+            errors.append(f"기본 형상 바디 {face['body']} 면 {face['name']}: 연결(triangles)이 점 {n}개 밖을 가리킵니다")
+    for parameter, sample in _samples(bundle):
+        pairs = pair_faces(baseline, sample["faces"]) if sample["status"] == "ok" else None
+        if pairs is None:
+            # 재계산 실패나 위상 변화. 위상 변화는 거절하지 않고 sample_topology로 알린다(티켓 10, 11).
+            continue
+        for i, face in zip(pairs, sample["faces"], strict=True):
+            expected = len(baseline[i]["points"])
+            if len(face["points"]) != expected:
+                errors.append(
+                    f"{parameter}={sample['value']} 바디 {face['body']} 면 {face['name']}: "
+                    f"점 {len(face['points'])}개가 기본 형상의 {expected}개와 다릅니다"
+                )</pre>
+
+<h3>7. 확인: 시험이 보는 것</h3>
+<p>단위 시험(<code>synthetic/tests/test_fitted.py</code>)은 직사각형의 삼각형이 면 전체를 덮는지, 면이 늘어나도 점 수와 순서가 같은지, 고리 모양 면에서 깊이가 바뀌어도 점이 면 안에 있는지, 공유 모서리 위의 점이 같은지, 원기둥 위에 있는지를 본다. 통합 시험(<code>synthetic/tests/test_fitted_recording.py</code>)은 실제 <code>solidcraft-cli</code>로 서랍장(<code>body_d</code>, <code>d6</code> 각 5단계)의 점 수와 순서, 면 안 여부, 바뀐 파라미터의 축 밖으로 움직인 양이 1e-6 mm 이하인지, 삼각형이 뒤집히거나 납작해지지 않는지를 본다. 구멍, 필렛, 통 원기둥이 있는 판재(원기둥 면 5개)도 같은 조건으로 시험한다. 티켓은 서랍장이 샘플당 1,965점이라고 기록했다.</p>
+<p>코드 쪽 정리로는 티켓 24의 <code>synthetic/grid.py</code>와 그 시험이 지워졌다.</p>
+</section>
+
+<section id="quiz">
+<h2>퀴즈</h2>
+<div class="quiz-question">
+<p class="q">경계 점을 몇 개로 나눌지는 면이 아니라 모서리 하나의 길이와 모양만으로 정한다. 이 설계의 이유로 가장 알맞은 것은?</p>
+<button class="quiz-option">모서리가 길수록 점을 더 많이 두려고</button>
+<button class="quiz-option">점 수를 줄여 파일을 작게 만들려고 해서</button>
+<button class="quiz-option" data-correct>모서리를 공유하는 면이 같은 점을 두게</button>
+<div class="quiz-feedback" role="status">나누는 수가 면마다 달라지면 맞닿은 두 면이 그 모서리 위에서 서로 다른 점을 갖게 되어 틈이 생긴다. 모서리 하나로만 정하면 양쪽 면의 점이 겹친다. 길이가 입력이 되는 것은 사실이지만 "모서리 하나로만"이라는 제한의 이유는 아니다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">기본 형상의 삼각형이 A(0, 0), B(100, 0), C(0, 40)이고 안쪽 점의 무게가 (0.5, 0.25, 0.25)다. 다른 샘플에서 C만 (0, 80)으로 올라가면 이 점은 어디에 놓일까?</p>
+<button class="quiz-option" data-correct>(25, 20)</button>
+<button class="quiz-option">(25, 10)</button>
+<button class="quiz-option">(50, 20)</button>
+<div class="quiz-feedback" role="status">점은 세 꼭짓점의 가중합 0.5·A + 0.25·B + 0.25·C로 놓인다. B와 A는 그대로이므로 x는 25이고, y는 0.25 × 80 = 20이다. 점이 제자리에 남지 않고 경계를 따라 움직인다는 것이 이 방식의 요점이다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">귀 자르기가 대각선이 가장 짧은 귀부터 자르는 이유로 가장 알맞은 것은?</p>
+<button class="quiz-option">삼각형 수를 가장 적게 만들려는 목적에서</button>
+<button class="quiz-option" data-correct>띠 모양 면에서 삼각형 뒤집힘을 막으려고</button>
+<button class="quiz-option">계산을 가장 빠르게 끝내기 위해서</button>
+<div class="quiz-feedback" role="status">띠 모양 면(서랍 윗테두리)에서 긴 대각선 삼각형은 띠의 길이가 바뀔 때 뒤집힐 수 있다. 짧은 대각선부터 자르면 삼각형이 띠의 양쪽 변을 잇는 모양이 되어 길이가 바뀌어도 형태가 유지된다. 어느 순서로 잘라도 삼각형 수는 같다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">샘플 면의 이름과 표면 종류는 기본 형상과 같은데 법선이 정반대다. <code>sample_topology</code>는 이 샘플을 어떻게 표시할까?</p>
+<button class="quiz-option"><code>same</code>으로 표시한다</button>
+<button class="quiz-option"><code>failed</code>로 표시한다</button>
+<button class="quiz-option" data-correct><code>changed</code>로 표시한다</button>
+<div class="quiz-feedback" role="status">평면 법선은 방향까지 비교해 <code>0.999</code> 이상 나란해야 하므로 짝이 없다고 판정되고, <code>pair_faces</code>가 <code>None</code>을 돌려준다. <code>failed</code>는 재계산 상태가 ok가 아닐 때만 붙는다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">이름은 모두 짝지어졌는데 한 면의 점 수가 기본 형상과 다르다. 서버는 이 묶음을 어떻게 다룰까?</p>
+<button class="quiz-option" data-correct>점 수가 다르다는 오류로 거절한다</button>
+<button class="quiz-option">위상 변화로 표시하고 받아들인다</button>
+<button class="quiz-option">기본 형상의 점 수에 맞춰 잘라 낸다</button>
+<div class="quiz-feedback" role="status">위상 변화는 면 이름 집합이나 표면이 어긋날 때의 이야기다. 이름이 모두 짝지어졌다면 같은 배치를 놓은 결과이므로 점 수가 같아야 하고, 다르면 만든 쪽의 버그이므로 거절한다.</div>
+</div>
+</section>
+
+      </main>
+
+      <footer class="colophon">
+        Generated with
+        <a href="https://github.com/malav2110/explain-diff-html"
+          >explain-diff-html</a
+        >
+      </footer>
+    </div>
+
+    <script>
+      document.querySelectorAll(".quiz-question").forEach(function (question) {
+        var feedback = question.querySelector(".quiz-feedback");
+
+        // Shuffle the options on every load, so the correct answer's position is
+        // random and a reader cannot fall into answering by position. Each option
+        // is re-inserted before the feedback block, which has to stay last.
+        var shuffled = Array.prototype.slice.call(
+          question.querySelectorAll(".quiz-option"),
+        );
+        for (var i = shuffled.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var swap = shuffled[i];
+          shuffled[i] = shuffled[j];
+          shuffled[j] = swap;
+        }
+        shuffled.forEach(function (option) {
+          question.insertBefore(option, feedback);
+        });
+
+        var options = question.querySelectorAll(".quiz-option");
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            var isCorrect = option.hasAttribute("data-correct");
+            options.forEach(function (other) {
+              other.disabled = true;
+              if (other.hasAttribute("data-correct"))
+                other.classList.add("correct");
+            });
+            if (!isCorrect) option.classList.add("incorrect");
+            feedback.classList.add("show", isCorrect ? "ok" : "bad");
+            feedback.insertBefore(
+              document.createTextNode(isCorrect ? "Correct. " : "Not quite. "),
+              feedback.firstChild,
+            );
+          });
+        });
+      });
+    </script>
+    <script>
+      // Mermaid loads without blocking: the page scripts above run first, and a slow
+      // or blocked CDN never holds up the quiz or the rest of the page. This is the
+      // only permitted external request, and it fires only when a .mermaid block is
+      // present. Leave it in place; it is a no-op on pages without a diagram.
+      (function () {
+        var blocks = document.querySelectorAll(".mermaid");
+        if (!blocks.length) return;
+
+        // mermaid.run() replaces each block's text with an SVG, so the source is
+        // gone after the first render. Stash it, because a theme change has to
+        // parse it again.
+        blocks.forEach(function (block) {
+          block.dataset.source = block.textContent;
+        });
+
+        var darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+        function render() {
+          blocks.forEach(function (block) {
+            block.removeAttribute("data-processed");
+            block.textContent = block.dataset.source;
+          });
+          try {
+            window.mermaid.initialize({
+              startOnLoad: false,
+              theme: darkQuery.matches ? "dark" : "default",
+            });
+          } catch (e) {}
+          Promise.resolve(window.mermaid.run({ nodes: blocks })).catch(
+            function () {},
+          );
+        }
+
+        var s = document.createElement("script");
+        s.src =
+          "https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js";
+        s.integrity =
+          "sha384-T/0lMUdJpd2S1ZHtRiofG3htU3xPCrFVeAQ1UUE2TJwlEJSV5NUwn30kP28n238E";
+        s.crossOrigin = "anonymous";
+        s.onload = function () {
+          render();
+          // Re-render when the reader switches system theme, so the diagram does
+          // not stay light on a dark page.
+          if (darkQuery.addEventListener)
+            darkQuery.addEventListener("change", render);
+        };
+        document.head.appendChild(s);
+      })();
+    </script>
+  </body>
+</html>

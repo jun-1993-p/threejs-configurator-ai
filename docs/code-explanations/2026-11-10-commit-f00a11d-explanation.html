@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>티켓 26 4절: 비선형 모델 항목 통과 기록</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css">
+<style>
+  :root {
+    --bg: #fafaf8; --fg: #1a1a1a; --accent: #b5541f; --muted: #6b6b6b;
+    --code-bg: #0d1117; --code-fg: #c9d1d9; --callout-bg: #fff4e8; --border: #e0ddd6;
+    --panel: #fff; --inline-code: #eee; --th: #f0ede6; --box-bg: #fdf6ee; --hover: #f5f2ec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16171a; --fg: #e8e6e1; --accent: #e8905a; --muted: #9a9890;
+      --callout-bg: #2a2118; --border: #3a3935; --panel: #1f2023;
+      --inline-code: #2c2d31; --th: #26272b; --box-bg: #261f18; --hover: #2a2b30;
+    }
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    background: var(--bg); color: var(--fg);
+    max-width: 820px; margin: 0 auto; padding: 2rem 1.5rem 6rem; line-height: 1.75; word-break: keep-all; }
+  h1 { font-size: 1.9rem; border-bottom: 3px solid var(--accent); padding-bottom: .5rem; }
+  h2 { font-size: 1.4rem; margin-top: 3rem; color: var(--accent); }
+  h3 { font-size: 1.1rem; margin-top: 1.8rem; }
+  .lead { font-size: 1.05rem; }
+  .provenance { color: var(--muted); font-size: .88rem; margin-top: -.4rem; }
+  code { font-family: 'SF Mono', Consolas, monospace; background: var(--inline-code); padding: .1rem .3rem; border-radius: 3px; font-size: .92em; word-break: break-all; }
+  pre { background: var(--code-bg); color: var(--code-fg); padding: 1rem 1.2rem; border-radius: 8px;
+    overflow-x: auto; white-space: pre-wrap; font-family: 'SF Mono', Consolas, monospace; font-size: .88rem; line-height: 1.5; word-break: normal; }
+  pre code { background: none; padding: 0; color: inherit; word-break: normal; }
+  pre code.hljs { padding: 0; background: transparent; }
+  a.srcref { text-decoration: none; }
+  a.srcref code { color: var(--accent); }
+  a.srcref:hover code { text-decoration: underline; }
+  .filename { font-family: 'SF Mono', Consolas, monospace; font-size: .8rem; color: var(--muted);
+    margin: 1.2rem 0 -.6rem; }
+  .callout { background: var(--callout-bg); border-left: 4px solid var(--accent); padding: .9rem 1.2rem;
+    border-radius: 0 6px 6px 0; margin: 1.2rem 0; }
+  details { border: 1px solid var(--border); border-radius: 8px; padding: .6rem 1.1rem; margin: 1rem 0; background: var(--panel); }
+  details > summary { cursor: pointer; font-weight: 600; }
+  .toc { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.5rem; margin: 1.5rem 0; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc ul { margin: .3rem 0; }
+  .diagram { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 1.2rem;
+    margin: 1.2rem 0; font-size: .9rem; }
+  .flow { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; justify-content: center; padding: .5rem 0; }
+  .box { border: 2px solid var(--accent); border-radius: 8px; padding: .6rem 1rem; background: var(--box-bg); text-align: center; min-width: 120px; }
+  .box.fail { border-color: #b91c1c; background: #fef2f2; color: #7f1d1d; }
+  .arrow { font-size: 1.4rem; color: var(--muted); }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--border); padding: .5rem .7rem; text-align: left; }
+  th { background: var(--th); }
+  .quiz-q { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 1.2rem 1.5rem; margin: 1.2rem 0; }
+  .quiz-opt { display: block; width: 100%; text-align: left; padding: .6rem 1rem; margin: .4rem 0;
+    border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--fg);
+    cursor: pointer; font-family: inherit; font-size: .95rem; line-height: 1.6; }
+  .quiz-opt:hover { background: var(--hover); }
+  .quiz-opt:focus-visible, .toc a:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+  .feedback { display: none; margin-top: .6rem; padding: .6rem 1rem; border-radius: 6px; font-size: .9rem; }
+  .feedback.correct { background: #ecfdf3; color: #166534; border-left: 3px solid #16a34a; }
+  .feedback.incorrect { background: #fef2f2; color: #991b1b; border-left: 3px solid #dc2626; }
+  .badge { display: inline-block; font-size: .75rem; padding: .15rem .5rem; border-radius: 10px; font-family: sans-serif; }
+  .badge.new { background: #dcfce7; color: #166534; }
+  @media (max-width: 600px) { body { padding: 1rem; } .flow { flex-direction: column; } }
+</style>
+</head>
+<body>
+
+<h1>티켓 26 4절: 비선형 모델 항목 통과 기록</h1>
+<p class="lead">티켓 26의 4절 항목 하나를 통과로 표시하고, 근거가 된 세 번째 업로드 결과를 티켓에 적은 커밋이다. 코드는 바뀌지 않는다.</p>
+<p class="provenance">jun-1993-p/threejs-configurator-ai 커밋 f00a11d, 2026-11-10 작성. 참조는 이 커밋을 가리킨다.</p>
+
+<div class="toc">
+<strong>목차</strong>
+<ul>
+  <li><a href="#background">배경</a></li>
+  <li><a href="#intuition">핵심 아이디어</a></li>
+  <li><a href="#code">코드 따라가기</a></li>
+  <li><a href="#quiz">퀴즈</a></li>
+</ul>
+</div>
+
+<h2 id="background">배경</h2>
+<details><summary>이 프로젝트가 처음이라면</summary><p>이 프로젝트는 Fusion으로 만든 가구 모델을 쇼핑몰 페이지의 three.js 구성기로 바꾼다. 손님이 슬라이더를 움직이면, 브라우저는 미리 뽑아 둔 형상들 사이를 섞어 모양을 바꾼다.</p><p>형상을 뽑는 쪽이 Fusion 애드인이다. 애드인은 Fusion 안에서 도는 Python 프로그램이다. 업로드 때 파라미터 값을 하나씩 바꿔 가며 모델을 다시 계산하고, 값마다 형상을 읽어 샘플로 남긴다. 이 작업이 스윕이다.</p><p>상품 하나의 파라미터, 부품, 기본 형상, 스윕을 담아 서버로 보내는 JSON이 업로드 묶음이다. 시험 데이터로 저장해 둔 업로드 묶음은 녹화본이라고 부른다.</p><p>스윕 범위는 기본값의 ±50%에서 시작한다. 다시 계산이 실패하거나 면 구성이 바뀌는 값을 만나면 범위가 그 안쪽으로 줄어든다. 범위가 기본값 한 점으로 줄면 그 파라미터는 슬라이더로 쓸 수 없다.</p><p>Fusion을 쓸 수 없던 동안에는 SolidCraft라는 다른 CAD로 만든 합성 녹화본이 시험 데이터를 대신했다. 합성 녹화본은 서버와 검증 코드를 시험하기에는 충분하다. 그러나 Fusion API가 실제로 어떻게 동작하는지는 알려 주지 못한다.</p></details><h3>티켓 26과 4절</h3><p>티켓 26은 Fusion이 있어야만 할 수 있는 확인을 한곳에 모은 티켓이다. 4절에는 합성 녹화본으로 끝낸 기능이 실제 Fusion에서도 맞는지 보는 항목이 모여 있다. 이 커밋이 닫는 항목은 「비선형으로 변하는 부분이 있는 모델」이다.</p><p>이 항목에는 두 가지 일이 들어 있다. 하나는 비선형 모델을 올려 적응형 스윕이 Fusion에서도 동작하는지 보는 일이다. 다른 하나는 Fusion 어댑터가 바디 부피도 내게 해서 부피 튐 경고가 Fusion 업로드에서도 나오게 할지 정하는 일이다.</p><p>기록에 나오는 말을 먼저 정리한다.</p><ul><li><strong>적응형 스윕</strong>: 5점 균등 샘플에서 시작한다. 이웃 두 샘플로 보간한 값이 합격선을 넘는 구간만 반으로 나누고, 샘플은 17점까지 늘린다(ADR-0007, 스윕은 업로드 때 애드인이 적응형으로 뽑는다).</li><li><strong>합격선</strong>: 치수 오차가 넘으면 안 되는 값으로 0.2 mm다.</li><li><strong>보간 실패</strong>: 샘플을 17점으로 늘려도 합격선을 넘는 스윕이다. 그 파라미터는 슬라이더 후보가 될 수 없다.</li><li><strong>부피 튐</strong>: 샘플의 바디 부피가 이웃 두 샘플로 보간한 부피에서 20%를 넘게 벗어나는 일이다. 실패가 아니라 경고다.</li><li><strong>모델링 오류 의심</strong>: 개수형 파라미터 값은 그대로인데 면 구성이 바뀐 스윕 지점이다. 애드인은 거기까지만 범위를 남기고 이 이름을 이유로 적는다.</li><li><strong>면 표시와 바디 표시</strong>: Fusion은 다시 계산할 때마다 면 순서와 바디 이름을 바꾸기도 한다. 그래서 애드인은 기본 형상의 면마다 이름을 Fusion 속성으로 붙여 둔다. 이것이 면 표시다. 바디 이름도 그 바디의 면마다 붙이는데, 이것이 바디 표시다.</li><li><strong>애드인 점검</strong>: 업로드가 끝나면 애드인이 스스로 잰 결과를 남기는 파일이다. 바디 표시를 쓰지 못한 바디는 여기에 <code>untagged_bodies</code>로 적힌다.</li><li><strong>위저드</strong>: 사람이 Fusion에서 할 일만 안내하고, 나머지는 도구가 재서 판정하는 셸 스크립트다. 사람에게 값을 견주게 하지 않는다.</li></ul><p>이 커밋 앞에서 항목을 향해 쌓인 변경은 네 개다.</p><ul><li><code>5f3a05d</code>: Fusion 어댑터가 바디 부피를 내게 했다.</li><li><code>c2d9606</code>: 비선형 모델 업로드 위저드를 만들고, 녹화본 요점에 적응형 샘플과 바디 측정값을 더했다.</li><li><code>01cd75f</code>: 바디 이름이 바뀌는 결함을 바디 객체에 표시를 붙여 고치려 했다.</li><li><code>6357630</code>: 바디 이름을 바디 대신 그 바디의 면에 붙이는 방식으로 다시 고쳤다.</li></ul>
+
+<h2 id="intuition">핵심 아이디어</h2>
+<p>이 커밋은 코드를 바꾸지 않는다. 티켓 파일 하나에서 체크박스 하나를 켜고, 근거가 된 세 번째 업로드 결과를 기록 절로 덧붙인다. 그래서 설명할 것은 이 기록이 무엇을 보았고 무엇을 보지 못했다고 적었는지다.</p><h3>세 번의 업로드</h3><p>같은 모델을 코드가 바뀔 때마다 다시 올렸다. 모델은 좌판과 등받이가 한 바디이고, 다른 컴포넌트에 원기둥 다리 바디 둘이 있다. 사용자 파라미터는 폭, 등받이 각도, 두께, 좌판 폭, 깊이 다섯이다.</p><table><thead><tr><th>업로드</th><th>올린 코드</th><th>다리 바디 이름</th><th>좌판 폭·깊이 스윕 범위</th></tr></thead><tbody><tr><td>첫째</td><td><code>c2d9606</code></td><td>본체3에서 본체4로 바뀜. 면 표시는 남음</td><td>둘 다 폭 0</td></tr><tr><td>둘째</td><td><code>01cd75f</code></td><td>본체4에서 본체5로 바뀜. 바디에 붙인 표시가 사라짐</td><td>둘 다 폭 0</td></tr><tr><td>셋째</td><td><code>6357630</code></td><td>스윕 내내 그대로</td><td>좌판 폭 187.5~375, 깊이 120~360</td></tr></tbody></table><div class="diagram"><div class="flow"><div class="box fail">첫째 업로드<br>이름이 바뀌어 범위 폭 0</div><span class="arrow">→</span><div class="box">고침 1<br>바디 객체에 표시</div><span class="arrow">→</span><div class="box fail">둘째 업로드<br>표시가 사라져 범위 폭 0</div><span class="arrow">→</span><div class="box">고침 2<br>면에 표시</div><span class="arrow">→</span><div class="box">셋째 업로드<br>결함 없음, 항목 체크</div></div></div><h3>결함이 사라졌다는 판정</h3><p>기록이 드는 근거는 두 가지다. 애드인 점검의 바디 표시 없는 바디가 0개라는 것, 그리고 좌판 폭과 깊이 스윕이 폭 0이 아닌 범위로 나왔다는 것이다.</p><p>바디 측정값 68/68은 근거에 들어 있지 않다. 앞 두 업로드에서도 54/54로 모두 찼기 때문이다. 이 구분은 기록이 직접 말하지 않는 내 읽기다.</p><h3>범위가 줄어든 하나</h3><p>셋째 업로드에서 좌판 폭의 아래쪽 끝만 줄었다. 125에서 다리 둘이 겹쳐 한 바디로 합쳐졌고, 애드인은 이를 모델링 오류 의심으로 적었다. 기록은 이것을 모델의 실제 면 구성 변화로 보고 범위 축소가 맞다고 판정한다.</p><div class="callout">187.5라는 끝값은 내 추론이다. 기록에 기본값이 적혀 있지는 않다. 범위 끝이 375와 125라는 점으로 보면 기본값은 250 mm이고, 187.5는 125와 250의 가운데 값인 검증점으로 보인다.</div><h3>보지 못한 것</h3><div class="callout">부피 튐 경고는 이 모델에서 0개였다. 등받이 각도에 따라 좌판·등받이 바디 부피가 5.87에서 7.31 L로 휘며 늘었지만 경고 기준인 20%에는 이르지 않았다. 그래서 경고가 Fusion 업로드에서 나오는 경로는 확인하지 못했다. 기록은 경고 계산을 합성 녹화본 시험이 맡는다고 적는다.</div><p>등받이 각도의 보간 실패 1개도 남아 있다. 첫째 업로드 기록에 따르면 각도 42.19°에서 치수 오차가 0.24 mm로, 합격선 0.2 mm를 넘었다. 샘플을 17점으로 늘려도 그랬다. 기록은 이것을 결함이 아닌 모델의 성질로 본다.</p>
+
+<h2 id="code">코드 따라가기</h2>
+<p>흐름: 항목 체크 → 기록 절 제목 → 결함 해소 판정 → 범위 축소 판정 → 체크 근거 → 남은 일.</p><p>바뀐 파일은 하나다. 아래 인용은 모두 이 커밋의 diff에서 가져왔다.</p><h3>1. 항목에 체크한다</h3><div class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/.scratch/configurator-pipeline/issues/26-fusion-real-check.md?plain=1#L30"><code>.scratch/configurator-pipeline/issues/26-fusion-real-check.md:30</code></a></div><pre><code class="language-diff">-- [ ] 비선형으로 변하는 부분이 있는 모델(티켓 05 적응형 스윕, 재계산 실패 지점의 스윕 범위 축소 포함, 합성은 `fixtures/synthetic/bench-tilt.json`). Fusion 어댑터가 바디 부피(`measure_bodies`)도 내서 `volume_jump` 경고가 Fusion 업로드에서도 나오게 할지 정한다
++- [x] 비선형으로 변하는 부분이 있는 모델(티켓 05 적응형 스윕, 재계산 실패 지점의 스윕 범위 축소 포함, 합성은 `fixtures/synthetic/bench-tilt.json`). Fusion 어댑터가 바디 부피(`measure_bodies`)도 내서 `volume_jump` 경고가 Fusion 업로드에서도 나오게 할지 정한다</code></pre><p>바뀐 것은 대괄호 안의 한 글자뿐이다. 항목 문장은 부피를 낼지 정한다는 말로 끝난다. 이 항목이 요구하는 것은 비선형 모델 확인과, 부피를 내기로 한 결정이다.</p><h3>2. 기록 절의 제목</h3><div class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/.scratch/configurator-pipeline/issues/26-fusion-real-check.md?plain=1#L144"><code>.scratch/configurator-pipeline/issues/26-fusion-real-check.md:144</code></a></div><pre><code class="language-diff">+### 2026-11-05 4절 세 번째 업로드(커밋 6357630 코드) → 항목 통과</code></pre><p>앞선 기록 절도 같은 꼴로, 어느 코드로 올린 결과인지 제목에 적는다. 이 제목은 그 규칙을 따르고 끝에 판정을 붙였다.</p><h3>3. 결함이 사라졌다</h3><div class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/.scratch/configurator-pipeline/issues/26-fusion-real-check.md?plain=1#L146"><code>.scratch/configurator-pipeline/issues/26-fusion-real-check.md:146</code></a></div><pre><code class="language-diff">+- 바디 이름 결함이 사라졌다. 애드인 점검의 바디 표시 없는 바디가 0개이고, 좌판 폭(187.5~375)·깊이(120~360) 스윕이 모두 쓸 수 있는 범위로 나왔다. 기본 형상의 다리 바디 이름은 업로드 시작 때의 Fusion 이름(앞 업로드들이 바꿔 둔 것)이고, 스윕 내내 그대로였다.</code></pre><p>마지막 문장을 조심해서 읽어야 한다. 이름이 본체3으로 돌아왔다는 말이 아니다. 앞 업로드들이 Fusion 모델의 이름을 이미 바꿔 두었고, 이번 업로드는 그 이름으로 시작해 끝까지 유지했다는 뜻이다. 둘째 업로드가 본체5로 끝났으니 시작 이름도 본체5로 보이지만, 기록에는 적혀 있지 않은 내 추론이다.</p><h3>4. 범위가 줄어든 하나</h3><div class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/.scratch/configurator-pipeline/issues/26-fusion-real-check.md?plain=1#L147"><code>.scratch/configurator-pipeline/issues/26-fusion-real-check.md:147</code></a></div><pre><code class="language-diff">+- 좌판 폭 min 쪽만 125에서 `modeling_error_suspected`로 줄었다. 그 값에서 다리 둘이 겹쳐 한 바디로 합쳐졌다(한 다리 바디의 면 넷이 사라지고 남은 다리의 원기둥 면이 갈라짐). 모델의 실제 위상 변화라 범위 축소가 맞다.</code></pre><p>애드인이 붙인 이름은 모델링 오류 의심, 즉 의심이다. 이 줄은 사람이 그 의심을 따져 보고 실제 변화라고 결론을 내린 기록이다. 바디 이름 결함 때문이 아니라는 점은 3번의 바디 표시 없는 바디 0개가 받쳐 준다.</p><h3>5. 나머지 판정과 체크 근거</h3><div class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/.scratch/configurator-pipeline/issues/26-fusion-real-check.md?plain=1#L148-L149"><code>.scratch/configurator-pipeline/issues/26-fusion-real-check.md:148-149</code></a></div><pre><code class="language-diff">+- 나머지 판정은 앞과 같다: 적응형 12개, 바디 측정값 68/68, 부피 튐 0, 등받이 각도 보간 실패 1개(모델 성질, 위 기록).
++- 4절 「비선형으로 변하는 부분이 있는 모델」에 체크했다. 바디 부피는 Fusion 어댑터도 낸다고 정했고 녹화본에 실렸다. 부피 튐 경고는 이 모델에서 0개라 Fusion 업로드에서 나오는 것은 보지 못했고, 계산은 합성 녹화본 시험이 맡는다. 재계산 실패 범위 축소는 선반 업로드에서 이미 확인했다.</code></pre><p>첫 줄은 위저드의 자동 판정과 같은 결과를 되풀이한다. 둘째 줄이 체크의 근거다. 항목의 두 일이 모두 끝났다고 보고, 보지 못한 것은 보지 못했다고 적는다.</p><p>재계산 실패 범위 축소는 이번 모델에서 일어나지 않았다. 그 확인은 앞서 선반 모델을 올렸을 때 이미 끝났다고 적혀 있다.</p><h3>6. 남은 일</h3><div class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/f00a11d9a0358772d7ffc4a257d3fa5450486da3/.scratch/configurator-pipeline/issues/26-fusion-real-check.md?plain=1#L150"><code>.scratch/configurator-pipeline/issues/26-fusion-real-check.md:150</code></a></div><pre><code class="language-diff">+- 남은 항목은 5절(실제 상품과 실제 모델)이다.</code></pre><p>4절은 이 항목으로 모두 닫힌다. 티켓에 남은 확인은 5절 하나다.</p>
+
+<h2 id="quiz">퀴즈</h2>
+
+<div class="quiz-q">
+<p><strong>부피 튐 경고가 Fusion 업로드에서 나오는 것을 보지 못했는데도, 기록이 항목에 체크한 근거로 드는 것은?</strong></p>
+<button type="button" class="quiz-opt" data-correct="true" aria-controls="feedback-1-1" aria-expanded="false">항목은 부피를 낼지 정하는 일을 요구하고, 그 결정과 녹화본에 실린 값을 확인했다</button>
+<div id="feedback-1-1" class="feedback" role="status" aria-live="polite"><strong>정답이다.</strong> 항목 문장은 부피를 내서 경고가 나오게 할지 정한다는 말로 끝난다. 정한 결과는 어댑터가 부피를 내는 것이고, 값은 녹화본에 실렸다. 기록은 경고 계산을 합성 녹화본 시험이 맡는다고 적었다.</div>
+<button type="button" class="quiz-opt" data-correct="false" aria-controls="feedback-1-2" aria-expanded="false">경고가 0개였으므로 Fusion에서도 경고 계산이 맞게 돈다고 판단했다</button>
+<div id="feedback-1-2" class="feedback" role="status" aria-live="polite"><strong>오답이다.</strong> 0개는 경고가 나올 만큼 부피가 튀지 않았다는 뜻이다. 경고 계산이 동작하는지는 보여 주지 못하고, 기록도 그렇게 주장하지 않는다.</div>
+<button type="button" class="quiz-opt" data-correct="false" aria-controls="feedback-1-3" aria-expanded="false">경고가 Fusion에서 나오는 것은 앞서 올린 선반 모델 업로드에서 확인했다</button>
+<div id="feedback-1-3" class="feedback" role="status" aria-live="polite"><strong>오답이다.</strong> 선반 업로드에서 확인한 것은 재계산 실패로 스윕 범위가 줄어드는 동작이다. 부피 튐 경고가 아니다.</div>
+</div>
+
+<div class="quiz-q">
+<p><strong>좌판 폭의 아래쪽 범위가 125에서 줄어든 것을 기록이 정상으로 보는 까닭은?</strong></p>
+<button type="button" class="quiz-opt" data-correct="false" aria-controls="feedback-2-1" aria-expanded="false">그 값에서 다시 계산이 실패했고 실패 지점 안쪽까지 줄이는 것이 규칙이어서다</button>
+<div id="feedback-2-1" class="feedback" role="status" aria-live="polite"><strong>오답이다.</strong> 기록이 적은 이유는 다시 계산 실패가 아니라 모델링 오류 의심이다. 재계산 실패 범위 축소는 이번 모델에서 0개였다.</div>
+<button type="button" class="quiz-opt" data-correct="false" aria-controls="feedback-2-2" aria-expanded="false">다리 바디의 이름이 바뀌어 면이 사라진 것처럼 읽혔지만 이름만의 문제여서다</button>
+<div id="feedback-2-2" class="feedback" role="status" aria-live="polite"><strong>오답이다.</strong> 그 결함은 첫째·둘째 업로드의 원인이었다. 셋째 업로드는 바디 표시 없는 바디가 0개이고 이름이 스윕 내내 유지되어 이 설명에 해당하지 않는다.</div>
+<button type="button" class="quiz-opt" data-correct="true" aria-controls="feedback-2-3" aria-expanded="false">그 값에서 다리 둘이 겹쳐 한 바디로 합쳐지는 실제 면 구성 변화가 일어나서다</button>
+<div id="feedback-2-3" class="feedback" role="status" aria-live="polite"><strong>정답이다.</strong> 기록은 한 다리 바디의 면 넷이 사라지고 남은 다리의 원기둥 면이 갈라졌다고 적고, 모델의 실제 변화라서 축소가 맞다고 판정한다.</div>
+</div>
+
+<div class="quiz-q">
+<p><strong>셋째 업로드에서 바디 이름 결함이 사라졌다고 보는 직접 근거 두 가지는?</strong></p>
+<button type="button" class="quiz-opt" data-correct="false" aria-controls="feedback-3-1" aria-expanded="false">바디 측정값이 모든 형상에 실린 것, 그리고 부피 튐 경고가 0개인 것</button>
+<div id="feedback-3-1" class="feedback" role="status" aria-live="polite"><strong>오답이다.</strong> 앞 두 업로드도 바디 측정값이 54/54로 모두 찼고 부피 튐도 0이었다. 결함이 있을 때와 같은 수치라서 해소의 근거가 되지 못한다.</div>
+<button type="button" class="quiz-opt" data-correct="true" aria-controls="feedback-3-2" aria-expanded="false">바디 표시 없는 바디 0개, 그리고 좌판 폭·깊이 범위가 폭 0이 아님</button>
+<div id="feedback-3-2" class="feedback" role="status" aria-live="polite"><strong>정답이다.</strong> 기록이 결함 해소를 말하며 든 두 수치다. 결함이 있을 때는 범위가 둘 다 폭 0이었고, 표시를 쓰지 못한 바디가 점검에 잡혔다.</div>
+<button type="button" class="quiz-opt" data-correct="false" aria-controls="feedback-3-3" aria-expanded="false">등받이 각도 보간 실패가 없어진 것, 그리고 적응형 샘플이 늘어난 것</button>
+<div id="feedback-3-3" class="feedback" role="status" aria-live="polite"><strong>오답이다.</strong> 보간 실패는 셋째 업로드에도 1개 남았고 적응형 샘플도 앞과 같은 12개다. 이 판정은 앞 업로드와 같다고 기록이 적었다.</div>
+</div>
+
+<div class="quiz-q">
+<p><strong>셋째 업로드에도 등받이 각도의 보간 실패 1개가 남았다. 기록이 이를 결함으로 보지 않는 까닭은?</strong></p>
+<button type="button" class="quiz-opt" data-correct="false" aria-controls="feedback-4-1" aria-expanded="false">치수 오차 0.24 mm가 합격선 0.2 mm보다 작아 실패로 세지 않아서다</button>
+<div id="feedback-4-1" class="feedback" role="status" aria-live="polite"><strong>오답이다.</strong> 0.24 mm는 0.2 mm보다 크다. 합격선을 넘었기 때문에 보간 실패로 기록되었다.</div>
+<button type="button" class="quiz-opt" data-correct="false" aria-controls="feedback-4-2" aria-expanded="false">보간 실패가 난 파라미터도 슬라이더 후보로 남아 사용에 지장이 없어서다</button>
+<div id="feedback-4-2" class="feedback" role="status" aria-live="polite"><strong>오답이다.</strong> 보간 실패가 난 파라미터는 슬라이더 후보가 될 수 없다. 지장이 없다는 것이 아니라 설계된 결과라는 것이 기록의 입장이다.</div>
+<button type="button" class="quiz-opt" data-correct="true" aria-controls="feedback-4-3" aria-expanded="false">샘플을 17점으로 늘려도 합격선을 넘는 것은 규칙대로 동작한 결과이고 모델의 성질이어서다</button>
+<div id="feedback-4-3" class="feedback" role="status" aria-live="polite"><strong>정답이다.</strong> 각도가 45°에 가까울수록 휘는 정도가 커져 17점으로도 합격선 안에 들지 못한다. 애드인이 보간 실패로 남기는 것이 설계된 동작이다.</div>
+</div>
+
+<div class="quiz-q">
+<p><strong>재계산 뒤 다리 바디의 이름이 바뀌어도 샘플에서 같은 바디로 이어 가는 방법은?</strong></p>
+<button type="button" class="quiz-opt" data-correct="false" aria-controls="feedback-5-1" aria-expanded="false">기본 형상에서 바디 객체에 이름 표시를 붙여 두고, 재계산 뒤 그 표시를 읽는다</button>
+<div id="feedback-5-1" class="feedback" role="status" aria-live="polite"><strong>오답이다.</strong> 이것이 둘째 업로드의 코드였다. 바디에 붙인 표시가 재계산 뒤 사라져서 범위가 다시 폭 0이 되었다.</div>
+<button type="button" class="quiz-opt" data-correct="true" aria-controls="feedback-5-2" aria-expanded="false">기본 형상에서 바디 이름을 그 바디의 면마다 붙이고, 샘플에서 면에 붙은 이름 중 가장 많은 것을 쓴다</button>
+<div id="feedback-5-2" class="feedback" role="status" aria-live="polite"><strong>정답이다.</strong> Fusion은 바디 객체를 새로 만들어도 면의 속성은 남겼다. 그래서 면에 붙인 바디 표시를 읽고, 면들의 표시가 다르면 가장 많은 이름을 바디 이름으로 쓴다.</div>
+<button type="button" class="quiz-opt" data-correct="false" aria-controls="feedback-5-3" aria-expanded="false">재계산 뒤 바뀐 Fusion 이름을 그대로 쓰고, 달라진 바디는 애드인 점검에 적는다</button>
+<div id="feedback-5-3" class="feedback" role="status" aria-live="polite"><strong>오답이다.</strong> 이름이 바뀌면 기본 형상의 면과 이름이 달라져 면이 사라지고 새로 생긴 것으로 읽힌다. 점검에 적는 것은 표시를 쓰지 못한 바디다.</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+<script>if (window.hljs) hljs.highlightAll();</script>
+<script>
+document.querySelectorAll('.quiz-q').forEach(q => {
+  q.querySelectorAll('.quiz-opt').forEach(opt => {
+    opt.addEventListener('click', () => {
+      const correct = opt.dataset.correct === 'true';
+      q.querySelectorAll('.feedback').forEach(item => item.style.display = 'none');
+      q.querySelectorAll('.quiz-opt').forEach(item => item.setAttribute('aria-expanded', 'false'));
+      const fb = opt.nextElementSibling;
+      fb.className = 'feedback ' + (correct ? 'correct' : 'incorrect');
+      fb.style.display = 'block';
+      opt.setAttribute('aria-expanded', 'true');
+    });
+  });
+});
+</script>
+
+</body>
+</html>

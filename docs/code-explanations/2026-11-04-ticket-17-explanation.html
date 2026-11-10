@@ -1,0 +1,885 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>티켓 17: 자식 치수의 부모 고르기와 슬라이더 이름</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f6f7f9;
+        --text: #1c2024;
+        --muted: #60646c;
+        --border: #d7dbdf;
+        --border-strong: #848c95;
+        --accent: #2f5ee0;
+        --accent-soft: #e8eefc;
+        --edge: #a35608;
+        --edge-soft: #fbefe1;
+        --ok: #1a7f47;
+        --ok-soft: #e4f3ea;
+        --bad: #c62a3b;
+        --bad-soft: #fbe7e9;
+        --measure: 68ch;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181b;
+          --surface: #1f2226;
+          --text: #eceef0;
+          --muted: #9ba1a6;
+          --border: #33383d;
+          --border-strong: #646c75;
+          --accent: #7aa2ff;
+          --accent-soft: #1e2740;
+          --edge: #e08c3a;
+          --edge-soft: #2e2517;
+          --ok: #57c98b;
+          --ok-soft: #17281d;
+          --bad: #f07178;
+          --bad-soft: #2c1a1c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:visited {
+        color: var(--accent);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 2.5rem;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 6rem;
+      }
+      nav.toc {
+        position: sticky;
+        top: 2.5rem;
+        align-self: start;
+        font-size: 0.9rem;
+      }
+      nav.toc strong {
+        display: block;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc li {
+        margin: 0.35rem 0;
+      }
+      nav.toc a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav.toc a:hover {
+        color: var(--accent);
+      }
+      main {
+        min-width: 0;
+      }
+      main > header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1.25rem;
+        margin-bottom: 2rem;
+      }
+      main > header h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.6rem;
+      }
+      main > header .lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: var(--measure);
+      }
+      main > header .provenance {
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        margin: 0.7rem 0 0;
+      }
+      .colophon {
+        grid-column: 1 / -1;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        border-top: 1px solid var(--border);
+        margin: 4rem 0 0;
+        padding: 1.2rem 0 0;
+      }
+      .colophon a {
+        color: inherit;
+      }
+      section {
+        margin-bottom: 3.5rem;
+      }
+      section h2 {
+        font-size: 1.4rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      section h3 {
+        font-size: 1.05rem;
+        margin: 2rem 0 0.6rem;
+      }
+      section p,
+      section ul,
+      section ol {
+        max-width: var(--measure);
+      }
+      li {
+        margin: 0.3rem 0;
+      }
+      /* Code blocks: white-space set here so a filled-in block cannot collapse. */
+      pre,
+      .code-block {
+        white-space: pre-wrap;
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        font:
+          0.86rem/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        tab-size: 2;
+      }
+      pre .del {
+        color: var(--bad);
+      }
+      pre .add {
+        color: var(--ok);
+      }
+      pre .hi {
+        background: var(--accent-soft);
+        border-radius: 3px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--surface);
+        padding: 0.05rem 0.3rem;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      /* A file:line reference linked to the code it names. Wraps a <code> span
+         in prose, or the bare text of a .filename label. */
+      a.srcref {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px solid var(--muted);
+      }
+      a.srcref:hover {
+        border-bottom-color: var(--accent);
+      }
+      a.srcref:hover code {
+        background: var(--accent-soft);
+      }
+      /* Path label for the code block below it. */
+      .filename {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        margin: 1.5rem 0 0.3rem;
+        overflow-wrap: anywhere;
+      }
+      /* Comparison table: one row per case, .yes / .no / .warn on outcome cells. */
+      table.vals {
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.86rem;
+        width: 100%;
+        max-width: 620px;
+      }
+      table.vals th,
+      table.vals td {
+        border: 1px solid var(--border-strong);
+        padding: 0.4rem 0.65rem;
+        text-align: left;
+      }
+      table.vals th {
+        background: var(--surface);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+      table.vals td.yes {
+        background: var(--ok-soft);
+      }
+      table.vals td.no {
+        background: var(--bad-soft);
+      }
+      table.vals td.warn {
+        background: var(--edge-soft);
+      }
+      /* Callouts: .callout for a concept, .callout.edge for a caveat. */
+      .callout {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+        padding: 0.85rem 1.1rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .callout .label {
+        display: block;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+      }
+      .callout.edge {
+        background: var(--edge-soft);
+        border-left-color: var(--edge);
+      }
+      .callout.edge .label {
+        color: var(--edge);
+      }
+      /* Skippable deep-background block. */
+      details.skippable {
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 0.75rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      details.skippable > summary {
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      details.skippable[open] > summary {
+        margin-bottom: 0.75rem;
+      }
+      /* Diagram family 1: simplified app UI mockup. */
+      .ui-mockup {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1.5rem 0;
+        max-width: 560px;
+        font-size: 0.85rem;
+      }
+      .ui-mockup .bar {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0.5rem 0.85rem;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .ui-mockup .body {
+        padding: 1.1rem 0.85rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+      }
+      .mock-caption {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.3rem 0 0;
+        max-width: var(--measure);
+      }
+      /* Diagram family 2: data flow between components, example data on the arrows. */
+      .dataflow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+      /* Each arrow travels with the node it points at. Without this, a flow
+         wider than the column wraps between an arrow and its node, leaving the
+         arrow pointing at nothing and the node stranded on the next line. */
+      .dataflow .step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .dataflow .node {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 175px;
+      }
+      .dataflow .node.terminal {
+        background: var(--surface);
+        border-color: var(--border);
+      }
+      .dataflow .node.pass {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .dataflow .node.fail {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .dataflow .arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.72rem;
+        min-width: 96px;
+      }
+      .dataflow .arrow .line {
+        width: 100%;
+        border-top: 2px solid var(--border);
+        position: relative;
+      }
+      .dataflow .arrow .line::after {
+        content: "\25B6";
+        position: absolute;
+        right: -2px;
+        top: -0.72em;
+        color: var(--border);
+        font-size: 0.7rem;
+      }
+      .dataflow .arrow .data {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.35rem;
+        margin-bottom: 0.2rem;
+        font-family: ui-monospace, monospace;
+      }
+      .flow-label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin: 1.25rem 0 0.25rem;
+      }
+      /* A numbered sequence with one marked position: call stacks, retry
+         counts, any ranked list. Not one of the numbered families; reach for
+         it when a step in an ordered list is the point. */
+      .frames {
+        list-style: none;
+        padding: 0;
+        margin: 1.25rem 0;
+        max-width: 620px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.82rem;
+      }
+      .frames li {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.45rem 0.7rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+      }
+      .frames li.target {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .frames .n {
+        display: inline-block;
+        min-width: 2.2em;
+        color: var(--muted);
+      }
+      /* Diagram family 3: node/recursion tree (ASTs, nesting, recursion) */
+      .tree {
+        margin: 1.5rem 0;
+        font:
+          0.82rem/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      .tnode {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.3rem 0.55rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+        display: inline-block;
+      }
+      .tnode.leaf {
+        background: var(--bg);
+      }
+      .tnode.kept {
+        border-color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tnode.skipped {
+        border-color: var(--muted);
+        color: var(--muted);
+      }
+      .tchildren {
+        margin-left: 1.4rem;
+        border-left: 2px dotted var(--border);
+        padding-left: 0.9rem;
+      }
+      .tnote {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-left: 0.4rem;
+      }
+
+      /* Optional tabular body for .ui-mockup, when the mocked UI is a table. */
+      .mock-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .mock-table th,
+      .mock-table td {
+        border: 1px solid var(--border);
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+      }
+      .mock-table th {
+        background: var(--surface);
+        font-weight: 600;
+      }
+      .mock-table .col-highlight {
+        background: var(--accent-soft);
+      }
+
+      .mermaid {
+        margin: 1.75rem 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .mermaid .edgeLabel,
+      .mermaid .edgeLabel p,
+      .mermaid .edgeLabel span,
+      .mermaid .edgeLabel foreignObject div {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+      }
+      /* Quiz */
+      .quiz-question {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .quiz-question > p.q {
+        font-weight: 600;
+        margin: 0 0 0.85rem;
+      }
+      .quiz-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 0.5rem;
+        font: inherit;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .quiz-option:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .quiz-option.correct {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .quiz-option.incorrect {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .quiz-option:disabled {
+        cursor: default;
+      }
+      .quiz-feedback {
+        display: none;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 7px;
+        margin-top: 0.3rem;
+      }
+      .quiz-feedback.show {
+        display: block;
+      }
+      .quiz-feedback.ok {
+        background: var(--ok-soft);
+      }
+      .quiz-feedback.bad {
+        background: var(--edge-soft);
+      }
+      a:focus-visible,
+      summary:focus-visible,
+      .quiz-option:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+      table.vals td.yes::before,
+      .dataflow .node.pass::before,
+      .tnode.kept::before,
+      .quiz-option.correct::before {
+        content: "\2713\00a0";
+        font-weight: 700;
+      }
+      table.vals td.no::before,
+      .dataflow .node.fail::before,
+      .quiz-option.incorrect::before {
+        content: "\2717\00a0";
+        font-weight: 700;
+      }
+      table.vals td.warn::before {
+        content: "\25B2\00a0";
+        font-weight: 700;
+      }
+      .tnode.skipped::before {
+        content: "\2013\00a0";
+        font-weight: 700;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 1rem;
+          padding: 1.25rem 1.1rem 4rem;
+        }
+        nav.toc {
+          position: static;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+        }
+        body {
+          font-size: 16px;
+        }
+        main > header h1 {
+          font-size: 1.6rem;
+        }
+        table.vals {
+          display: block;
+          overflow-x: auto;
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+<div class="layout">
+<nav class="toc">
+<strong>Contents</strong>
+<ol>
+<li><a href="#background">배경</a></li>
+<li><a href="#intuition">핵심 아이디어</a></li>
+<li><a href="#code">코드 따라가기</a></li>
+<li><a href="#quiz">퀴즈</a></li>
+</ol>
+</nav>
+<main>
+<header>
+<h1>티켓 17: 자식 치수의 부모 고르기와 슬라이더 이름</h1>
+<p class="lead">고객이 바꾸길 원하는 치수가 수식에 묶인 자식 파라미터일 때, 운영자가 후보 선택에서 움직일 부모를 고르게 하고, 슬라이더 이름은 Fusion 파라미터 이름 대신 고객이 보는 치수의 뜻으로 짓게 한다.</p>
+<p class="provenance">jun-1993-p/threejs-configurator-ai 티켓 17, 최신 커밋 e1c5daa, 포함한 커밋: e1c5daa (티켓 17: 자식 치수의 부모 고르기와 슬라이더 이름), explained 2026-11-04. References link to this commit.</p>
+</header>
+<section id="background">
+<h2>배경</h2>
+<details class="skippable">
+<summary>이 영역이 처음이면 펼쳐서 읽는 기본 배경</summary>
+
+<p>이 프로젝트는 Fusion 360 CAD 모델을 쇼핑몰 페이지의 three.js 구성기(div)로 바꾼다. 고객은 슬라이더로 상품 형태를 바꾼다. 슬라이더 하나는 Fusion의 사용자 파라미터 하나(부모 파라미터)에 연결된다.</p>
+<p>Fusion에서는 파라미터의 값을 수식으로 쓸 수 있다. 예를 들어 <code>d5 = body_w - 40 mm</code>라고 쓰면 <code>d5</code>는 <code>body_w</code>를 따라 자동으로 바뀐다. 이 문서는 따라 바뀌는 쪽을 자식 파라미터, 따라가는 쪽을 부모 파라미터라고 부른다(용어집 기준).</p>
+<p>업로드할 때 CAD 애드인은 파라미터 값을 바꿔 가며 형상을 뽑아 둔다. 이 묶음을 스윕이라 하고, 파라미터 하나만 움직인 것을 단독 스윕이라 한다. 구성기의 변형 엔진은 스윕에서 꼭짓점 이동량을 읽어 섞을 뿐이고(ADR-0002), Fusion 수식은 풀지 않는다(ADR-0003).</p>
+
+</details>
+
+<p>서버 쪽 파이프라인은 상품 하나를 정해진 순서의 단계로 처리하고, AI는 단계 안에서만 일한다(ADR-0014). 이 변경이 닿는 단계는 후보 제시, 후보 선택, 명세 작성이다. 후보 제시에서 AI가 슬라이더 구성 후보 2~4개를 내면, 후보 선택에서 사람(운영자)이 하나를 고른다. 화면의 후보 한 칸을 후보 카드라 부른다.</p>
+<p>변경 전 후보는 <code>parents</code>, 곧 움직일 부모 파라미터 이름 목록이었다. 이전의 후보 검사는 스윕하지 않은 파라미터를 반려했으므로, 고객이 원하는 치수가 <code>d5</code>처럼 스윕하지 않는 자식 파라미터이면 후보에 담을 수 없었다. 후보에는 슬라이더 이름이 없었고 이름은 명세에만 있었다. 명세는 AI가 쓰는 JSON이고, 슬라이더마다 <code>id</code>(움직일 부모 파라미터), <code>name</code>, <code>children</code>을 가진다.</p>
+<p>이 문서에서 쓰는 말은 다섯 가지다. 먼저 <b>자식 치수</b>는 고객이 원하는 치수가 자식 파라미터인 경우다. <b>부모 후보</b>는 그 자식을 바꾸려고 움직일 수 있는 스윕한 부모들이고, 운영자가 후보 선택에서 하나를 고른다. <b>같이 변하는 치수</b>는 부모를 움직였을 때 슬라이더 자신의 치수 말고 함께 바뀌는 치수다. <b>축 반응</b>은 이 변경에서는 AI 입력에 실린 값(<code>response</code>), 곧 단독 스윕에서 상품 전체와 부품의 Fusion 축별 크기·위치 변화량을 가리킨다. 마지막으로 <b>명세의 <code>children</code></b>는 슬라이더 부모를 따르는 파라미터를 적는 기록용 칸이다.</p>
+<div class="callout"><span class="label">핵심 개념</span><p>수식은 읽기만 하고 풀지 않는다. 부모 후보를 찾는 일도 같이 변하는 치수를 찾는 일도, 수식의 낱말을 파라미터 이름과 맞춰 관계를 잇고 스윕이 담은 형상으로 변화를 재는 방식으로만 한다(ADR-0003).</p></div>
+
+</section>
+<section id="intuition">
+<h2>핵심 아이디어</h2>
+
+<p>서랍 폭 예시로 보자. 용어집의 예처럼 서랍 폭이 <code>d5 = body_w - 40 mm</code>라는 자식 파라미터이고, 스윕한 파라미터는 부모인 <code>body_w</code>라고 하자(티켓 기록의 서랍장 합성 녹화본에서도 <code>d5</code>의 부모 후보는 <code>body_w</code>다). 고객이 "서랍 폭"을 바꾸고 싶다면 실제로 움직이는 것은 <code>body_w</code>다. 예를 들어 서랍 폭만이 아니라 서랍장 전체 폭도 같이 바뀐다고 하자(가정이다. 티켓의 카드 예시는 "전체 폭, 몸통 폭도 같이 변함"이다).</p>
+<p>이 변경은 그 사실을 후보 카드에 드러내고 운영자에게 확인받는다. 명세에는 슬라이더 <code>id</code>가 부모 <code>body_w</code>로, <code>children</code>에 <code>d5</code>로 기록된다. 수식은 이번에도 읽기만 하고 풀지 않는다. 후보의 <code>sliders</code>는 <code>[{ parameter, name }]</code> 모양이고, 순서는 다음과 같다.</p>
+<div class="dataflow">
+<div class="node terminal">후보 제시: AI가 sliders 낸다</div>
+<div class="step"><div class="arrow"><span class="data">{ parameter: d5, name: 서랍 폭 }</span><span class="line"></span></div><div class="node">후보 카드: 부모 후보와 같이 변하는 치수</div></div>
+<div class="step"><div class="arrow"><span class="data">부모 body_w 선택</span><span class="line"></span></div><div class="node">후보 선택: 운영자가 부모 고름</div></div>
+<div class="step"><div class="arrow"><span class="data">{ parameter: d5, name, parent: body_w }</span><span class="line"></span></div><div class="node pass">명세 작성: id는 부모, children에 d5</div></div>
+</div>
+
+<p>부모 후보가 여럿이면 선택이 필요하다. 합성 녹화본에서 <code>d9</code>의 부모 후보는 <code>drawer_d</code>와 <code>body_d</code> 두 개다. 카드에는 부모마다 같이 변하는 치수가 적히므로, 운영자는 그것을 보고 고른다.</p>
+<table class="vals"><tr><th>경우</th><th>부모 후보</th><th>운영자가 할 일</th></tr>
+<tr><td>파라미터가 스윕한 부모</td><td>자기 하나</td><td class="yes">없음</td></tr>
+<tr><td>자식인데 스윕한 부모가 하나</td><td>그 부모 하나</td><td class="yes">없음(글로만 표시)</td></tr>
+<tr><td>자식인데 스윕한 부모가 여럿</td><td>예: drawer_d, body_d</td><td class="warn">단추로 하나를 고름</td></tr>
+<tr><td>자식인데 스윕한 부모가 없음</td><td>없음</td><td class="no">후보 검사에서 반려</td></tr>
+</table>
+
+<p>이름 쪽 규칙이다. 슬라이더 이름에 Fusion 파라미터 이름이 낱말로 들어 있으면 오류로 보고 AI에게 다시 묻는다. <code>d6</code>처럼 이름만으로는 무엇인지 알 수 없는 파라미터는, 단독 스윕의 축 반응을 AI에게 함께 보내 그 반응(예: 서랍 Z 치수만 100 mm 변함)을 보고 이름을 짓게 한다.</p>
+<div class="callout edge"><span class="label">남긴 한계</span><p>같이 변하는 치수에서 슬라이더 자신을 빼는 비교는 이름이 같은지로만 한다. 자식 치수가 어느 부품의 어느 치수인지는 수식을 풀어야 알 수 있기 때문이다. AI가 지은 이름이 부품 역할 이름과 다르면("서랍 너비" 대 "서랍 폭") 자기 치수가 같이 변하는 목록에 한 번 더 적힐 수 있다. 티켓 리뷰 기록에 남긴 항목이다.</p></div>
+
+</section>
+<section id="code">
+<h2>코드 따라가기</h2>
+
+<p>흐름: 업로드 묶음 수식 읽기(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/e1c5daa5b008d9ae37b7607aaf1916ce5c23346a/configurator/pipeline/parameter-relations.ts#L23-L52"><code>configurator/pipeline/parameter-relations.ts:23-52</code></a>) → 후보 검사(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/e1c5daa5b008d9ae37b7607aaf1916ce5c23346a/configurator/pipeline/schemas.ts#L334-L356"><code>configurator/pipeline/schemas.ts:334-356</code></a>) → 후보 카드 만들기(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/e1c5daa5b008d9ae37b7607aaf1916ce5c23346a/configurator/pipeline/candidate-cards.ts#L126-L152"><code>configurator/pipeline/candidate-cards.ts:126-152</code></a>) → 화면에서 부모 고르기(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/e1c5daa5b008d9ae37b7607aaf1916ce5c23346a/configurator/pipeline/operator-screens.ts#L67-L79"><code>configurator/pipeline/operator-screens.ts:67-79</code></a>) → 고른 후보 만들기(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/e1c5daa5b008d9ae37b7607aaf1916ce5c23346a/configurator/pipeline/runner.ts#L238-L248"><code>configurator/pipeline/runner.ts:238-248</code></a>) → 명세 검사(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/e1c5daa5b008d9ae37b7607aaf1916ce5c23346a/configurator/pipeline/schemas.ts#L305-L326"><code>configurator/pipeline/schemas.ts:305-326</code></a>).</p>
+
+<h3>1. 수식에서 부모 후보 찾기</h3>
+<p>새 파일 <code>parameter-relations.ts</code>의 <code>parameterRelations</code>가 모든 관계의 출발점이다. 수식의 낱말 중 파라미터 이름과 같은 것을 "이 파라미터가 쓰는 파라미터"로 모으고(25행), 스윕했으며 개수형이 아닌 파라미터를 슬라이더가 될 수 있는 것으로 본다(28행). <code>parentOptions</code>는 이름이 이미 슬라이더가 될 수 있으면 자기 하나를, 아니면 수식을 거슬러 닿는 슬라이더 후보를 가까운 것부터 돌려준다(46행). 수식을 읽기만 하고 어느 값도 바꾸지 않는다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/e1c5daa5b008d9ae37b7607aaf1916ce5c23346a/configurator/pipeline/parameter-relations.ts#L23-L28">configurator/pipeline/parameter-relations.ts:23-28</a></p>
+<pre>export function parameterRelations(bundle: BundleParameters) {
+  const names = new Set(bundle.parameters.map((p) =&gt; p.name));
+  const uses = new Map(bundle.parameters.map((p) =&gt; [p.name, wordsOf(p.expression).filter((w) =&gt; names.has(w) &amp;&amp; w !== p.name)]));
+  const counts = new Set(bundle.parameters.filter((p) =&gt; p.is_count).map((p) =&gt; p.name));
+  const swept = new Set(bundle.sweeps.map((s) =&gt; s.parameter));
+  const sliderable = (name: string) =&gt; swept.has(name) &amp;&amp; !counts.has(name);</pre>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/e1c5daa5b008d9ae37b7607aaf1916ce5c23346a/configurator/pipeline/parameter-relations.ts#L44-L51">configurator/pipeline/parameter-relations.ts:44-51</a></p>
+<pre>  return {
+    sliderable,
+    parentOptions: (name: string) =&gt; (sliderable(name) ? [name] : reach(name, (n) =&gt; uses.get(n) ?? []).filter(sliderable)),
+    descendants: (name: string) =&gt; {
+      const found = new Set(reach(name, usedBy));
+      return bundle.parameters.map((p) =&gt; p.name).filter((n) =&gt; found.has(n));
+    },
+  };</pre>
+
+
+<h3>2. 후보의 모양: parents에서 sliders로</h3>
+<p>후보 응답의 JSON Schema에서 <code>parents</code>(이름 문자열 목록)가 사라지고, <code>parameter</code>와 <code>name</code>을 가진 <code>sliders</code>가 들어왔다. 변경 전 줄은 아래와 같다.</p>
+<p class="filename" data-bare="removed-lines">후보 응답 스키마의 변경 전후 (일부 줄은 줄여 적음, 현재 코드는 schemas.ts:98 이후)</p>
+<pre><span class="del">- required: ["id", "front", "parents", "showThickness", "summary", "diff"],</span>
+<span class="del">- parents: { type: "array", minItems: 1, items: { type: "string", minLength: 1 } },</span>
+<span class="add">+ required: ["id", "front", "sliders", "showThickness", "summary", "diff"],</span>
+<span class="add">+ sliders: { type: "array", minItems: 1, items: { type: "object", required: ["parameter", "name"], ... } },</span></pre>
+
+<p>후보끼리 달라야 한다는 검사도 <code>parents</code> 대신 <code>sliders</code>의 <code>parameter</code> 집합을 본다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/e1c5daa5b008d9ae37b7607aaf1916ce5c23346a/configurator/pipeline/schemas.ts#L270-L290"><code>configurator/pipeline/schemas.ts:270-290</code></a>).</p>
+
+<h3>3. 후보 검사: 쓸 수 없는 치수 걸러내기</h3>
+<p><code>candidateReferenceChecker</code>의 <code>parameterErrors</code>는 슬라이더 하나가 쓸 수 있는 치수인지 순서대로 본다. 이미 쓴 파라미터, 개수형(값이 바뀌면 위상이 바뀌는 정수 파라미터), 업로드 묶음에 없는 이름, 스윕한 부모가 없는 자식을 거르고(341~345행), 마지막으로 그 자식의 부모 후보가 모두 같은 후보의 다른 슬라이더이면 움직일 부모가 없다고 반려한다(346~347행). 이름 검사 <code>fusionNameError</code>는 같은 위치에서 슬라이더 이름마다 돈다(353행).</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/e1c5daa5b008d9ae37b7607aaf1916ce5c23346a/configurator/pipeline/schemas.ts#L339-L348">configurator/pipeline/schemas.ts:339-348</a></p>
+<pre>  function parameterErrors(sliders: { parameter: string }[], k: number): string[] {
+    const { parameter } = sliders[k];
+    if (sliders.findIndex((s) =&gt; s.parameter === parameter) &lt; k) return [`${parameter}를 이 후보에서 이미 썼습니다`];
+    if (counts.has(parameter)) return [`${parameter}는 개수형 파라미터라 슬라이더 후보가 될 수 없습니다`];
+    if (!parameterNames.has(parameter)) return [`${parameter}는 업로드 묶음의 파라미터가 아닙니다`];
+    const options = relations.parentOptions(parameter);
+    if (options.length === 0) return [`${parameter}는 스윕한 파라미터가 아니고, 수식으로 따르는 스윕한 부모도 없습니다`];
+    const others = sliders.map((s) =&gt; s.parameter).filter((p) =&gt; p !== parameter &amp;&amp; relations.sliderable(p));
+    return options.every((o) =&gt; others.includes(o)) ? [`${parameter}를 바꿀 부모(${options.join(", ")})가 모두 이 후보의 다른 슬라이더입니다`] : [];
+  }</pre>
+
+<p><code>fusionNameError</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/e1c5daa5b008d9ae37b7607aaf1916ce5c23346a/configurator/pipeline/schemas.ts#L145-L151"><code>configurator/pipeline/schemas.ts:145-151</code></a>)는 이름의 낱말을 대소문자 없이 파라미터 이름과 비교한다. 리뷰 뒤 이 검사를 넓혀 <code>"D6 높이"</code> 같은 이름도 걸리게 했다. 명세 검사(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/e1c5daa5b008d9ae37b7607aaf1916ce5c23346a/configurator/pipeline/schemas.ts#L159-L179"><code>configurator/pipeline/schemas.ts:159-179</code></a>)도 같은 함수를 쓴다.</p>
+
+<h3>4. 후보 카드: 부모 후보와 같이 변하는 치수</h3>
+<p><code>candidateCards</code>는 슬라이더마다 <code>choices</code>를 만든다. 각 부모 후보에 대해 <code>alsoChanges</code>를 계산해 붙인다(136~140행). <code>alsoChanges</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/e1c5daa5b008d9ae37b7607aaf1916ce5c23346a/configurator/pipeline/candidate-cards.ts#L114-L123"><code>configurator/pipeline/candidate-cards.ts:114-123</code></a>)는 그 부모의 단독 스윕 반응에서 상품 전체와 부품의 W·D·H 크기 변화를 읽고, 부품 탐색이 찾은 역할 이름을 붙여 "전체 폭", "몸통 폭" 같은 이름으로 바꾼 뒤 슬라이더 자기 이름을 뺀다. 반응값은 0.2 mm를 넘을 때만 변화로 친다(<code>sweepResponse</code>, <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/e1c5daa5b008d9ae37b7607aaf1916ce5c23346a/configurator/pipeline/parameter-relations.ts#L82-L104"><code>configurator/pipeline/parameter-relations.ts:82-104</code></a>).</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/e1c5daa5b008d9ae37b7607aaf1916ce5c23346a/configurator/pipeline/candidate-cards.ts#L126-L152">configurator/pipeline/candidate-cards.ts:126-152</a></p>
+<pre>export function candidateCards(candidates: Candidate[], bundle: UploadBundle, parts: PartsFound): CandidateCard[] {
+  const colorOf = colorsOf(bundle);
+  const relations = parameterRelations(bundle);
+  const roles = new Map(parts.parts.map((p) =&gt; [p.name, p.role]));
+  const roleOf = (part: string) =&gt; roles.get(part) ?? part;
+  return candidates.map((candidate) =&gt; {
+    const axes = axesFor(candidate.front, parts.up);
+    const [front, top] = [directionOf(candidate.front), directionOf(parts.up)];
+    const side = cross(top, front);
+    const view: View = { eye: [0, 1, 2].map((c) =&gt; front[c] + 0.6 * side[c] + 0.5 * top[c]) as Vector, up: top };
+    const choices = candidate.sliders.map(({ parameter, name }) =&gt; ({
+      parameter,
+      name,
+      options: relations.parentOptions(parameter).map((parent) =&gt; ({ parent, alsoChanges: alsoChanges(bundle, parent, name, axes, roleOf) })),
+    }));
+    // 미리보기는 움직일 수 있는 부모마다 하나다. 자식 치수는 부모 후보마다 그려 운영자가 비교하고 고른다.
+    const parents = [...new Set(choices.flatMap((c) =&gt; c.options.map((o) =&gt; o.parent)))];
+    const spec = sweepSpec(bundle, parents);
+    const morph = createMorph(spec, bundle);
+    const previews = spec.sliders.map(({ id, min, max, default: value }) =&gt; {
+      const values = [min, value, max];
+      const images = renderPngs(values.map((v) =&gt; morph.shape({ [id]: v })), view, PREVIEW_SIZE, colorOf);
+      return { parameter: id, values, images: images.map((png) =&gt; png.toString("base64")) };
+    });
+    return { ...candidate, axes, previews, choices };
+  });
+}</pre>
+
+<p>미리보기는 슬라이더마다가 아니라 움직일 수 있는 부모마다 하나를 그린다(141~143행). 운영자가 부모 후보를 눈으로 비교하고 고를 수 있게 하려는 것이다(티켓 기록).</p>
+
+<h3>5. 화면: 고르기 단추와 읽기</h3>
+<p><code>sliderHtml</code>은 부모 후보가 하나면 글로만 적고, 여럿이면 부모마다 라디오 단추를 만들되 처음 것을 고른 상태로 둔다. 각 단추 옆에 그 부모가 바꾸는 치수가 같이 적힌다. <code>readCandidateChoice</code>는 부모 후보가 여럿인 슬라이더만 양식에서 읽고, 잘못된 값이면 <code>pickParent</code>의 오류 문장을 모아 돌려준다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/e1c5daa5b008d9ae37b7607aaf1916ce5c23346a/configurator/pipeline/operator-screens.ts#L116-L130">configurator/pipeline/operator-screens.ts:116-130</a></p>
+<pre>export function readCandidateChoice(
+  form: URLSearchParams,
+  cards: CandidateCard[],
+): { candidate: string; parents: Record&lt;string, string&gt; } | { errors: string[] } {
+  const card = cards.find((c) =&gt; c.id === form.get("candidate"));
+  if (!card) return { errors: ["제시된 후보 중 하나를 고르세요"] };
+  const parents: Record&lt;string, string&gt; = {};
+  const errors: string[] = [];
+  for (const choice of card.choices.filter((c) =&gt; c.options.length &gt; 1)) {
+    const picked = pickParent(choice, form.get(parentField(card.id, choice.parameter)) ?? undefined);
+    if ("error" in picked) errors.push(picked.error);
+    else parents[choice.parameter] = picked.parent;
+  }
+  return errors.length &gt; 0 ? { errors } : { candidate: card.id, parents };
+}</pre>
+
+<p>오류 문장을 만드는 <code>pickParent</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/e1c5daa5b008d9ae37b7607aaf1916ce5c23346a/configurator/pipeline/candidate-cards.ts#L72-L78"><code>configurator/pipeline/candidate-cards.ts:72-78</code></a>)는 화면과 실행기가 함께 쓴다. 부모 후보가 하나면 고르지 않아도 그 부모가 되고, 고르지 않았거나 후보 밖이면 "무엇을 움직일지 고르세요" 문장을 낸다.</p>
+
+<h3>6. 실행기: 고른 후보 만들기</h3>
+<p><code>chosenOf</code>는 후보 카드와 운영자가 고른 부모로 <code>ChosenCandidate</code>를 만든다. 각 슬라이더에 <code>parent</code>를 붙이며, 두 슬라이더가 같은 부모를 움직이게 되면 오류 문장을 돌려준다(명세의 슬라이더 id는 겹칠 수 없기 때문이다). 실행기는 이 문장을 후보 선택 단계의 정지 사유로 쓴다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/e1c5daa5b008d9ae37b7607aaf1916ce5c23346a/configurator/pipeline/runner.ts#L506-L507"><code>configurator/pipeline/runner.ts:506-507</code></a>).</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/e1c5daa5b008d9ae37b7607aaf1916ce5c23346a/configurator/pipeline/runner.ts#L238-L248">configurator/pipeline/runner.ts:238-248</a></p>
+<pre>function chosenOf({ previews: _previews, choices, ...candidate }: CandidateCard, parents: Record&lt;string, string&gt; = {}): ChosenCandidate | string {
+  const sliders: ChosenSlider[] = [];
+  for (const choice of choices) {
+    const picked = pickParent(choice, parents[choice.parameter]);
+    if ("error" in picked) return picked.error;
+    // 명세의 슬라이더 id는 겹칠 수 없다
+    if (sliders.some((s) =&gt; s.parent === picked.parent)) return `${picked.parent}를 두 슬라이더가 같이 움직이게 됩니다`;
+    sliders.push({ parameter: choice.parameter, name: choice.name, parent: picked.parent });
+  }
+  return { ...candidate, sliders };
+}</pre>
+
+
+<h3>7. 명세 검사와 AI 지시</h3>
+<p>고른 후보를 따르는지는 <code>chosenCandidateChecker</code>가 슬라이더마다 본다. 슬라이더 <code>id</code>가 고른 부모여야 하고, <code>name</code>이 카드의 이름이어야 하며, 부모가 자식 치수와 다르면 <code>children</code>에 그 자식이 있어야 한다. 명세 검사 <code>specReferenceChecker</code>는 거기에 더해, <code>children</code>이 수식으로 그 슬라이더를 실제로 따르는 파라미터만 담는지 본다(<code>descendants</code>, <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/e1c5daa5b008d9ae37b7607aaf1916ce5c23346a/configurator/pipeline/schemas.ts#L159-L179"><code>configurator/pipeline/schemas.ts:159-179</code></a>). 변형 엔진은 <code>children</code>을 읽지 않는다(엔진 시험이 확인).</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/e1c5daa5b008d9ae37b7607aaf1916ce5c23346a/configurator/pipeline/schemas.ts#L308-L318">configurator/pipeline/schemas.ts:308-318</a></p>
+<pre>    spec.sliders.forEach(({ id, name, children }, i) =&gt; {
+      const chosen = sliders.find((s) =&gt; s.parent === id);
+      if (!chosen) {
+        errors.push(`/sliders/${i}/id: 고른 후보의 부모 파라미터(${sliders.map((s) =&gt; s.parent).join(", ")})가 아닙니다`);
+        return;
+      }
+      if (name !== chosen.name) errors.push(`/sliders/${i}/name: 고른 후보 카드의 이름 "${chosen.name}"이어야 합니다`);
+      if (chosen.parameter !== id &amp;&amp; !children.includes(chosen.parameter)) {
+        errors.push(`/sliders/${i}/children: 이 슬라이더로 바꾸는 치수 ${chosen.parameter}("${chosen.name}")를 적어야 합니다`);
+      }
+    });</pre>
+
+<p>AI 쪽에서는 <code>bundleForPrompt</code>가 스윕마다 <code>response: sweepResponse(...)</code>를 싣는다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/e1c5daa5b008d9ae37b7607aaf1916ce5c23346a/configurator/pipeline/litellm-ai.ts#L38"><code>configurator/pipeline/litellm-ai.ts:38</code></a>). 지시문은 이름이 뜻을 말하지 않는 파라미터는 이 축 반응을 보고 지으라고 알린다.</p>
+
+</section>
+<section id="quiz">
+<h2>퀴즈</h2>
+<div class="quiz-question">
+<p class="q">자식 치수 <code>d5</code>(<code>d5 = body_w - 40 mm</code>)를 슬라이더로 노출하려는 후보가 있다. 명세의 슬라이더 <code>id</code>는 무엇이어야 하는가?</p>
+<button class="quiz-option"><code>d5</code>, 그리고 children은 빈 목록</button>
+<button class="quiz-option" data-correct><code>body_w</code>, 그리고 children에 <code>d5</code></button>
+<button class="quiz-option"><code>d5</code>, 그리고 children에 <code>body_w</code></button>
+<div class="quiz-feedback" role="status">변형 엔진은 스윕한 파라미터의 이동량만 섞는다. 그래서 움직이는 것은 스윕한 부모 <code>body_w</code>이고, 고객이 보는 치수인 <code>d5</code>는 기록용 <code>children</code>에 적는다. <code>chosenCandidateChecker</code>가 정확히 이 대응을 본다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">한 후보가 슬라이더 "서랍 폭"(<code>d5</code>)과 "몸통 폭"(<code>body_w</code>)을 함께 노출한다. <code>d5</code>의 부모 후보는 <code>body_w</code> 하나뿐이다. 후보 검사 결과는?</p>
+<button class="quiz-option">후보를 통과시킨다</button>
+<button class="quiz-option">부모를 고르게 한다</button>
+<button class="quiz-option" data-correct>후보를 반려한다</button>
+<div class="quiz-feedback" role="status"><code>d5</code>를 바꿀 부모가 모두 같은 후보의 다른 슬라이더이므로 움직일 부모가 없다. 같은 부모를 두 슬라이더가 움직이면 명세의 슬라이더 id가 겹치기도 한다. 이 반려는 <code>parameterErrors</code>의 마지막 검사다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">운영자가 부모 후보 <code>drawer_d</code>와 <code>body_d</code> 중에서 고른다. 이 선택에 쓰는 정보로 가장 알맞은 것은?</p>
+<button class="quiz-option" data-correct>스윕으로 잰 같이 변하는 치수</button>
+<button class="quiz-option">AI가 부모마다 지은 뜻 이름</button>
+<button class="quiz-option">부모 수식을 풀어 계산한 자식 값</button>
+<div class="quiz-feedback" role="status">화면의 단추 옆에는 부모마다 같이 변하는 치수가 적힌다. 부모마다 뜻 이름을 짓게 하면 AI가 고르지도 않은 부모의 이름까지 지어야 해서 두었고(티켓 기록), 수식을 풀어 계산하는 방식은 ADR-0003이 막는다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">파라미터 <code>d6</code>는 이름만으로 무엇인지 알 수 없다. AI가 이 슬라이더 이름을 지을 근거로 가장 알맞은 것은?</p>
+<button class="quiz-option">그 파라미터의 기본값 크기</button>
+<button class="quiz-option">다른 후보에 쓰인 이름들</button>
+<button class="quiz-option" data-correct>단독 스윕의 축 반응</button>
+<div class="quiz-feedback" role="status"><code>bundleForPrompt</code>가 스윕마다 싣는 <code>response</code>에는 상품 전체와 부품의 축별 크기·위치 변화가 있다. <code>d6</code>를 움직였을 때 서랍 Z 치수만 100 mm 바뀐다면 이름을 서랍 높이로 지을 근거가 된다. 기본값은 어느 치수인지 말해 주지 않는다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">이 변경이 반복해서 지키는 원칙은?</p>
+<button class="quiz-option">자식 파라미터는 스윕하지 않는다</button>
+<button class="quiz-option" data-correct>수식은 읽기만 하고 풀지 않는다</button>
+<button class="quiz-option">슬라이더는 부모 하나에 모은다</button>
+<div class="quiz-feedback" role="status">부모 후보는 수식 낱말 매칭으로, 같이 변하는 치수는 스윕 형상으로 얻는다. 어느 쪽도 수식을 풀어 자식을 독립 파라미터로 바꾸지 않는다(ADR-0003). 자식을 스윕하지 않는 것은 결과이지 원칙이 아니고, 한 부모에 슬라이더를 모으지도 않는다.</div>
+</div>
+
+</section>
+</main>
+<footer class="colophon">Generated with explain-diff-html</footer>
+</div>
+<script>
+      document.querySelectorAll(".quiz-question").forEach(function (question) {
+        var feedback = question.querySelector(".quiz-feedback");
+
+        // Shuffle the options on every load, so the correct answer's position is
+        // random and a reader cannot fall into answering by position. Each option
+        // is re-inserted before the feedback block, which has to stay last.
+        var shuffled = Array.prototype.slice.call(
+          question.querySelectorAll(".quiz-option"),
+        );
+        for (var i = shuffled.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var swap = shuffled[i];
+          shuffled[i] = shuffled[j];
+          shuffled[j] = swap;
+        }
+        shuffled.forEach(function (option) {
+          question.insertBefore(option, feedback);
+        });
+
+        var options = question.querySelectorAll(".quiz-option");
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            var isCorrect = option.hasAttribute("data-correct");
+            options.forEach(function (other) {
+              other.disabled = true;
+              if (other.hasAttribute("data-correct"))
+                other.classList.add("correct");
+            });
+            if (!isCorrect) option.classList.add("incorrect");
+            feedback.classList.add("show", isCorrect ? "ok" : "bad");
+            feedback.insertBefore(
+              document.createTextNode(isCorrect ? "Correct. " : "Not quite. "),
+              feedback.firstChild,
+            );
+          });
+        });
+      });
+    </script>
+</body>
+</html>

@@ -1,0 +1,1054 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>티켓 11: 위상 묶음 설명</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f6f7f9;
+        --text: #1c2024;
+        --muted: #60646c;
+        --border: #d7dbdf;
+        --border-strong: #848c95;
+        --accent: #2f5ee0;
+        --accent-soft: #e8eefc;
+        --edge: #a35608;
+        --edge-soft: #fbefe1;
+        --ok: #1a7f47;
+        --ok-soft: #e4f3ea;
+        --bad: #c62a3b;
+        --bad-soft: #fbe7e9;
+        --measure: 68ch;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181b;
+          --surface: #1f2226;
+          --text: #eceef0;
+          --muted: #9ba1a6;
+          --border: #33383d;
+          --border-strong: #646c75;
+          --accent: #7aa2ff;
+          --accent-soft: #1e2740;
+          --edge: #e08c3a;
+          --edge-soft: #2e2517;
+          --ok: #57c98b;
+          --ok-soft: #17281d;
+          --bad: #f07178;
+          --bad-soft: #2c1a1c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:visited {
+        color: var(--accent);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 2.5rem;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 6rem;
+      }
+      nav.toc {
+        position: sticky;
+        top: 2.5rem;
+        align-self: start;
+        font-size: 0.9rem;
+      }
+      nav.toc strong {
+        display: block;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc li {
+        margin: 0.35rem 0;
+      }
+      nav.toc a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav.toc a:hover {
+        color: var(--accent);
+      }
+      main {
+        min-width: 0;
+      }
+      main > header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1.25rem;
+        margin-bottom: 2rem;
+      }
+      main > header h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.6rem;
+      }
+      main > header .lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: var(--measure);
+      }
+      main > header .provenance {
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        margin: 0.7rem 0 0;
+      }
+      .colophon {
+        grid-column: 1 / -1;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        border-top: 1px solid var(--border);
+        margin: 4rem 0 0;
+        padding: 1.2rem 0 0;
+      }
+      .colophon a {
+        color: inherit;
+      }
+      section {
+        margin-bottom: 3.5rem;
+      }
+      section h2 {
+        font-size: 1.4rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      section h3 {
+        font-size: 1.05rem;
+        margin: 2rem 0 0.6rem;
+      }
+      section p,
+      section ul,
+      section ol {
+        max-width: var(--measure);
+      }
+      li {
+        margin: 0.3rem 0;
+      }
+      /* Code blocks: white-space set here so a filled-in block cannot collapse. */
+      pre,
+      .code-block {
+        white-space: pre-wrap;
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        font:
+          0.86rem/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        tab-size: 2;
+      }
+      pre .del {
+        color: var(--bad);
+      }
+      pre .add {
+        color: var(--ok);
+      }
+      pre .hi {
+        background: var(--accent-soft);
+        border-radius: 3px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--surface);
+        padding: 0.05rem 0.3rem;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      /* A file:line reference linked to the code it names. Wraps a <code> span
+         in prose, or the bare text of a .filename label. */
+      a.srcref {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px solid var(--muted);
+      }
+      a.srcref:hover {
+        border-bottom-color: var(--accent);
+      }
+      a.srcref:hover code {
+        background: var(--accent-soft);
+      }
+      /* Path label for the code block below it. */
+      .filename {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        margin: 1.5rem 0 0.3rem;
+        overflow-wrap: anywhere;
+      }
+      /* Comparison table: one row per case, .yes / .no / .warn on outcome cells. */
+      table.vals {
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.86rem;
+        width: 100%;
+        max-width: 620px;
+      }
+      table.vals th,
+      table.vals td {
+        border: 1px solid var(--border-strong);
+        padding: 0.4rem 0.65rem;
+        text-align: left;
+      }
+      table.vals th {
+        background: var(--surface);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+      table.vals td.yes {
+        background: var(--ok-soft);
+      }
+      table.vals td.no {
+        background: var(--bad-soft);
+      }
+      table.vals td.warn {
+        background: var(--edge-soft);
+      }
+      /* Callouts: .callout for a concept, .callout.edge for a caveat. */
+      .callout {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+        padding: 0.85rem 1.1rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .callout .label {
+        display: block;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+      }
+      .callout.edge {
+        background: var(--edge-soft);
+        border-left-color: var(--edge);
+      }
+      .callout.edge .label {
+        color: var(--edge);
+      }
+      /* Skippable deep-background block. */
+      details.skippable {
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 0.75rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      details.skippable > summary {
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      details.skippable[open] > summary {
+        margin-bottom: 0.75rem;
+      }
+      /* Diagram family 1: simplified app UI mockup. */
+      .ui-mockup {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1.5rem 0;
+        max-width: 560px;
+        font-size: 0.85rem;
+      }
+      .ui-mockup .bar {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0.5rem 0.85rem;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .ui-mockup .body {
+        padding: 1.1rem 0.85rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+      }
+      .mock-caption {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.3rem 0 0;
+        max-width: var(--measure);
+      }
+      /* Diagram family 2: data flow between components, example data on the arrows. */
+      .dataflow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+      /* Each arrow travels with the node it points at. Without this, a flow
+         wider than the column wraps between an arrow and its node, leaving the
+         arrow pointing at nothing and the node stranded on the next line. */
+      .dataflow .step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .dataflow .node {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 175px;
+      }
+      .dataflow .node.terminal {
+        background: var(--surface);
+        border-color: var(--border);
+      }
+      .dataflow .node.pass {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .dataflow .node.fail {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .dataflow .arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.72rem;
+        min-width: 96px;
+      }
+      .dataflow .arrow .line {
+        width: 100%;
+        border-top: 2px solid var(--border);
+        position: relative;
+      }
+      .dataflow .arrow .line::after {
+        content: "\25B6";
+        position: absolute;
+        right: -2px;
+        top: -0.72em;
+        color: var(--border);
+        font-size: 0.7rem;
+      }
+      .dataflow .arrow .data {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.35rem;
+        margin-bottom: 0.2rem;
+        font-family: ui-monospace, monospace;
+      }
+      .flow-label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin: 1.25rem 0 0.25rem;
+      }
+      /* A numbered sequence with one marked position: call stacks, retry
+         counts, any ranked list. Not one of the numbered families; reach for
+         it when a step in an ordered list is the point. */
+      .frames {
+        list-style: none;
+        padding: 0;
+        margin: 1.25rem 0;
+        max-width: 620px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.82rem;
+      }
+      .frames li {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.45rem 0.7rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+      }
+      .frames li.target {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .frames .n {
+        display: inline-block;
+        min-width: 2.2em;
+        color: var(--muted);
+      }
+      /* Diagram family 3: node/recursion tree (ASTs, nesting, recursion) */
+      .tree {
+        margin: 1.5rem 0;
+        font:
+          0.82rem/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      .tnode {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.3rem 0.55rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+        display: inline-block;
+      }
+      .tnode.leaf {
+        background: var(--bg);
+      }
+      .tnode.kept {
+        border-color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tnode.skipped {
+        border-color: var(--muted);
+        color: var(--muted);
+      }
+      .tchildren {
+        margin-left: 1.4rem;
+        border-left: 2px dotted var(--border);
+        padding-left: 0.9rem;
+      }
+      .tnote {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-left: 0.4rem;
+      }
+
+      /* Optional tabular body for .ui-mockup, when the mocked UI is a table. */
+      .mock-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .mock-table th,
+      .mock-table td {
+        border: 1px solid var(--border);
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+      }
+      .mock-table th {
+        background: var(--surface);
+        font-weight: 600;
+      }
+      .mock-table .col-highlight {
+        background: var(--accent-soft);
+      }
+
+      .mermaid {
+        margin: 1.75rem 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .mermaid .edgeLabel,
+      .mermaid .edgeLabel p,
+      .mermaid .edgeLabel span,
+      .mermaid .edgeLabel foreignObject div {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+      }
+      /* Quiz */
+      .quiz-question {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .quiz-question > p.q {
+        font-weight: 600;
+        margin: 0 0 0.85rem;
+      }
+      .quiz-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 0.5rem;
+        font: inherit;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .quiz-option:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .quiz-option.correct {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .quiz-option.incorrect {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .quiz-option:disabled {
+        cursor: default;
+      }
+      .quiz-feedback {
+        display: none;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 7px;
+        margin-top: 0.3rem;
+      }
+      .quiz-feedback.show {
+        display: block;
+      }
+      .quiz-feedback.ok {
+        background: var(--ok-soft);
+      }
+      .quiz-feedback.bad {
+        background: var(--edge-soft);
+      }
+      a:focus-visible,
+      summary:focus-visible,
+      .quiz-option:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+      table.vals td.yes::before,
+      .dataflow .node.pass::before,
+      .tnode.kept::before,
+      .quiz-option.correct::before {
+        content: "\2713\00a0";
+        font-weight: 700;
+      }
+      table.vals td.no::before,
+      .dataflow .node.fail::before,
+      .quiz-option.incorrect::before {
+        content: "\2717\00a0";
+        font-weight: 700;
+      }
+      table.vals td.warn::before {
+        content: "\25B2\00a0";
+        font-weight: 700;
+      }
+      .tnode.skipped::before {
+        content: "\2013\00a0";
+        font-weight: 700;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 1rem;
+          padding: 1.25rem 1.1rem 4rem;
+        }
+        nav.toc {
+          position: static;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+        }
+        body {
+          font-size: 16px;
+        }
+        main > header h1 {
+          font-size: 1.6rem;
+        }
+        table.vals {
+          display: block;
+          overflow-x: auto;
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <nav class="toc">
+        <strong>목차</strong>
+        <ol>
+          <li><a href="#background">배경</a></li>
+          <li><a href="#intuition">핵심 아이디어</a></li>
+          <li><a href="#code">코드 따라가기</a></li>
+          <li><a href="#quiz">퀴즈</a></li>
+        </ol>
+      </nav>
+
+      <main>
+        <header>
+          <h1>티켓 11: 위상 묶음</h1>
+          <p class="lead">
+            폭 슬라이더를 끌다가 칸막이 수가 바뀌는 지점을 넘으면, 구성기가 형상을 섞지 않고 새 면 구성으로 한 번에 바꿔 끼우도록 스윕을 위상 묶음으로 나눈 변경이다.
+          </p>
+          <p class="provenance">
+            jun-1993-p/threejs-configurator-ai 티켓 11 (커밋 771e02e), 2026-11-04에 설명함. References link to this commit.
+          </p>
+        </header>
+
+        <section id="background">
+          <h2>배경</h2>
+          <details class="skippable">
+            <summary>이 프로젝트가 처음이라면: 깊은 배경을 펼치세요.</summary>
+            <p>
+              프로젝트는 Fusion CAD 모델을 쇼핑몰 페이지의 div 안에서 도는 three.js 구성기로 바꾼다. 고객이 슬라이더를 움직이면 상품 형태가 바뀐다. 구성기는 업로드 때 CAD 애드인이 파라미터 값을 바꿔 가며 Fusion에서 미리 뽑아 둔 형상을 쓴다. 이 묶음이 <strong>스윕</strong>이다. 파라미터 하나만 움직이고 나머지는 기본값으로 둔 것이 <strong>단독 스윕</strong>이다.
+            </p>
+            <p>
+              구성기는 샘플 사이를 보간한다. 샘플마다 꼭짓점이 몇 개 있는지, 어느 꼭짓점이 어느 꼭짓점과 짝인지 알아야 하므로, 모든 샘플은 같은 <strong>면 구성</strong>(바디와 면 이름의 집합, 그리고 면마다 점 수)을 가져야 한다. 슬라이더 두 개를 함께 움직이면 각 단독 스윕에서 읽은 꼭짓점 이동량을 더해 형상을 만든다(ADR-0004). 이 계산을 하는 모듈이 <strong>변형 엔진</strong>이다. 엔진은 구성기(브라우저)와 검증기(Node)가 같은 파일을 쓴다.
+            </p>
+          </details>
+
+          <p>
+            이 변경이 건드리는 좁은 범위는 이렇다. 칸막이 선반처럼 폭에 따라 칸막이 개수가 달라지는 상품은 폭 슬라이더의 범위 안에서 면 구성이 바뀐다. 칸막이가 새 바디로 생기기 때문이다. 이전 커밋(티켓 10)까지는 이런 지점을 만나면 애드인이 범위를 그 앞에서 잘라 버리거나 엔진이 오류를 던졌다. 엔진 코드에 그 자리 표시가 남아 있었다.
+          </p>
+          <pre><span class="del">function topologyChanged(id: string, value: number) {
+  // 위상 묶음(ADR-0005)은 티켓 11에서 다룬다. 범위 끝의 위상 변화는 애드인이 범위를 줄여 샘플에서 뺀다(티켓 10). 그 전까지는 면 구성이 다른 샘플을 받지 않는다.
+  return new Error(`슬라이더 ${id}: 값 ${value}의 샘플이 기본 형상과 면 구성이 다릅니다(위상 묶음은 아직 지원하지 않음)`);
+}</span></pre>
+          <p>
+            ADR-0005가 정한 방향은 이렇다. 연속 슬라이더가 범위 안에서 <strong>위상 경계</strong>를 넘으면 스윕을 위상 묶음으로 나누고, 이동량은 같은 묶음 안에서만 섞고, 경계에서는 형상이 페이드 없이 바로 바뀐다. 슬라이더는 매끄럽게 계속 움직이지만 칸막이는 한 번에 나타난다.
+          </p>
+
+          <div class="callout">
+            <span class="label">용어</span>
+            <p>
+              <strong>위상 묶음</strong>은 면 구성이 같은 스윕 결과의 모음이다. 기본값이 든 묶음이 <strong>기본 묶음</strong>이다. <strong>기준 형상</strong>은 이동량을 재는 출발점이다. 기본 묶음에서는 기본 형상이고, 다른 묶음에서는 그 묶음 가운데에 가장 가까운 샘플의 형상이다. 삼각형 연결도 기준 형상에서 정한다. <strong>위상 경계</strong>는 개수형 파라미터 값과 함께 면 구성이 바뀌는 슬라이더 값이다.
+            </p>
+          </div>
+        </section>
+
+        <section id="intuition">
+          <h2>핵심 아이디어</h2>
+          <p>
+            꼭짓점 수가 다른 형상끼리는 이동량을 더할 수 없다. 그래서 면 구성이 같은 묶음마다 자기 기준 형상과 이동량을 따로 두고 묶음 안에서만 섞으며, 경계에서는 섞지 않고 형상을 통째로 바꾼다. 시험용 합성 녹화본인 칸막이 선반으로 보자. 칸 수는 <code>bays = floor(shelf_w / 400 mm) + 1</code>이다. 슬라이더 <code>shelf_w</code>(전체 폭)의 기본값은 900 mm이고 명세 범위는 500~1300 mm다. 폭 800과 1200에서 칸 수가 바뀐다. 티켓 기록에 따르면 애드인이 450~1350을 스윕하고(용어집의 스윕 범위는 기본값의 ±50%) 이렇게 나눈다.
+          </p>
+
+          <table class="vals">
+            <thead>
+              <tr><th>위상 묶음</th><th>칸 수</th><th>샘플 범위(mm)</th><th>기준 형상</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>2칸 묶음</td><td>2</td><td>450 ~ 799.91</td><td>묶음 가운데에 가장 가까운 샘플(anchor)</td></tr>
+              <tr><td>기본 묶음</td><td>3</td><td>800 부근 ~ 1200 부근</td><td>기본 형상(900)</td></tr>
+              <tr><td>4칸 묶음</td><td>4</td><td>1200.04 ~ 1350</td><td>묶음 가운데에 가장 가까운 샘플(anchor)</td></tr>
+            </tbody>
+          </table>
+
+          <p>
+            묶음마다 필요한 것은 두 가지다. 기준 형상과, 그 기준 형상에서 다시 뽑은 <em>나머지 슬라이더</em>(여기서는 <code>shelf_d</code>, 전체 깊이)의 단독 스윕이다. 4칸 형상에 깊이 변화를 더하려면 깊이 이동량이 4칸 형상의 꼭짓점 기준이어야 하기 때문이다. 기본 형상 기준의 이동량은 꼭짓점 수가 달라 더할 수 없다.
+          </p>
+
+          <p class="flow-label">슬라이더 값 하나가 형상이 되는 길</p>
+          <div class="dataflow">
+            <div class="node terminal"><code>shelf_w = 1250</code></div>
+            <div class="step">
+              <div class="arrow"><span class="data">1250이 든 묶음?</span><span class="line"></span></div>
+              <div class="node">4칸 묶음 (1200.04~1350)</div>
+            </div>
+            <div class="step">
+              <div class="arrow"><span class="data">이 묶음의 기준 형상 + 이동량</span><span class="line"></span></div>
+              <div class="node">깊이 이동량도 이 묶음 것</div>
+            </div>
+            <div class="step">
+              <div class="arrow"><span class="data">4칸 면 구성</span><span class="line"></span></div>
+              <div class="node pass">메쉬를 새로 만들어 교체</div>
+            </div>
+          </div>
+
+          <p>
+            경계에는 두 규칙이 있다. 애드인은 경계를 0.2 mm 안으로 좁혀서 경계 양쪽에 샘플을 하나씩 둔다. 코드 주석은 이 폭을 치수 합격선(0.2 mm)과 같은 값이라고 적는다. 엔진은 틈에 든 값을 가까운 쪽 묶음에 넣는다. 틈 가운데가 경계가 된다.
+          </p>
+
+          <div class="callout edge">
+            <span class="label">묶음 상한</span>
+            <p>
+              묶음은 파라미터당 4개(기본 묶음 포함)까지다. 묶음마다 나머지 슬라이더의 단독 스윕을 따로 뽑아야 하기 때문이다(ADR-0005, 위상 변화는 위상 묶음으로 나눠 다룬다). 넘으면 기본값에서 먼 묶음부터 빼고 범위를 그 경계 앞에서 줄이며, 피드백 종류 <code>topology_group_limit</code>을 남긴다. 위상 묶음은 명세에는 적히지 않는다. 명세는 슬라이더 범위만 말하고, 묶음은 스윕 데이터에 있다.
+            </p>
+          </div>
+        </section>
+
+        <section id="code">
+          <h2>코드 따라가기</h2>
+          <p>
+            <strong>흐름:</strong> 애드인이 스윕을 묶음으로 나눔 → 서버가 묶음별 기준 형상으로 업로드 묶음을 검사 → 조립이 슬라이더가 닿는 묶음만 추림 → 엔진이 묶음마다 기준 형상과 이동량을 만듦 → 구성기가 묶음이 바뀔 때 메쉬를 교체.
+          </p>
+
+          <h3>1. 애드인: 경계를 찾아 묶음으로 나눈다</h3>
+          <p>
+            상수 둘이 규칙을 정한다. 묶음 상한과 경계 폭이다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/addin/ConfiguratorUploader/uploader/core.py#L321-L325">addin/ConfiguratorUploader/uploader/core.py:321-325</a></p>
+<pre><span class="add"># 파라미터 하나의 위상 묶음 상한(기본 묶음 포함). 묶음마다 나머지 파라미터를 다시 스윕하기 때문이다(ADR-0005).</span>
+<span class="add">TOPOLOGY_GROUP_LIMIT = 4</span>
+<span class="add"></span>
+<span class="add"># 위상 경계를 이 폭(파라미터 값) 안으로 좁힌다. 경계에서 형상이 바로 바뀌므로 치수 합격선(0.2 mm)과 같은 값을 쓴다.</span>
+<span class="add">BOUNDARY_TOLERANCE = 0.2</span></pre>
+          <p>
+            경계를 좁히는 <code>_bisect</code>는 이분법이다. 안쪽 점(기준 형상과 면 구성이 같음)과 바깥쪽 점 사이를 반으로 나누며 <code>BOUNDARY_TOLERANCE</code> 안으로 좁힌다. 가운데 값에서 재계산이 실패하면 어느 쪽인지 알 수 없으므로 거기서 멈춘다. 정의는 <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/addin/ConfiguratorUploader/uploader/core.py#L348"><code>addin/ConfiguratorUploader/uploader/core.py:348</code></a>에 있다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/addin/ConfiguratorUploader/uploader/core.py#L355-L364">addin/ConfiguratorUploader/uploader/core.py:355-364</a></p>
+<pre><span class="add">    counts = list(reference.counts)</span>
+<span class="add">    while abs(outer["value"] - inner["value"]) &gt; BOUNDARY_TOLERANCE:</span>
+<span class="add">        sample = _sample(model, parameter, (inner["value"] + outer["value"]) / 2, counts)</span>
+<span class="add">        if sample["status"] != "ok":</span>
+<span class="add">            break</span>
+<span class="add">        if Composition.of(sample) == reference.composition:</span>
+<span class="add">            inner = sample</span>
+<span class="add">        else:</span>
+<span class="add">            outer = sample</span>
+<span class="add">    return inner, outer</span></pre>
+          <p>
+            <code>_split_side</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/addin/ConfiguratorUploader/uploader/core.py#L367"><code>addin/ConfiguratorUploader/uploader/core.py:367</code></a>)는 기본값에서 한쪽 끝으로 가며 점을 훑는다. 현재 묶음의 면 구성과 같으면 그 묶음에 담는다. 다르면서 개수형 값이 함께 바뀌었으면 위상 경계라서 이분법으로 좁히고 새 묶음을 연다. 개수형 값이 그대로인데 면 구성이 바뀌었으면 모델링 오류가 의심되므로 거기서 멈춘다(티켓 10과 같은 판단이다).
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/addin/ConfiguratorUploader/uploader/core.py#L387-L400">addin/ConfiguratorUploader/uploader/core.py:387-400</a></p>
+<pre><span class="add">        if Composition.of(point) == group.reference.composition:</span>
+<span class="add">            group.points.append(pending.pop(0))</span>
+<span class="add">            continue</span>
+<span class="add">        if not _changed_counts(point, group.reference):</span>
+<span class="add">            side.stop = point</span>
+<span class="add">            break</span>
+<span class="add">        inner, outer = _bisect(model, parameter, group.points[-1] if group.points else origin, point, group.reference)</span>
+<span class="add">        if not _changed_counts(outer, group.reference):</span>
+<span class="add">            side.stop = outer</span>
+<span class="add">            break</span>
+<span class="add">        side.edges.append((inner, outer))</span>
+<span class="add">        # 바깥쪽 점으로 새 묶음을 연다. point는 다음 차례에 이 묶음과 다시 견준다.</span>
+<span class="add">        side.groups.append(_Group(Baseline(Composition.of(outer), dict(outer["counts"])), [outer]))</span>
+<span class="add">    return side</span></pre>
+          <p>
+            묶음이 상한을 넘으면 <code>_limit_groups</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/addin/ConfiguratorUploader/uploader/core.py#L403"><code>addin/ConfiguratorUploader/uploader/core.py:403</code></a>)가 기본값에서 먼 묶음부터 하나씩 뺀다. 묶음 안 첫 점과 기본값의 거리로 먼 정도를 잰다. 뺀 쪽은 범위가 그 경계의 안쪽 점까지로 줄고 <code>topology_group_limit</code> 기록이 남는다.
+          </p>
+          <p>
+            묶음을 확정하면 <code>_group_json</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/addin/ConfiguratorUploader/uploader/core.py#L479"><code>addin/ConfiguratorUploader/uploader/core.py:479</code></a>)이 묶음 기록을 만든다. 기준 값(anchor)은 묶음 가운데에 가장 가까운 샘플이고, 그 값으로 모델을 돌려 기준 형상을 뽑은 뒤, 나머지 파라미터마다 단독 스윕을 뽑는다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/addin/ConfiguratorUploader/uploader/core.py#L487-L504">addin/ConfiguratorUploader/uploader/core.py:487-504</a></p>
+<pre><span class="add">    values = sorted(s["value"] for s in members)</span>
+<span class="add">    middle = (values[0] + values[-1]) / 2</span>
+<span class="add">    # 기준 형상: 묶음 가운데에 가장 가까운 샘플. 같으면 기본값에 가까운 쪽</span>
+<span class="add">    anchor = min(values, key=lambda v: (abs(v - middle), abs(v - parameter.value)))</span>
+<span class="add">    try:</span>
+<span class="add">        model.set_parameter(parameter.name, anchor)</span>
+<span class="add">        shape = _shape_json(model, baseline=True)</span>
+<span class="add">        reference = Baseline(Composition.of(shape), model.parameter_values(list(group.reference.counts)))</span>
+<span class="add">        return {</span>
+<span class="add">            "range": {"min": values[0], "max": values[-1]},</span>
+<span class="add">            "anchor": anchor,</span>
+<span class="add">            "counts": reference.counts,</span>
+<span class="add">            "parts": _parts(model.bodies(), shape["faces"]),</span>
+<span class="add">            "baseline": shape,</span>
+<span class="add">            "sweeps": [_single_sweep(model, other, reference) for other in others],</span>
+<span class="add">        }</span>
+<span class="add">    finally:</span>
+<span class="add">        model.restore_parameter(parameter)</span></pre>
+          <p>
+            티켓 기록은 anchor를 가운데로 둔 까닭을 "묶음 안에서 덧셈 오차가 가장 커지는 거리를 줄이기 위해서"라고 적었다. 기준에서 먼 곳일수록 이동량을 더한 결과가 실제 형상과 어긋나기 쉽다는 뜻으로 읽힌다(이 풀이는 내 해석이다).
+          </p>
+
+          <h3>2. 서버: 샘플을 자기 묶음의 기준 형상과 짝짓는다</h3>
+          <p>
+            업로드 묶음 스키마에 <code>groups</code>가 생겼다. 서버는 샘플의 점 수를 검사하려고 샘플의 면을 기준 형상의 면과 짝짓는다. 4칸 묶음의 샘플은 기본 형상과 면 구성이 달라 짝지어지지 않으므로, 이제 서버는 샘플 값이 든 묶음을 찾아 그 묶음의 기준 형상과 짝짓는다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/server/bundle.py#L56-L64">server/bundle.py:56-64</a></p>
+<pre><span class="add">def _baseline_of(bundle: dict[str, Any], sweep: dict[str, Any], value: float) -&gt; list[dict[str, Any]]:</span>
+<span class="add">    """샘플 값이 든 위상 묶음의 기준 형상 면. 묶음 밖이면 기본 형상이다(ADR-0005)."""</span>
+<span class="add">    for group in sweep.get("groups", []):</span>
+<span class="add">        if group["range"]["min"] &lt;= value &lt;= group["range"]["max"]:</span>
+<span class="add">            faces: list[dict[str, Any]] = group["baseline"]["faces"]</span>
+<span class="add">            return faces</span>
+<span class="add">    baseline: list[dict[str, Any]] = bundle["baseline"]["faces"]</span>
+<span class="add">    return baseline</span>
+<span class="add"></span></pre>
+
+          <h3>3. 조립: 슬라이더가 닿는 묶음만 결과물에 담는다</h3>
+          <p>
+            슬라이더 범위가 묶음 범위와 겹치는지 보는 <code>reaches</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/configurator/src/engine.ts#L255"><code>configurator/src/engine.ts:255</code></a>)는 조립, 수치 검증, 범위 검증이 같이 쓴다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/configurator/src/engine.ts#L255-L256">configurator/src/engine.ts:255-256</a></p>
+<pre><span class="add">export const reaches = (slider: Slider, group: { range: { min: number; max: number } }) =&gt;</span>
+<span class="add">  group.range.max &gt;= slider.min &amp;&amp; group.range.min &lt;= slider.max;</span></pre>
+          <p>
+            조립 단계의 <code>engineSweeps</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/configurator/pipeline/assemble.ts#L39"><code>configurator/pipeline/assemble.ts:39</code></a>, 호출은 43행)는 이 판정을 써서 닿지 않는 묶음을 <code>sweeps.json</code>에서 뺀다. 수치 검증과 범위 검증도 같은 판정을 쓴다. 묶음 안의 단독 스윕에도 같은 필터를 재귀로 적용한다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/configurator/pipeline/assemble.ts#L39-L43">configurator/pipeline/assemble.ts:39-43</a></p>
+<pre><span class="add">function engineSweeps(spec: Spec, sweeps: Sweep[]): Sweep[] {</span>
+<span class="add">  return sweeps.flatMap(({ parameter, samples, groups = [] }) =&gt; {</span>
+<span class="add">    const slider = spec.sliders.find((s) =&gt; s.id === parameter);</span>
+<span class="add">    if (!slider) return [];</span>
+<span class="add">    const reached = groups.filter((g) =&gt; reaches(slider, g));</span></pre>
+
+          <h3>4. 변형 엔진: 묶음마다 하나씩 만들고, 값이 든 묶음으로 계산한다</h3>
+          <p>
+            이전의 <code>createMorph</code>는 기본 형상 하나만 알았다. 이 변경에서 묶음 하나를 만드는 일은 <code>createGroupMorph</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/configurator/src/engine.ts#L157"><code>configurator/src/engine.ts:157</code></a>)로 분리됐다. 인자 <code>samplesOf</code>가 슬라이더마다 이 묶음의 단독 스윕 샘플을 돌려준다. 기본 묶음에서는 위상 묶음에 든 샘플을 뺀다.
+          </p>
+          <p>
+            <code>createMorph</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/configurator/src/engine.ts#L258"><code>configurator/src/engine.ts:258</code></a>)는 기본 묶음을 만들고, 묶음이 있는 슬라이더마다 묶음별 범위(<code>GroupSpan</code>)를 모은다. 값이 어느 묶음에 드는지는 <code>groupFor</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/configurator/src/engine.ts#L301"><code>configurator/src/engine.ts:301</code></a>)가 정한다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/configurator/src/engine.ts#L301-L309">configurator/src/engine.ts:301-309</a></p>
+<pre><span class="add">  const groupFor = (values: Record&lt;string, number&gt;): GroupMorph =&gt; {</span>
+<span class="add">    for (const { id, defaultValue, spans } of grouped) {</span>
+<span class="add">      const value = values[id] ?? defaultValue;</span>
+<span class="add">      const gap = (span: GroupSpan) =&gt; Math.max(span.min - value, value - span.max, 0);</span>
+<span class="add">      const nearest = spans.reduce((best, span) =&gt; (gap(span) &lt; gap(best) ? span : best));</span>
+<span class="add">      if (nearest.morph !== main) return nearest.morph;</span>
+<span class="add">    }</span>
+<span class="add">    return main;</span>
+<span class="add">  };</span></pre>
+          <p>
+            <code>gap</code>이 0이면 값이 묶음 안이다. 경계 양쪽 샘플 사이 틈에서는 <code>gap</code>이 작은 쪽이 이기므로 틈의 가운데가 경계가 된다. 슬라이더가 둘 이상 기본 묶음 밖일 때는 명세 순서로 앞 슬라이더의 묶음을 따른다. 티켓 기록은 두 슬라이더가 동시에 경계를 넘는 명세를 범위 검증이 거른다고 적었다.
+          </p>
+          <p>
+            마지막으로 <code>shape</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/configurator/src/engine.ts#L311"><code>configurator/src/engine.ts:311</code></a>)이 값이 든 묶음의 기준 위치에 그 묶음의 이동량을 더해 <code>MorphShape</code>를 낸다. 같은 묶음이면 <code>faces</code>와 <code>triangles</code>는 매번 같은 객체다. 구성기는 이 동일성으로 묶음이 바뀌었는지 안다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/configurator/src/engine.ts#L311-L317">configurator/src/engine.ts:311-317</a></p>
+<pre><span class="add">  const shape = (values: Record&lt;string, number&gt;): MorphShape =&gt; {</span>
+<span class="add">    const morph = groupFor(values);</span>
+<span class="add">    const out = Float64Array.from(morph.base);</span>
+<span class="add">    for (const track of morph.tracks) addDelta(out, track, values[track.id] ?? track.defaultValue);</span>
+<span class="add">    for (const grid of morph.grids) addResidual(out, grid, grid.ids.map((id, k) =&gt; values[id] ?? grid.defaults[k]) as [number, number]);</span>
+<span class="add">    return { faces: morph.faces, triangles: morph.triangles, base: morph.base, positions: out };</span>
+<span class="add">  };</span></pre>
+
+          <h3>5. 구성기: 묶음이 바뀌면 메쉬를 새로 만든다</h3>
+          <p>
+            <code>update</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/configurator/src/core.ts#L127"><code>configurator/src/core.ts:127</code></a>) 안의 분기가 핵심이다. <code>faces</code>가 이전과 같은 객체면 위치 버퍼만 갱신하고, 다르면 <code>show</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/configurator/src/core.ts#L56"><code>configurator/src/core.ts:56</code></a>)로 메쉬를 지우고 새 면 구성으로 다시 만든다. 부품 색은 부품 이름마다 처음 본 순서로 정해 두어서 묶음이 바뀌어도 같은 부품은 같은 색이다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/configurator/src/core.ts#L127-L137">configurator/src/core.ts:127-137</a></p>
+<pre><span class="add">  const update = () =&gt; {</span>
+<span class="add">    const shape = morph.shape(values);</span>
+<span class="add">    if (shape.faces !== shown.faces) {</span>
+<span class="add">      show(shape);</span>
+<span class="add">    } else {</span>
+<span class="add">      (shown.position.array as Float32Array).set(shape.positions);</span>
+<span class="add">      shown.position.needsUpdate = true;</span>
+<span class="add">      for (const mesh of shown.meshes) mesh.geometry.computeVertexNormals();</span>
+<span class="add">    }</span>
+<span class="add">    render();</span>
+<span class="add">  };</span></pre>
+          <p>
+            칸막이 선반 결과물을 Chrome에서 열어 폭 600, 900, 1300에서 칸막이가 1, 2, 3개로 바뀌고 콘솔 오류가 없음을 확인했다고 티켓 기록에 적혀 있다.
+          </p>
+
+          <h3>6. 시험: 경계 양쪽에서 실제 녹화 형상과 맞는다</h3>
+          <p>
+            엔진 시험은 칸막이 선반 합성 녹화본에서 경계 바로 안팎의 바디 목록을 확인한다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/771e02e2bc46eb9c746752f4c8f09238cda60a35/configurator/test/engine-topology.test.ts#L65-L76">configurator/test/engine-topology.test.ts:65-76</a></p>
+<pre>test("위상 경계에서 칸막이가 페이드 없이 바로 나타난다", () =&gt; {
+  const morph = createMorph(spec, recording);
+  assert.deepEqual(bodiesOf(morph.shape({ shelf_w: 799.8 })), ["Carcass", "Divider"]);
+  assert.deepEqual(bodiesOf(morph.shape({ shelf_w: 800.2 })), ["Carcass", "Divider", "Body1"]);
+  assert.deepEqual(bodiesOf(morph.shape({ shelf_w: 1199.8 })), ["Carcass", "Divider", "Body1"]);
+  assert.deepEqual(bodiesOf(morph.shape({ shelf_w: 1200.2 })), ["Carcass", "Divider", "Body1", "Body1 (2)"]);
+  // 경계 바로 바깥의 형상은 경계에서 찾은 샘플 그대로다(사이 형상을 지어내지 않는다)
+  for (const sample of width.samples.filter((s) =&gt; Math.abs(s.value - 800) &lt; 0.2 || Math.abs(s.value - 1200) &lt; 0.2)) {
+    const shape = morph.shape({ shelf_w: sample.value });
+    assert.ok(maxDistance(shape.positions, recordedPositions(shape, sample.faces)) &lt; 1e-6, `shelf_w=${sample.value}`);
+  }
+});</pre>
+        </section>
+
+        <section id="quiz">
+          <h2>퀴즈</h2>
+
+
+          <div class="quiz-question">
+            <p class="q">
+              애드인은 위상 경계를 0.2 mm 안으로 좁히고 경계 양쪽에 샘플을 하나씩 남긴다. 경계에서 형상을 섞지 않고 바로 바꾸는 구성기에서, 이렇게 좁게 잡는 이유로 가장 맞는 것은?
+            </p>
+            <button class="quiz-option" data-correct>경계에서 보이는 형상은 가까운 샘플의 것이라 틈이 넓으면 실제와 달라진다</button>
+            <button class="quiz-option">샘플이 많을수록 보간이 매끄러워져 칸막이를 서서히 나타나게 할 수 있다</button>
+            <button class="quiz-option">폭이 좁을수록 서버가 면 이름을 짝짓는 계산이 빨라져 업로드 시간이 줄어든다</button>
+            <div class="quiz-feedback" role="status">
+              경계에서는 보간하지 않고 가까운 쪽 샘플 형상으로 바뀌므로, 샘플과 경계 사이 거리가 곧 화면의 오차다. 좁은 폭은 샘플과 경계 사이 거리를 줄인다(이 풀이는 내 해석이다). 코드 주석은 이 폭을 치수 합격선(0.2 mm)과 같은 값으로 잡았다고 적는다. 칸막이는 서서히 나타나지 않고 한 번에 나타난다(ADR-0005). 면 짝짓기 비용은 폭과 상관없다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">
+              엔진이 4칸 묶음에서도 깊이 슬라이더(<code>shelf_d</code>)의 이동량을 기본 형상 기준 단독 스윕에서 가져온다고 하자. 폭 1250에서 깊이를 바꾸면 어떻게 되는가?
+            </p>
+            <button class="quiz-option">더해지지만 기준에서 멀어진 만큼 오차가 커질 뿐 모양은 대체로 맞는다</button>
+            <button class="quiz-option">엔진이 가장 가까운 꼭짓점끼리 자동으로 다시 짝지어서 이동량을 더해 준다</button>
+            <button class="quiz-option" data-correct>깊이 이동량이 4칸 형상과 꼭짓점 수와 순서가 달라 더할 수가 없다</button>
+            <div class="quiz-feedback" role="status">
+              이동량은 기준 형상의 꼭짓점 순서에 맞춘 숫자 배열이다. 기본 형상(3칸)과 4칸 형상은 바디 수가 달라 꼭짓점 수와 짝이 다르므로 배열이 대응하지 않는다. 엔진에는 꼭짓점을 다시 짝짓는 기능이 없고, 그래서 묶음마다 자기 기준 형상에서 단독 스윕을 따로 뽑는다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">
+              구성기의 <code>update</code>에서 <code>shape.faces !== shown.faces</code> 분기를 지우고 항상 위치 버퍼만 갱신하게 하면, 폭 슬라이더가 800을 넘는 순간 무엇이 깨지는가?
+            </p>
+            <button class="quiz-option">슬라이더가 경계 값에서 멈춰 더 이상 움직이지 않게 된다</button>
+            <button class="quiz-option" data-correct>메쉬와 위치 버퍼가 이전 면 구성의 것으로 남아 새 배치와 안 맞는다</button>
+            <button class="quiz-option">칸막이가 한 번에 생기지 않고 몇 프레임에 걸쳐 서서히 나타난다</button>
+            <div class="quiz-feedback" role="status">
+              메쉬는 면 구성마다 만든 인덱스와 위치 버퍼를 가진다. 묶음이 바뀌면 꼭짓점 수와 연결이 달라지는데, 이전 메쉬를 그대로 두고 값만 덮어쓰면 새 칸막이 바디가 없거나 배열 길이가 맞지 않는다. 슬라이더 입력은 별개의 UI이므로 멈추지 않고, 서서히 나타나는 일도 없다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">
+              기본값 900인 폭 슬라이더에서, 왼쪽으로 600과 450에서 시작하는 묶음 둘, 오른쪽으로 1100과 1300에서 시작하는 묶음 둘이 발견되었다. 기본 묶음까지 5개다. 상한 4를 맞추려면 어떻게 되는가?
+            </p>
+            <button class="quiz-option">묶음이 더 많은 쪽의 바깥 묶음이 빠지므로 1300 묶음이 대신 빠진다</button>
+            <button class="quiz-option">업로드가 거절되고 운영자가 남길 묶음 네 개를 직접 고른다</button>
+            <button class="quiz-option">기본값에 가장 가까운 600 묶음부터 빠지고 나머지는 그대로 남는다</button>
+            <button class="quiz-option" data-correct>가장 먼 450 묶음이 빠지고 왼쪽 범위가 그 경계 안쪽까지 줄어든다</button>
+            <div class="quiz-feedback" role="status">
+              애드인은 기본값에서 먼 묶음부터 하나씩 뺀다. 거리는 묶음 안 첫 점과 기본값 사이로 재며, 450 묶음이 기본값에서 450 mm로 가장 멀다(1300 묶음은 400 mm). 뺀 쪽 범위는 그 경계 안쪽 점으로 줄고 <code>topology_group_limit</code> 기록이 검증 피드백으로 나온다. 업로드가 거절되지는 않는다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">
+              칸막이 선반 명세의 폭 슬라이더 범위를 600~1000으로 좁혔다. 4칸 묶음(1200.04~1350)은 조립 때 어떻게 다뤄지는가?
+            </p>
+            <button class="quiz-option">결과물에는 담기되 고객이 그 구간에 닿지 못해 쓰이지 않는다</button>
+            <button class="quiz-option">조립이 오류를 내고 슬라이더 범위를 다시 쓰라는 피드백을 낸다</button>
+            <button class="quiz-option" data-correct>결과물에 담기지 않아 엔진이 필요한 묶음만 만든다</button>
+            <button class="quiz-option">묶음은 담기지만 기준 형상은 빠지고 이동량 배열만 남는다</button>
+            <div class="quiz-feedback" role="status">
+              조립의 <code>engineSweeps</code>는 <code>reaches</code>가 참인 묶음만 남긴다. 4칸 묶음은 범위 1200.04~1350이 슬라이더 최댓값 1000보다 커서 닿지 않으므로 빠지고, 수치 검증과 범위 검증도 그 묶음을 보지 않는다. 오류나 피드백 대상이 아니라 정상적인 걸러내기다.
+            </div>
+          </div>
+        </section>
+
+      </main>
+
+      <footer class="colophon">
+        explain-diff-html 스킬로 만든 설명 문서
+      </footer>
+    </div>
+
+    <script>
+      document.querySelectorAll(".quiz-question").forEach(function (question) {
+        var feedback = question.querySelector(".quiz-feedback");
+
+        // Shuffle the options on every load, so the correct answer's position is
+        // random and a reader cannot fall into answering by position. Each option
+        // is re-inserted before the feedback block, which has to stay last.
+        var shuffled = Array.prototype.slice.call(
+          question.querySelectorAll(".quiz-option"),
+        );
+        for (var i = shuffled.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var swap = shuffled[i];
+          shuffled[i] = shuffled[j];
+          shuffled[j] = swap;
+        }
+        shuffled.forEach(function (option) {
+          question.insertBefore(option, feedback);
+        });
+
+        var options = question.querySelectorAll(".quiz-option");
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            var isCorrect = option.hasAttribute("data-correct");
+            options.forEach(function (other) {
+              other.disabled = true;
+              if (other.hasAttribute("data-correct"))
+                other.classList.add("correct");
+            });
+            if (!isCorrect) option.classList.add("incorrect");
+            feedback.classList.add("show", isCorrect ? "ok" : "bad");
+            feedback.insertBefore(
+              document.createTextNode(isCorrect ? "Correct. " : "Not quite. "),
+              feedback.firstChild,
+            );
+          });
+        });
+      });
+    </script>
+    <script>
+      // Mermaid loads without blocking: the page scripts above run first, and a slow
+      // or blocked CDN never holds up the quiz or the rest of the page. This is the
+      // only permitted external request, and it fires only when a .mermaid block is
+      // present. Leave it in place; it is a no-op on pages without a diagram.
+      (function () {
+        var blocks = document.querySelectorAll(".mermaid");
+        if (!blocks.length) return;
+
+        // mermaid.run() replaces each block's text with an SVG, so the source is
+        // gone after the first render. Stash it, because a theme change has to
+        // parse it again.
+        blocks.forEach(function (block) {
+          block.dataset.source = block.textContent;
+        });
+
+        var darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+        function render() {
+          blocks.forEach(function (block) {
+            block.removeAttribute("data-processed");
+            block.textContent = block.dataset.source;
+          });
+          try {
+            window.mermaid.initialize({
+              startOnLoad: false,
+              theme: darkQuery.matches ? "dark" : "default",
+            });
+          } catch (e) {}
+          Promise.resolve(window.mermaid.run({ nodes: blocks })).catch(
+            function () {},
+          );
+        }
+
+        var s = document.createElement("script");
+        s.src =
+          "https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js";
+        s.integrity =
+          "sha384-T/0lMUdJpd2S1ZHtRiofG3htU3xPCrFVeAQ1UUE2TJwlEJSV5NUwn30kP28n238E";
+        s.crossOrigin = "anonymous";
+        s.onload = function () {
+          render();
+          // Re-render when the reader switches system theme, so the diagram does
+          // not stay light on a dark page.
+          if (darkQuery.addEventListener)
+            darkQuery.addEventListener("change", render);
+        };
+        document.head.appendChild(s);
+      })();
+    </script>
+  </body>
+</html>

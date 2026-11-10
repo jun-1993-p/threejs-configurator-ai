@@ -1,0 +1,997 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>티켓 13: 두께 고정 실측과 두께 교차 검증 설명</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f6f7f9;
+        --text: #1c2024;
+        --muted: #60646c;
+        --border: #d7dbdf;
+        --border-strong: #848c95;
+        --accent: #2f5ee0;
+        --accent-soft: #e8eefc;
+        --edge: #a35608;
+        --edge-soft: #fbefe1;
+        --ok: #1a7f47;
+        --ok-soft: #e4f3ea;
+        --bad: #c62a3b;
+        --bad-soft: #fbe7e9;
+        --measure: 68ch;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181b;
+          --surface: #1f2226;
+          --text: #eceef0;
+          --muted: #9ba1a6;
+          --border: #33383d;
+          --border-strong: #646c75;
+          --accent: #7aa2ff;
+          --accent-soft: #1e2740;
+          --edge: #e08c3a;
+          --edge-soft: #2e2517;
+          --ok: #57c98b;
+          --ok-soft: #17281d;
+          --bad: #f07178;
+          --bad-soft: #2c1a1c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:visited {
+        color: var(--accent);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 2.5rem;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 6rem;
+      }
+      nav.toc {
+        position: sticky;
+        top: 2.5rem;
+        align-self: start;
+        font-size: 0.9rem;
+      }
+      nav.toc strong {
+        display: block;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc li {
+        margin: 0.35rem 0;
+      }
+      nav.toc a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav.toc a:hover {
+        color: var(--accent);
+      }
+      main {
+        min-width: 0;
+      }
+      main > header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1.25rem;
+        margin-bottom: 2rem;
+      }
+      main > header h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.6rem;
+      }
+      main > header .lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: var(--measure);
+      }
+      main > header .provenance {
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        margin: 0.7rem 0 0;
+      }
+      .colophon {
+        grid-column: 1 / -1;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        border-top: 1px solid var(--border);
+        margin: 4rem 0 0;
+        padding: 1.2rem 0 0;
+      }
+      .colophon a {
+        color: inherit;
+      }
+      section {
+        margin-bottom: 3.5rem;
+      }
+      section h2 {
+        font-size: 1.4rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      section h3 {
+        font-size: 1.05rem;
+        margin: 2rem 0 0.6rem;
+      }
+      section p,
+      section ul,
+      section ol {
+        max-width: var(--measure);
+      }
+      li {
+        margin: 0.3rem 0;
+      }
+      /* Code blocks: white-space set here so a filled-in block cannot collapse. */
+      pre,
+      .code-block {
+        white-space: pre-wrap;
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        font:
+          0.86rem/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        tab-size: 2;
+      }
+      pre .del {
+        color: var(--bad);
+      }
+      pre .add {
+        color: var(--ok);
+      }
+      pre .hi {
+        background: var(--accent-soft);
+        border-radius: 3px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--surface);
+        padding: 0.05rem 0.3rem;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      /* A file:line reference linked to the code it names. Wraps a <code> span
+         in prose, or the bare text of a .filename label. */
+      a.srcref {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px solid var(--muted);
+      }
+      a.srcref:hover {
+        border-bottom-color: var(--accent);
+      }
+      a.srcref:hover code {
+        background: var(--accent-soft);
+      }
+      /* Path label for the code block below it. */
+      .filename {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        margin: 1.5rem 0 0.3rem;
+        overflow-wrap: anywhere;
+      }
+      /* Comparison table: one row per case, .yes / .no / .warn on outcome cells. */
+      table.vals {
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.86rem;
+        width: 100%;
+        max-width: 620px;
+      }
+      table.vals th,
+      table.vals td {
+        border: 1px solid var(--border-strong);
+        padding: 0.4rem 0.65rem;
+        text-align: left;
+      }
+      table.vals th {
+        background: var(--surface);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+      table.vals td.yes {
+        background: var(--ok-soft);
+      }
+      table.vals td.no {
+        background: var(--bad-soft);
+      }
+      table.vals td.warn {
+        background: var(--edge-soft);
+      }
+      /* Callouts: .callout for a concept, .callout.edge for a caveat. */
+      .callout {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+        padding: 0.85rem 1.1rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .callout .label {
+        display: block;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+      }
+      .callout.edge {
+        background: var(--edge-soft);
+        border-left-color: var(--edge);
+      }
+      .callout.edge .label {
+        color: var(--edge);
+      }
+      /* Skippable deep-background block. */
+      details.skippable {
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 0.75rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      details.skippable > summary {
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      details.skippable[open] > summary {
+        margin-bottom: 0.75rem;
+      }
+      /* Diagram family 1: simplified app UI mockup. */
+      .ui-mockup {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1.5rem 0;
+        max-width: 560px;
+        font-size: 0.85rem;
+      }
+      .ui-mockup .bar {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0.5rem 0.85rem;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .ui-mockup .body {
+        padding: 1.1rem 0.85rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+      }
+      .mock-caption {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.3rem 0 0;
+        max-width: var(--measure);
+      }
+      /* Diagram family 2: data flow between components, example data on the arrows. */
+      .dataflow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+      /* Each arrow travels with the node it points at. Without this, a flow
+         wider than the column wraps between an arrow and its node, leaving the
+         arrow pointing at nothing and the node stranded on the next line. */
+      .dataflow .step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .dataflow .node {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 175px;
+      }
+      .dataflow .node.terminal {
+        background: var(--surface);
+        border-color: var(--border);
+      }
+      .dataflow .node.pass {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .dataflow .node.fail {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .dataflow .arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.72rem;
+        min-width: 96px;
+      }
+      .dataflow .arrow .line {
+        width: 100%;
+        border-top: 2px solid var(--border);
+        position: relative;
+      }
+      .dataflow .arrow .line::after {
+        content: "\25B6";
+        position: absolute;
+        right: -2px;
+        top: -0.72em;
+        color: var(--border);
+        font-size: 0.7rem;
+      }
+      .dataflow .arrow .data {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.35rem;
+        margin-bottom: 0.2rem;
+        font-family: ui-monospace, monospace;
+      }
+      .flow-label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin: 1.25rem 0 0.25rem;
+      }
+      /* A numbered sequence with one marked position: call stacks, retry
+         counts, any ranked list. Not one of the numbered families; reach for
+         it when a step in an ordered list is the point. */
+      .frames {
+        list-style: none;
+        padding: 0;
+        margin: 1.25rem 0;
+        max-width: 620px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.82rem;
+      }
+      .frames li {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.45rem 0.7rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+      }
+      .frames li.target {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .frames .n {
+        display: inline-block;
+        min-width: 2.2em;
+        color: var(--muted);
+      }
+      /* Diagram family 3: node/recursion tree (ASTs, nesting, recursion) */
+      .tree {
+        margin: 1.5rem 0;
+        font:
+          0.82rem/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      .tnode {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.3rem 0.55rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+        display: inline-block;
+      }
+      .tnode.leaf {
+        background: var(--bg);
+      }
+      .tnode.kept {
+        border-color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tnode.skipped {
+        border-color: var(--muted);
+        color: var(--muted);
+      }
+      .tchildren {
+        margin-left: 1.4rem;
+        border-left: 2px dotted var(--border);
+        padding-left: 0.9rem;
+      }
+      .tnote {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-left: 0.4rem;
+      }
+
+      /* Optional tabular body for .ui-mockup, when the mocked UI is a table. */
+      .mock-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .mock-table th,
+      .mock-table td {
+        border: 1px solid var(--border);
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+      }
+      .mock-table th {
+        background: var(--surface);
+        font-weight: 600;
+      }
+      .mock-table .col-highlight {
+        background: var(--accent-soft);
+      }
+
+      .mermaid {
+        margin: 1.75rem 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .mermaid .edgeLabel,
+      .mermaid .edgeLabel p,
+      .mermaid .edgeLabel span,
+      .mermaid .edgeLabel foreignObject div {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+      }
+      /* Quiz */
+      .quiz-question {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .quiz-question > p.q {
+        font-weight: 600;
+        margin: 0 0 0.85rem;
+      }
+      .quiz-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 0.5rem;
+        font: inherit;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .quiz-option:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .quiz-option.correct {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .quiz-option.incorrect {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .quiz-option:disabled {
+        cursor: default;
+      }
+      .quiz-feedback {
+        display: none;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 7px;
+        margin-top: 0.3rem;
+      }
+      .quiz-feedback.show {
+        display: block;
+      }
+      .quiz-feedback.ok {
+        background: var(--ok-soft);
+      }
+      .quiz-feedback.bad {
+        background: var(--edge-soft);
+      }
+      a:focus-visible,
+      summary:focus-visible,
+      .quiz-option:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+      table.vals td.yes::before,
+      .dataflow .node.pass::before,
+      .tnode.kept::before,
+      .quiz-option.correct::before {
+        content: "\2713\00a0";
+        font-weight: 700;
+      }
+      table.vals td.no::before,
+      .dataflow .node.fail::before,
+      .quiz-option.incorrect::before {
+        content: "\2717\00a0";
+        font-weight: 700;
+      }
+      table.vals td.warn::before {
+        content: "\25B2\00a0";
+        font-weight: 700;
+      }
+      .tnode.skipped::before {
+        content: "\2013\00a0";
+        font-weight: 700;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 1rem;
+          padding: 1.25rem 1.1rem 4rem;
+        }
+        nav.toc {
+          position: static;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+        }
+        body {
+          font-size: 16px;
+        }
+        main > header h1 {
+          font-size: 1.6rem;
+        }
+        table.vals {
+          display: block;
+          overflow-x: auto;
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <nav class="toc">
+        <strong>목차</strong>
+        <ol>
+          <li><a href="#background">배경</a></li>
+          <li><a href="#intuition">핵심 아이디어</a></li>
+          <li><a href="#code">코드 따라가기</a></li>
+          <li><a href="#quiz">퀴즈</a></li>
+        </ol>
+      </nav>
+
+      <main>
+        <header>
+          <h1>티켓 13: 두께 고정 실측과 두께 교차 검증</h1>
+          <p class="lead">
+            슬라이더를 움직이는 동안 고른 두께가 정말 그대로인지 Fusion 형상으로 재고, 두께 후보와 각 슬라이더를 함께 바꾼 조합에서도 변형 엔진의 덧셈이 맞는지 확인하며, 틀리면 격자 보강으로 고치게 한 변경이다.
+          </p>
+          <p class="provenance">
+            jun-1993-p/threejs-configurator-ai 티켓 13 (커밋 2a98730), 2026-11-04에 설명함. References link to this commit.
+          </p>
+        </header>
+
+        <section id="background">
+          <h2>배경</h2>
+          <details class="skippable">
+            <summary>이 프로젝트가 처음이라면: 깊은 배경을 펼치세요.</summary>
+            <p>
+              프로젝트는 Fusion CAD 모델을 쇼핑몰 페이지의 div 안에서 도는 three.js 구성기로 바꾼다. 구성기의 <strong>변형 엔진</strong>은 CAD 애드인이 미리 뽑아 둔 형상 샘플에서 꼭짓점 이동량을 읽어, 슬라이더 값에 맞춰 섞는다. 슬라이더 둘을 함께 움직이면 두 단독 스윕의 이동량을 더하는데, 이 덧셈이 맞는다는 보장은 없다. 그래서 파이프라인은 <strong>교차 검증</strong>을 한다. 서버가 애드인에 슬라이더 쌍의 교차 검증 샘플을 요청하고(ADR-0004, 범위 모서리 4곳이라는 값 묶음은 docs/spec-schema.md), 받은 Fusion 형상을 엔진의 덧셈 결과와 비교한다.
+            </p>
+            <p>
+              덧셈이 틀리는 쌍은 <strong>격자 보강</strong>으로 고친다(ADR-0008). 명세를 고쳐 쓰고도 계속 틀리는 쌍은 3×3 격자 샘플(두 슬라이더의 최솟값·기본값·최댓값)을 받아, 덧셈이 틀린 만큼을 나머지 이동량으로 담는다. 상품당 2쌍까지다. 검증이 틀린 곳을 알리는 것이 <strong>검증 피드백</strong>이고, 실패 종류(<code>kind</code>)와 명세 위치(<code>path</code>), 잰 값, 고치는 방법(<code>hint</code>)을 담는다.
+            </p>
+          </details>
+
+          <p>
+            티켓 12는 고객이 판재 두께를 표준 두께 목록의 후보 중에서 고르게 했다(ADR-0010). 그 설계에는 약속이 하나 있다. 슬라이더를 움직이는 동안 두께는 변하지 않는다. 엔진은 고른 후보의 이동량을 슬라이더 이동량에 그대로 더할 뿐이라, 모델이 지켜 주지 않으면 화면이 틀린다. 티켓 12는 두께 고정을 명세 검사로 확인했다. 고정 두께 파라미터를 슬라이더의 <code>children</code>에 못 두게 한 것이다. 티켓 12 기록은 두께 고정 실측과 두께 후보 × 슬라이더 교차 검증을 티켓 13의 몫으로 남겼다. 이 페이지는 이 둘을 "두 구멍"이라 부른다.
+          </p>
+
+          <div class="callout">
+            <span class="label">두 구멍</span>
+            <p>
+              첫째, 명세 검사는 Fusion 안의 수식을 보지 못한다. 두께가 슬라이더의 비율 수식이면(예: 몸통 셸 두께 = <code>body_w * 0.03</code>) 명세 검사는 통과하지만 슬라이더를 움직이면 판이 얇아진다. 둘째, 두께 후보와 슬라이더를 함께 바꾸었을 때의 덧셈을 아직 확인하지 않았다. <strong>두께 쌍</strong>은 두께 선택과 슬라이더 하나의 짝이다.
+            </p>
+          </div>
+        </section>
+
+        <section id="intuition">
+          <h2>핵심 아이디어</h2>
+          <p>
+            이 변경의 요점은 두 가지다. 고른 두께가 슬라이더로 바뀌지 않는다는 약속을 엔진의 계산이 아니라 Fusion 형상에서 판 두께를 재서 확인하고(두께 고정 실측), 두께 후보와 슬라이더를 함께 바꾼 Fusion 형상을 받아 엔진의 덧셈과 비교한다. 티켓 기록이 든 두 합성 녹화본이 두 구멍에 하나씩 대응한다. 둘 다 서랍장이고 SolidCraft로 만든 합성 녹화본이다.
+          </p>
+
+          <h3>구멍 1: 슬라이더가 두께를 바꾼다</h3>
+          <p>
+            몸통 셸 두께가 <code>body_w * 0.03</code>인 녹화본이다. 문서의 예에서 판 두께는 기본값에서 18 mm이고, <code>body_w</code>가 300이면 9 mm다. 비율 수식은 선형이라서 엔진의 보간이 Fusion 형상과 맞는다. 그래서 수치 검증(엔진 결과와 Fusion 형상을 검증점마다 견주는 검사)은 통과한다. 두께가 변한 사실은 형상을 판 두께로 직접 재야 드러난다. 이것이 <strong>두께 고정 실측</strong>이다.
+          </p>
+          <p class="flow-label">두께 고정 실측</p>
+          <div class="dataflow">
+            <div class="node terminal">슬라이더 <code>body_w</code>의 단독 스윕 샘플·검증점</div>
+            <div class="step">
+              <div class="arrow"><span class="data">판 두께를 재서 기준 형상과 비교</span><span class="line"></span></div>
+              <div class="node">300에서 18 mm → 9 mm (변화 9 mm)</div>
+            </div>
+            <div class="step">
+              <div class="arrow"><span class="data">0.2 mm 초과?</span><span class="line"></span></div>
+              <div class="node fail"><code>thickness_change</code>: 슬라이더 body_w가 부품 Carcass의 두께를 바꿉니다</div>
+            </div>
+          </div>
+
+          <h3>구멍 2: 두께와 슬라이더의 덧셈이 어긋난다</h3>
+          <p>
+            다른 녹화본은 두께 <code>t</code>(기본 18 mm)가 몸통 셸 두께이고, 서랍 폭이 <code>d5 = body_w - 40 + (body_w - 600) * (t - 18) / 60</code>(단위 mm)이다. 마지막 항이 두께와 폭의 곱이라서, 두께를 바꾸면 폭 슬라이더의 효과가 달라진다. 기본 두께 18에서는 그 항이 0이라 덧셈이 맞는다. 장난감 값으로 기본 전체 폭을 600이라 두고, 폭을 100 mm 늘린 상태에서 두께를 24로 고르면 이렇게 된다.
+          </p>
+          <table class="vals">
+            <thead>
+              <tr><th>계산</th><th>식</th><th>서랍 폭 변화</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>폭 +100만 움직임(t=18)</td><td>폭 항 (곱 항은 0)</td><td>+100 mm</td></tr>
+              <tr><td>t=24만 움직임(폭은 기본)</td><td>곱 항에 (600 - 600)이 들어감</td><td>0 mm</td></tr>
+              <tr><td>엔진의 덧셈</td><td>100 + 0</td><td>+100 mm</td></tr>
+              <tr><td>Fusion의 실제 값</td><td>100 + 100 × 6 / 60</td><td class="no">+110 mm</td></tr>
+            </tbody>
+          </table>
+          <p>
+            10 mm가 어긋난다. 일반식으로는 (폭 변화) × (두께 변화) / 60이다. 이 오차를 잡으려면 두께 후보와 슬라이더를 함께 움직인 형상을 Fusion에서 받아 와서 엔진의 덧셈과 비교해야 한다.
+          </p>
+
+          <div class="callout edge">
+            <span class="label">경계 사례</span>
+            <p>
+              두께 쌍의 교차 검증은 슬라이더의 범위 끝 두 곳만 본다. 티켓 기록의 리뷰는 중간에서만 드러나는 수식을 놓칠 수 있다고 지적했고, 슬라이더 쌍도 모서리만 보는 것과 같은 방식(티켓 기록은 ADR-0004를 들었다)이라 반영하지 않았다고 적었다. 또 두 두께 선택을 함께 바꾼 조합은 이번에도 보지 않는다.
+            </p>
+          </div>
+        </section>
+
+        <section id="code">
+          <h2>코드 따라가기</h2>
+          <p>
+            <strong>흐름:</strong> 실행기의 검증 순서 → 두께 고정 실측 → 교차 검증 요청에 두께 쌍 추가 → 쌍을 읽는 공통 함수 → 어긋남 판정 → 두께 쌍 격자 보강 → 엔진이 격자 나머지를 더함.
+          </p>
+
+          <h3>1. 실행기: 두께 고정 실측을 수치 검증보다 먼저 본다</h3>
+          <p>
+            순서는 범위 검증, 두께 고정 실측, 수치 검증, 축 반응, 교차 검증이다. 코드 주석이 까닭을 적었다. 슬라이더가 판 두께를 바꾸면 수치 검증의 판 두께 치수 오차보다 "슬라이더 X가 부품 Y의 두께를 바꿈"이 원인을 바로 가리키고, 비율 수식이면 수치 검증은 통과하기 때문이다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/2a98730f131bd87418263f94af0a43eaee3b4914/configurator/pipeline/runner.ts#L284-L291">configurator/pipeline/runner.ts:284-291</a></p>
+<pre><span class="add">    let feedback = verifyRange(spec, uploaded);</span>
+<span class="add">    // 두께 고정 실측은 수치 검증보다 먼저 본다. 슬라이더가 판 두께를 바꾸면 수치 검증의 판 두께 치수 오차보다</span>
+<span class="add">    // "슬라이더 X가 부품 Y의 두께를 바꿈"이 원인을 바로 가리키고, 비율 수식이면 수치 검증은 통과하기 때문이다.</span>
+<span class="add">    if (feedback.length === 0) feedback = verifyThicknessFixed(spec, sweeps, uploaded);</span>
+<span class="add">    if (feedback.length === 0) feedback = verifyNumeric(spec, sweeps, uploaded);</span>
+<span class="add">    if (feedback.length === 0) feedback = verifyAxisResponse(spec, uploaded);</span>
+<span class="add">    const crossValues = crossCheckValues(spec);</span>
+<span class="add">    if (feedback.length &gt; 0 || crossValues.length === 0) return { files, feedback, failedPairs: [] };</span></pre>
+          <p>
+            교차 검증은 이제 슬라이더가 하나여도 두께 선택이 있으면 돈다. 이전 조건이 <code>spec.sliders.length &lt; 2</code>였던 자리가 <code>crossValues.length === 0</code>으로 바뀐 것이다.
+          </p>
+
+          <h3>2. 두께 고정 실측</h3>
+          <p>
+            <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/2a98730f131bd87418263f94af0a43eaee3b4914/configurator/pipeline/verify-thickness.ts#L38"><code>configurator/pipeline/verify-thickness.ts:38</code></a>는 슬라이더마다 단독 스윕 전체의 샘플과 검증점을 돈다. 슬라이더 범위 밖도 포함한다. 위상 묶음이 있으면 묶음 안 단독 스윕도 잰다. 재계산에 실패했거나 면 구성이 다른 형상은 재지 않는다. 판 두께를 읽는 <code>panelReader</code>(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/2a98730f131bd87418263f94af0a43eaee3b4914/configurator/pipeline/verify-numeric.ts#L77"><code>configurator/pipeline/verify-numeric.ts:77</code></a>)는 수치 검증의 판재 두께 계산과 같은 면 쌍을 쓰도록 이 티켓에서 수치 검증 코드에서 분리했다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/2a98730f131bd87418263f94af0a43eaee3b4914/configurator/pipeline/verify-thickness.ts#L38-L47">configurator/pipeline/verify-thickness.ts:38-47</a></p>
+<pre><span class="add">export function verifyThicknessFixed(spec: Spec, sweeps: SweepData, bundle: UploadBundle): Feedback[] {</span>
+<span class="add">  const read = panelReader(spec, sweeps, bundle);</span>
+<span class="add">  const readings = spec.sliders.map((): Reading[] =&gt; []);</span>
+<span class="add">  for (const { i, sweep, fixed } of sliderSweeps(spec, bundle)) {</span>
+<span class="add">    for (const { value, status, faces } of [...sweep.samples, ...sweep.checks]) {</span>
+<span class="add">      if (status !== "ok") continue;</span>
+<span class="add">      const { values, measured, place } = sweepPoint(spec.sliders[i].id, value, fixed);</span>
+<span class="add">      for (const panel of read(values, faces) ?? []) readings[i].push({ measured, place, ...panel });</span>
+<span class="add">    }</span>
+<span class="add">  }</span></pre>
+          <p>
+            슬라이더·부품마다 가장 크게 바뀐 곳 하나만 남기고, 변화가 치수 합격선 <code>DIMENSION_TOLERANCE</code>(0.2 mm) 이하면 버린다. 넘으면 아래 피드백이 나간다. 힌트 문장이 슬라이더와 부품, 바뀐 값, 고치는 방법을 한 번에 말한다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/2a98730f131bd87418263f94af0a43eaee3b4914/configurator/pipeline/verify-thickness.ts#L57-L71">configurator/pipeline/verify-thickness.ts:57-71</a></p>
+<pre><span class="add">      const change = Math.abs(fusionMm - baseMm);</span>
+<span class="add">      if (change &lt;= DIMENSION_TOLERANCE) return [];</span>
+<span class="add">      return [</span>
+<span class="add">        {</span>
+<span class="add">          path: `sliders[${i}]`,</span>
+<span class="add">          slider: slider.id,</span>
+<span class="add">          part,</span>
+<span class="add">          kind: "thickness_change",</span>
+<span class="add">          measured: { ...measured, faces, baseline_mm: round(baseMm), fusion_mm: round(fusionMm), change_mm: round(change) },</span>
+<span class="add">          expected: { max_change_mm: DIMENSION_TOLERANCE },</span>
+<span class="add">          hint: `슬라이더 ${slider.id}가 부품 ${part}의 두께를 바꿉니다: 판 두께(${faces.join("·")})가 ${place}에서 ${round(baseMm)} mm → ${round(fusionMm)} mm. ${FIX_FIXED}`,</span>
+<span class="add">        },</span>
+<span class="add">      ];</span>
+<span class="add">    });</span>
+<span class="add">  });</span></pre>
+
+          <h3>3. 교차 검증 요청: 두께 쌍을 더한다</h3>
+          <p>
+            <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/2a98730f131bd87418263f94af0a43eaee3b4914/configurator/pipeline/verify-cross.ts#L49"><code>configurator/pipeline/verify-cross.ts:49</code></a>가 값 묶음 목록을 만든다. 슬라이더 쌍의 모서리 4곳 뒤에, 두께 선택마다·기본 두께가 아닌 후보마다·슬라이더마다 범위 끝 2곳이 붙는다. 이때 쌍은 슬라이더 id 두 개가 아니라 <code>[두께 선택의 첫 파라미터, 슬라이더]</code>다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/2a98730f131bd87418263f94af0a43eaee3b4914/configurator/pipeline/verify-cross.ts#L59-L65">configurator/pipeline/verify-cross.ts:59-65</a></p>
+<pre><span class="add">  for (const choice of spec.thickness) {</span>
+<span class="add">    for (const option of nonDefaultOptions(choice)) {</span>
+<span class="add">      for (const s of spec.sliders) {</span>
+<span class="add">        for (const v of [s.min, s.max]) out.push({ pair: [choice.ids[0], s.id], values: { ...defaults, ...thicknessValues(choice, option), [s.id]: v } });</span>
+<span class="add">      }</span>
+<span class="add">    }</span>
+<span class="add">  }</span></pre>
+
+          <h3>4. 쌍이 슬라이더 쌍인지 두께 쌍인지</h3>
+          <p>
+            격자 보강과 교차 검증이 같은 판정을 쓰도록 엔진 파일에 <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/2a98730f131bd87418263f94af0a43eaee3b4914/configurator/src/engine.ts#L75"><code>configurator/src/engine.ts:75</code></a>가 생겼다. 둘째 이름은 반드시 슬라이더이고, 첫째가 슬라이더면 슬라이더 쌍, 두께 선택의 첫 파라미터면 두께 쌍이다. 어느 쪽도 아니면 명세에 없는 쌍이다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/2a98730f131bd87418263f94af0a43eaee3b4914/configurator/src/engine.ts#L75-L82">configurator/src/engine.ts:75-82</a></p>
+<pre><span class="add">export function findPair(spec: Spec, [a, b]: Pair): PairRef | undefined {</span>
+<span class="add">  const j = spec.sliders.findIndex((s) =&gt; s.id === b);</span>
+<span class="add">  if (j === -1) return undefined;</span>
+<span class="add">  const i = spec.sliders.findIndex((s) =&gt; s.id === a);</span>
+<span class="add">  if (i !== -1) return { kind: "sliders", i, j };</span>
+<span class="add">  const choice = spec.thickness.findIndex((c) =&gt; c.ids[0] === a);</span>
+<span class="add">  return choice === -1 ? undefined : { kind: "thickness", choice, j };</span>
+<span class="add">}</span></pre>
+          <p>
+            피드백이 가리킬 곳은 쌍 종류마다 다르다. <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/2a98730f131bd87418263f94af0a43eaee3b4914/configurator/pipeline/verify-cross.ts#L87"><code>configurator/pipeline/verify-cross.ts:87</code></a>가 슬라이더 쌍이면 앞 슬라이더(<code>sliders[i]</code>)를, 두께 쌍이면 그 두께 선택의 후보(<code>thickness[i].options</code>)를 <code>path</code>로 돌려주고, 힌트에 쓰는 이름과 고치는 방법도 함께 준다.
+          </p>
+
+          <h3>5. 어긋남을 판정하고 이름을 붙인다</h3>
+          <p>
+            두께 쌍에서 판 두께 치수가 어긋나면 <code>dimension_error</code> 대신 <code>thickness_change</code>를 낸다. 코드 주석의 논리는 이렇다. 엔진은 고른 두께를 그대로 두므로, 판 두께가 어긋났다면 그 두께 후보에서 슬라이더가 판 두께를 바꾸었다는 뜻이다. 기본 두께의 경우는 두께 고정 실측으로 확인했다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/2a98730f131bd87418263f94af0a43eaee3b4914/configurator/pipeline/verify-cross.ts#L139-L148">configurator/pipeline/verify-cross.ts:139-148</a></p>
+<pre><span class="add">  const feedback = (failure: PartFailure): Feedback =&gt; {</span>
+<span class="add">    const measured = failure.measured as { dimension?: string; engine_mm?: number; fusion_mm?: number };</span>
+<span class="add">    if (words.ref.kind === "sliders" || failure.kind !== "dimension_error" || measured.dimension !== "thickness") return { ...words.target, ...failure };</span>
+<span class="add">    return {</span>
+<span class="add">      ...words.target,</span>
+<span class="add">      ...failure,</span>
+<span class="add">      kind: "thickness_change",</span>
+<span class="add">      hint: `슬라이더 ${b}가 두께 ${a}=${values[a]}에서 부품 ${failure.part}의 두께를 바꿉니다: ${place}에서 ${measured.engine_mm} mm여야 하는데 Fusion은 ${measured.fusion_mm} mm. ${FIX_THICKNESS_PAIR}`,</span>
+<span class="add">    };</span>
+<span class="add">  };</span></pre>
+
+          <h3>6. 격자 보강: 두께 후보마다 슬라이더 방향으로만</h3>
+          <p>
+            처음 실패는 피드백이고, 같은 쌍이 다음 명세에서도 실패하면 보강한다. 두께 쌍의 격자는 <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/2a98730f131bd87418263f94af0a43eaee3b4914/configurator/pipeline/verify-cross.ts#L115"><code>configurator/pipeline/verify-cross.ts:115</code></a>에서 정한다. 기본 두께가 아닌 후보마다 슬라이더의 최솟값·기본값·최댓값(후보가 바깥 고리)을 요청하고, 검증점은 후보마다 슬라이더 마디 사이 가운데다. 기본 두께에서는 덧셈이 그대로 맞으므로 요청하지 않는다. 2쌍 상한에 슬라이더 쌍과 함께 센다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/2a98730f131bd87418263f94af0a43eaee3b4914/configurator/pipeline/verify-cross.ts#L115-L120">configurator/pipeline/verify-cross.ts:115-120</a></p>
+<pre><span class="add">  if (ref.kind === "thickness") {</span>
+<span class="add">    const choice = spec.thickness[ref.choice];</span>
+<span class="add">    const s = spec.sliders[ref.j];</span>
+<span class="add">    const along = (vs: number[]) =&gt; nonDefaultOptions(choice).flatMap((o) =&gt; vs.map((v) =&gt; ({ ...defaults, ...thicknessValues(choice, o), [s.id]: v })));</span>
+<span class="add">    return { grid: along(gridAxis(s)), checks: along(midpoints(gridAxis(s))) };</span>
+<span class="add">  }</span></pre>
+          <p>
+            엔진은 <a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/2a98730f131bd87418263f94af0a43eaee3b4914/configurator/src/engine.ts#L524"><code>configurator/src/engine.ts:524</code></a>로 보정한다. 고른 후보의 나머지(격자 샘플에서 슬라이더 이동량과 두께 후보 이동량을 뺀 것)를 슬라이더 값에 대해 선형으로 보간해 더한다. 후보가 아니면(기본 두께면) 아무것도 더하지 않는다.
+          </p>
+          <p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/2a98730f131bd87418263f94af0a43eaee3b4914/configurator/src/engine.ts#L524-L530">configurator/src/engine.ts:524-530</a></p>
+<pre><span class="add">function addThicknessResidual(out: Float64Array, grid: ThicknessGridTrack, option: number, value: number) {</span>
+<span class="add">  const residuals = grid.residuals.get(option);</span>
+<span class="add">  if (!residuals) return;</span>
+<span class="add">  const { lo, hi, t } = bracket(grid.values, value);</span>
+<span class="add">  const [a, b] = [residuals[lo], residuals[hi]];</span>
+<span class="add">  for (let i = 0; i &lt; out.length; i++) out[i] += a[i] + (b[i] - a[i]) * t;</span>
+<span class="add">}</span></pre>
+          <p>
+            티켓 기록은 두께 격자를 슬라이더 쌍 격자처럼 기본 묶음에서만 쓴다고 적었다. 슬라이더 범위가 다른 위상 묶음에 닿으면 범위 끝 격자 샘플의 면 구성이 기본 형상과 달라 보강하지 않고 <code>topology_change</code>가 나오기 때문이다.
+          </p>
+        </section>
+
+        <section id="quiz">
+          <h2>퀴즈</h2>
+
+          <div class="quiz-question">
+            <p class="q">
+              서랍 폭이 <code>body_w - 40 + (body_w - 600) * (t - 18) / 60</code>인 모델에서, 전체 폭을 기본값보다 200 mm 줄이고 두께를 15로 고르면 엔진의 덧셈과 Fusion 서랍 폭은 몇 mm 차이 나는가?
+            </p>
+            <button class="quiz-option">0 mm</button>
+            <button class="quiz-option">5 mm</button>
+            <button class="quiz-option" data-correct>10 mm</button>
+            <button class="quiz-option">20 mm</button>
+            <div class="quiz-feedback" role="status">
+              오차는 (폭 변화) × (두께 변화) / 60의 크기다. 폭 변화는 -200, 두께 변화는 15 - 18 = -3이므로 곱이 600이고 60으로 나누면 10 mm다. 기본 폭이 얼마든 같다. 한쪽이 기본이면 오차가 0이다. 두 값이 함께 바뀔 때만 생기므로 단독 스윕만 보는 검증은 이 항을 놓친다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">
+              몸통 셸 두께가 <code>body_w * 0.03</code>인 모델은 수치 검증을 통과하는데도 별도의 두께 고정 실측이 필요하다. 수치 검증을 통과하는 이유는?
+            </p>
+            <button class="quiz-option">수치 검증은 판 두께를 재지 않고 바깥 치수만 확인한다</button>
+            <button class="quiz-option" data-correct>비율 수식은 선형이라 샘플 사이 보간이 Fusion 형상과 맞는다</button>
+            <button class="quiz-option">두께가 바뀌는 구간은 스윕 범위 밖이라 수치 검증이 보지 않는다</button>
+            <div class="quiz-feedback" role="status">
+              문서의 설명은 이렇다. 비율 수식이면 엔진의 보간이 Fusion과 맞아 수치 검증은 통과한다. 그래서 슬라이더가 두께를 바꾼다는 원인은 판 두께를 직접 재는 실측으로만 드러난다. 수치 검증은 엔진 결과와 Fusion 형상을 견주므로, 엔진 보간이 맞으면 두께가 변해도 통과한다. 판 두께 치수도 수치 검증이 재고 있어서 바깥 치수만 본다는 설명은 틀리다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">
+              두께 쌍의 교차 검증에서 판 두께 치수가 어긋나면 <code>dimension_error</code>가 아니라 <code>thickness_change</code>가 나온다. 그렇게 부를 수 있는 근거는?
+            </p>
+            <button class="quiz-option">두께 후보 형상은 위상 묶음마다 받으므로 두께는 언제나 위상 변화로 나타난다</button>
+            <button class="quiz-option">Fusion이 두께 파라미터를 바꿀 때만 치수 오차를 별도의 종류로 기록한다</button>
+            <button class="quiz-option" data-correct>엔진이 고른 두께를 고정해 두므로 어긋남은 슬라이더가 그 두께를 바꾼 탓이다</button>
+            <div class="quiz-feedback" role="status">
+              엔진은 고른 두께의 이동량을 그대로 더하고 보간하지 않으므로, 엔진이 낸 판 두께는 고른 두께와 같다(기본 두께에서는 두께 고정 실측이 통과했다는 전제). 거기서 Fusion과 어긋나면 그 두께에서 슬라이더가 판 두께를 바꾸었다는 뜻이고, 원인을 가리키는 이름이 더 쓸모 있다. 나머지 둘은 코드와 맞지 않는다. 후보 형상을 위상 묶음마다 받는 것은 맞지만 두께가 언제나 위상 변화로 나타나지는 않는다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">
+              명세에 슬라이더가 둘이고 두께 선택이 하나이며 기본이 아닌 후보가 둘이다. 교차 검증 요청의 값 묶음은 모두 몇 개인가?
+            </p>
+            <button class="quiz-option">8개</button>
+            <button class="quiz-option" data-correct>12개</button>
+            <button class="quiz-option">16개</button>
+            <button class="quiz-option">20개</button>
+            <div class="quiz-feedback" role="status">
+              슬라이더 쌍 하나의 모서리가 2 × 2 = 4곳이다. 두께 쌍은 두께 선택 1개 × 후보 2개 × 슬라이더 2개 × 범위 끝 2곳 = 8곳이다. 합쳐서 12개다.
+            </div>
+          </div>
+
+          <div class="quiz-question">
+            <p class="q">
+              두께 쌍을 격자로 보강한 상품에서 고객이 기본 두께를 고르고 그 슬라이더를 움직인다. 격자의 나머지 이동량은 어떻게 쓰이는가?
+            </p>
+            <button class="quiz-option" data-correct>쓰이지 않는다. 기본 두께에서는 단독 스윕만으로 이미 맞기 때문이다</button>
+            <button class="quiz-option">두께가 기본이어도 격자 보간이 항상 더해져 슬라이더 값마다 보정한다</button>
+            <button class="quiz-option">가장 가까운 기본이 아닌 후보의 나머지를 빌려 와 대신 쓴다</button>
+            <div class="quiz-feedback" role="status">
+              <code>addThicknessResidual</code>은 고른 두께의 나머지가 격자에 없으면 곧바로 돌아온다. 격자는 기본이 아닌 후보에서만 만들어지기 때문이다. 기본 두께에서 슬라이더 효과는 단독 스윕이 담고, 수치 검증이 그 검증점을 잰다. 가까운 후보의 값을 빌리는 일은 없다.
+            </div>
+          </div>
+        </section>
+
+      </main>
+
+      <footer class="colophon">
+        explain-diff-html 스킬로 만든 설명 문서
+      </footer>
+    </div>
+
+    <script>
+      document.querySelectorAll(".quiz-question").forEach(function (question) {
+        var feedback = question.querySelector(".quiz-feedback");
+
+        // Shuffle the options on every load, so the correct answer's position is
+        // random and a reader cannot fall into answering by position. Each option
+        // is re-inserted before the feedback block, which has to stay last.
+        var shuffled = Array.prototype.slice.call(
+          question.querySelectorAll(".quiz-option"),
+        );
+        for (var i = shuffled.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var swap = shuffled[i];
+          shuffled[i] = shuffled[j];
+          shuffled[j] = swap;
+        }
+        shuffled.forEach(function (option) {
+          question.insertBefore(option, feedback);
+        });
+
+        var options = question.querySelectorAll(".quiz-option");
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            var isCorrect = option.hasAttribute("data-correct");
+            options.forEach(function (other) {
+              other.disabled = true;
+              if (other.hasAttribute("data-correct"))
+                other.classList.add("correct");
+            });
+            if (!isCorrect) option.classList.add("incorrect");
+            feedback.classList.add("show", isCorrect ? "ok" : "bad");
+            feedback.insertBefore(
+              document.createTextNode(isCorrect ? "Correct. " : "Not quite. "),
+              feedback.firstChild,
+            );
+          });
+        });
+      });
+    </script>
+    <script>
+      // Mermaid loads without blocking: the page scripts above run first, and a slow
+      // or blocked CDN never holds up the quiz or the rest of the page. This is the
+      // only permitted external request, and it fires only when a .mermaid block is
+      // present. Leave it in place; it is a no-op on pages without a diagram.
+      (function () {
+        var blocks = document.querySelectorAll(".mermaid");
+        if (!blocks.length) return;
+
+        // mermaid.run() replaces each block's text with an SVG, so the source is
+        // gone after the first render. Stash it, because a theme change has to
+        // parse it again.
+        blocks.forEach(function (block) {
+          block.dataset.source = block.textContent;
+        });
+
+        var darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+        function render() {
+          blocks.forEach(function (block) {
+            block.removeAttribute("data-processed");
+            block.textContent = block.dataset.source;
+          });
+          try {
+            window.mermaid.initialize({
+              startOnLoad: false,
+              theme: darkQuery.matches ? "dark" : "default",
+            });
+          } catch (e) {}
+          Promise.resolve(window.mermaid.run({ nodes: blocks })).catch(
+            function () {},
+          );
+        }
+
+        var s = document.createElement("script");
+        s.src =
+          "https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js";
+        s.integrity =
+          "sha384-T/0lMUdJpd2S1ZHtRiofG3htU3xPCrFVeAQ1UUE2TJwlEJSV5NUwn30kP28n238E";
+        s.crossOrigin = "anonymous";
+        s.onload = function () {
+          render();
+          // Re-render when the reader switches system theme, so the diagram does
+          // not stay light on a dark page.
+          if (darkQuery.addEventListener)
+            darkQuery.addEventListener("change", render);
+        };
+        document.head.appendChild(s);
+      })();
+    </script>
+  </body>
+</html>

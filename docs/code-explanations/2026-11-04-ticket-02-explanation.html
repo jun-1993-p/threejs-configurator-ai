@@ -1,0 +1,974 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>티켓 02: 녹화 묶음으로 구성기 띄우기</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f6f7f9;
+        --text: #1c2024;
+        --muted: #60646c;
+        --border: #d7dbdf;
+        --border-strong: #848c95;
+        --accent: #2f5ee0;
+        --accent-soft: #e8eefc;
+        --edge: #a35608;
+        --edge-soft: #fbefe1;
+        --ok: #1a7f47;
+        --ok-soft: #e4f3ea;
+        --bad: #c62a3b;
+        --bad-soft: #fbe7e9;
+        --measure: 68ch;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181b;
+          --surface: #1f2226;
+          --text: #eceef0;
+          --muted: #9ba1a6;
+          --border: #33383d;
+          --border-strong: #646c75;
+          --accent: #7aa2ff;
+          --accent-soft: #1e2740;
+          --edge: #e08c3a;
+          --edge-soft: #2e2517;
+          --ok: #57c98b;
+          --ok-soft: #17281d;
+          --bad: #f07178;
+          --bad-soft: #2c1a1c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:visited {
+        color: var(--accent);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 2.5rem;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 6rem;
+      }
+      nav.toc {
+        position: sticky;
+        top: 2.5rem;
+        align-self: start;
+        font-size: 0.9rem;
+      }
+      nav.toc strong {
+        display: block;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc li {
+        margin: 0.35rem 0;
+      }
+      nav.toc a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav.toc a:hover {
+        color: var(--accent);
+      }
+      main {
+        min-width: 0;
+      }
+      main > header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1.25rem;
+        margin-bottom: 2rem;
+      }
+      main > header h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.6rem;
+      }
+      main > header .lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: var(--measure);
+      }
+      main > header .provenance {
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        margin: 0.7rem 0 0;
+      }
+      .colophon {
+        grid-column: 1 / -1;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.76rem;
+        border-top: 1px solid var(--border);
+        margin: 4rem 0 0;
+        padding: 1.2rem 0 0;
+      }
+      .colophon a {
+        color: inherit;
+      }
+      section {
+        margin-bottom: 3.5rem;
+      }
+      section h2 {
+        font-size: 1.4rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      section h3 {
+        font-size: 1.05rem;
+        margin: 2rem 0 0.6rem;
+      }
+      section p,
+      section ul,
+      section ol {
+        max-width: var(--measure);
+      }
+      li {
+        margin: 0.3rem 0;
+      }
+      /* Code blocks: white-space set here so a filled-in block cannot collapse. */
+      pre,
+      .code-block {
+        white-space: pre-wrap;
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        font:
+          0.86rem/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        tab-size: 2;
+      }
+      pre .del {
+        color: var(--bad);
+      }
+      pre .add {
+        color: var(--ok);
+      }
+      pre .hi {
+        background: var(--accent-soft);
+        border-radius: 3px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--surface);
+        padding: 0.05rem 0.3rem;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      /* A file:line reference linked to the code it names. Wraps a <code> span
+         in prose, or the bare text of a .filename label. */
+      a.srcref {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px solid var(--muted);
+      }
+      a.srcref:hover {
+        border-bottom-color: var(--accent);
+      }
+      a.srcref:hover code {
+        background: var(--accent-soft);
+      }
+      /* Path label for the code block below it. */
+      .filename {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        margin: 1.5rem 0 0.3rem;
+        overflow-wrap: anywhere;
+      }
+      /* Comparison table: one row per case, .yes / .no / .warn on outcome cells. */
+      table.vals {
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.86rem;
+        width: 100%;
+        max-width: 620px;
+      }
+      table.vals th,
+      table.vals td {
+        border: 1px solid var(--border-strong);
+        padding: 0.4rem 0.65rem;
+        text-align: left;
+      }
+      table.vals th {
+        background: var(--surface);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+      table.vals td.yes {
+        background: var(--ok-soft);
+      }
+      table.vals td.no {
+        background: var(--bad-soft);
+      }
+      table.vals td.warn {
+        background: var(--edge-soft);
+      }
+      /* Callouts: .callout for a concept, .callout.edge for a caveat. */
+      .callout {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+        padding: 0.85rem 1.1rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .callout .label {
+        display: block;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+      }
+      .callout.edge {
+        background: var(--edge-soft);
+        border-left-color: var(--edge);
+      }
+      .callout.edge .label {
+        color: var(--edge);
+      }
+      /* Skippable deep-background block. */
+      details.skippable {
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 0.75rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      details.skippable > summary {
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      details.skippable[open] > summary {
+        margin-bottom: 0.75rem;
+      }
+      /* Diagram family 1: simplified app UI mockup. */
+      .ui-mockup {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1.5rem 0;
+        max-width: 560px;
+        font-size: 0.85rem;
+      }
+      .ui-mockup .bar {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0.5rem 0.85rem;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .ui-mockup .body {
+        padding: 1.1rem 0.85rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+      }
+      .mock-caption {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.3rem 0 0;
+        max-width: var(--measure);
+      }
+      /* Diagram family 2: data flow between components, example data on the arrows. */
+      .dataflow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+      /* Each arrow travels with the node it points at. Without this, a flow
+         wider than the column wraps between an arrow and its node, leaving the
+         arrow pointing at nothing and the node stranded on the next line. */
+      .dataflow .step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .dataflow .node {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 175px;
+      }
+      .dataflow .node.terminal {
+        background: var(--surface);
+        border-color: var(--border);
+      }
+      .dataflow .node.pass {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .dataflow .node.fail {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .dataflow .arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.72rem;
+        min-width: 96px;
+      }
+      .dataflow .arrow .line {
+        width: 100%;
+        border-top: 2px solid var(--border);
+        position: relative;
+      }
+      .dataflow .arrow .line::after {
+        content: "\25B6";
+        position: absolute;
+        right: -2px;
+        top: -0.72em;
+        color: var(--border);
+        font-size: 0.7rem;
+      }
+      .dataflow .arrow .data {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.35rem;
+        margin-bottom: 0.2rem;
+        font-family: ui-monospace, monospace;
+      }
+      .flow-label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin: 1.25rem 0 0.25rem;
+      }
+      /* A numbered sequence with one marked position: call stacks, retry
+         counts, any ranked list. Not one of the numbered families; reach for
+         it when a step in an ordered list is the point. */
+      .frames {
+        list-style: none;
+        padding: 0;
+        margin: 1.25rem 0;
+        max-width: 620px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.82rem;
+      }
+      .frames li {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.45rem 0.7rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+      }
+      .frames li.target {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .frames .n {
+        display: inline-block;
+        min-width: 2.2em;
+        color: var(--muted);
+      }
+      /* Diagram family 3: node/recursion tree (ASTs, nesting, recursion) */
+      .tree {
+        margin: 1.5rem 0;
+        font:
+          0.82rem/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      .tnode {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.3rem 0.55rem;
+        margin: 0.3rem 0;
+        background: var(--surface);
+        display: inline-block;
+      }
+      .tnode.leaf {
+        background: var(--bg);
+      }
+      .tnode.kept {
+        border-color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tnode.skipped {
+        border-color: var(--muted);
+        color: var(--muted);
+      }
+      .tchildren {
+        margin-left: 1.4rem;
+        border-left: 2px dotted var(--border);
+        padding-left: 0.9rem;
+      }
+      .tnote {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-left: 0.4rem;
+      }
+
+      /* Optional tabular body for .ui-mockup, when the mocked UI is a table. */
+      .mock-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .mock-table th,
+      .mock-table td {
+        border: 1px solid var(--border);
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+      }
+      .mock-table th {
+        background: var(--surface);
+        font-weight: 600;
+      }
+      .mock-table .col-highlight {
+        background: var(--accent-soft);
+      }
+
+      .mermaid {
+        margin: 1.75rem 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .mermaid .edgeLabel,
+      .mermaid .edgeLabel p,
+      .mermaid .edgeLabel span,
+      .mermaid .edgeLabel foreignObject div {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+      }
+      /* Quiz */
+      .quiz-question {
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        margin: 1.5rem 0;
+        max-width: var(--measure);
+      }
+      .quiz-question > p.q {
+        font-weight: 600;
+        margin: 0 0 0.85rem;
+      }
+      .quiz-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 0.5rem;
+        font: inherit;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .quiz-option:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .quiz-option.correct {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+      .quiz-option.incorrect {
+        background: var(--bad-soft);
+        border-color: var(--bad);
+      }
+      .quiz-option:disabled {
+        cursor: default;
+      }
+      .quiz-feedback {
+        display: none;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 7px;
+        margin-top: 0.3rem;
+      }
+      .quiz-feedback.show {
+        display: block;
+      }
+      .quiz-feedback.ok {
+        background: var(--ok-soft);
+      }
+      .quiz-feedback.bad {
+        background: var(--edge-soft);
+      }
+      a:focus-visible,
+      summary:focus-visible,
+      .quiz-option:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+      table.vals td.yes::before,
+      .dataflow .node.pass::before,
+      .tnode.kept::before,
+      .quiz-option.correct::before {
+        content: "\2713\00a0";
+        font-weight: 700;
+      }
+      table.vals td.no::before,
+      .dataflow .node.fail::before,
+      .quiz-option.incorrect::before {
+        content: "\2717\00a0";
+        font-weight: 700;
+      }
+      table.vals td.warn::before {
+        content: "\25B2\00a0";
+        font-weight: 700;
+      }
+      .tnode.skipped::before {
+        content: "\2013\00a0";
+        font-weight: 700;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 1rem;
+          padding: 1.25rem 1.1rem 4rem;
+        }
+        nav.toc {
+          position: static;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+        }
+        body {
+          font-size: 16px;
+        }
+        main > header h1 {
+          font-size: 1.6rem;
+        }
+        table.vals {
+          display: block;
+          overflow-x: auto;
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <nav class="toc">
+        <strong>목차</strong>
+        <ol>
+          <li><a href="#background">배경</a></li>
+          <li><a href="#intuition">핵심 아이디어</a></li>
+          <li><a href="#code">코드 따라가기</a></li>
+          <li><a href="#quiz">퀴즈</a></li>
+        </ol>
+      </nav>
+      <main>
+        <header>
+          <h1>티켓 02: 녹화 묶음으로 구성기 띄우기</h1>
+          <p class="lead">명세 하나와 업로드 묶음을 넣으면, 변형 엔진이 단독 스윕 샘플 사이의 꼭짓점 이동량을 섞어 형상을 만들고, 고정 코어가 그 형상을 슬라이더가 달린 three.js 구성기로 div 하나 안에 띄운다.</p>
+          <p class="provenance">jun-1993-p/threejs-configurator-ai 티켓 02 (커밋 dcf3e6c) at dcf3e6c, explained 2026-11-04. References link to this commit.</p>
+        </header>
+<section id="background">
+<h2>배경</h2>
+<details class="skippable">
+<summary>이 프로젝트와 3D 메쉬 개념이 낯설다면 펼쳐서 읽는다.</summary>
+<p>이 프로젝트는 Fusion으로 만든 CAD 모델을 쇼핑몰 페이지의 div 하나 안에서 도는 three.js <strong>구성기</strong>로 바꾼다. 고객은 <strong>슬라이더</strong>로 값을 바꾸고, 구성기는 모델의 형태를 그에 맞게 바꿔 보여준다. 브라우저에서 Fusion을 다시 계산할 수는 없으므로, 미리 뽑아 둔 형상 표본(<strong>스윕</strong>)을 섞는 방식을 쓴다(ADR-0002).</p>
+<p>three.js에서 3D 모양은 꼭짓점 위치 목록과, 세 꼭짓점 번호씩 묶은 삼각형 목록(연결)으로 그려진다. 모양이 변해도 연결이 그대로이면 꼭짓점 위치만 바꾸면 된다. 앞선 티켓 25가 이 전제를 만들었다. 샘플마다 꼭짓점 개수와 순서가 같고, 연결은 기본 형상에서 한 번만 정해 둔다.</p>
+</details>
+<p>이 티켓이 쓰는 입력은 둘이다.</p>
+<ul>
+<li><strong>명세(JSON)</strong>: 상품의 슬라이더, 범위, 축 등을 적은 파일. 원래는 AI가 쓰는 산출물인데, 이 티켓에서는 손으로 쓴 슬라이더 1개짜리(<code>fixtures/synthetic/drawer.spec.json</code>)를 쓴다. 슬라이더는 <code>body_w</code>("전체 폭", 400~800 mm, 기본값 600)다.</li>
+<li><strong>스윕 데이터</strong>: 업로드 묶음(<code>schema/upload-bundle.schema.json</code>) 중 엔진이 읽는 부분. 입력으로는 티켓 24와 25의 서랍장 합성 녹화본을 쓴다.</li>
+</ul>
+<div class="callout">
+<span class="label">핵심 개념</span>
+<strong>고정 코어</strong>(ADR-0001): 상품과 무관하게 같은 바이트로 유지되는 구성기 코드. 상품마다 달라지는 것은 명세와 스윕 데이터뿐이다. 이 티켓은 코어와 변형 엔진을 처음 만든다.
+</div>
+</section>
+
+<section id="intuition">
+<h2>핵심 아이디어</h2>
+<p>스윕은 파라미터마다 샘플 5개로 이루어진다. 서랍장 <code>body_w</code>의 기본값이 600이므로 샘플 값은 300, 450, 600, 750, 900이다. 샘플 사이의 값은 이웃 두 샘플의 형상을 직접 섞지 않고, 기본 형상에서 각 꼭짓점이 얼마나 움직였는지(<strong>이동량</strong>)를 선형으로 섞는다. 그 결과를 기본 형상 위치에 더한다.</p>
+<p>예를 들어 슬라이더가 525이면 450과 600 샘플 사이이고 비율은 (525 − 450) / (600 − 450) = 0.5다. 몸통의 한쪽 가장자리 꼭짓점이 450 샘플에서 x = −225, 600 샘플에서 x = −300이면 525에서는 −262.5다. 그래서 폭이 525인 몸통의 x 범위는 −262.5에서 262.5가 된다(엔진 시험의 기댓값과 같다).</p>
+<p>스윕이 샘플 값 자체에서는 정확하다는 점도 중요하다. 샘플 값에서 엔진이 내는 위치는 녹화된 형상과 일치하고, 둘 사이만 선형으로 근사한다. 이 근사가 얼마나 맞는지를 검증하는 일은 뒤 티켓의 몫이다.</p>
+
+<p class="flow-label">띄우기까지의 흐름(예시 데이터)</p>
+<div class="dataflow">
+<div class="node terminal">drawer.spec.json + drawer.json</div>
+<div class="step"><div class="arrow"><span class="data">슬라이더 body_w의 단독 스윕만</span><span class="line"></span></div><div class="node">build.ts: 결과물 만들기</div></div>
+<div class="step"><div class="arrow"><span class="data">configurator.js, spec.json, sweeps.json</span><span class="line"></span></div><div class="node">쇼핑몰 페이지의 div</div></div>
+<div class="step"><div class="arrow"><span class="data">fetch로 JSON 두 개</span><span class="line"></span></div><div class="node">core.ts: mount</div></div>
+<div class="step"><div class="arrow"><span class="data">body_w = 525</span><span class="line"></span></div><div class="node pass">engine.ts: 꼭짓점 위치 → 화면</div></div>
+</div>
+
+<div class="callout edge">
+<span class="label">이 티켓이 하지 않는 것</span>
+면 구성이 기본 형상과 다른 샘플이 있으면 엔진은 오류를 낸다. 위상 묶음(ADR-0005)은 티켓 10과 11이 맡는다. 슬라이더가 여럿이면 이동량을 더하지만 그 시험은 티켓 07 몫이다. 부품 색은 임시이고(스타일 선택은 티켓 18), 슬라이더 UI는 자동 시험이 없다.
+</div>
+</section>
+
+<section id="code">
+<h2>코드 따라가기</h2>
+<p><strong>흐름:</strong> 결과물 만들기(<code>build.ts</code>) → 페이지에서 JSON 불러오기와 구성기 붙이기(<code>core.ts</code>의 <code>mountAll</code>) → 변형 엔진의 이동량 준비(<code>createMorph</code>) → 슬라이더 값에서 위치 만들기(<code>addDelta</code>) → 화면 갱신 → 시험.</p>
+
+<h3>1. 결과물 만들기</h3>
+<p>스크립트는 네 파일을 낸다: 고정 코어 번들(<code>configurator.js</code>), 명세(<code>spec.json</code>), 스윕 데이터(<code>sweeps.json</code>), 쇼핑몰에 붙일 <code>index.html</code>. 코어는 esbuild로 한 파일(IIFE)로 묶고 전역 <code>Configurator</code>로 내보낸다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/dcf3e6c3b33ae4dc55bae7fd82bce9d22ad68951/configurator/scripts/build.ts#L14-L26">configurator/scripts/build.ts:14-26</a></p>
+<pre>export async function buildCore(outfile: string): Promise&lt;void&gt; {
+  await esbuild.build({
+    entryPoints: [CORE],
+    outfile,
+    bundle: true,
+    format: "iife",
+    globalName: "Configurator",
+    target: "es2020",
+    minify: true,
+    legalComments: "none",
+    logLevel: "warning",
+  });
+}</pre>
+<p>스윕 데이터는 업로드 묶음에서 명세의 슬라이더가 쓰는 부분만 남긴다. 슬라이더 id와 같은 이름의 단독 스윕만 고르고, 면은 이름과 점만(기본 형상은 연결까지) 둔다. 형식은 업로드 묶음 그대로여서 엔진이 바로 읽는다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/dcf3e6c3b33ae4dc55bae7fd82bce9d22ad68951/configurator/scripts/build.ts#L29-L47">configurator/scripts/build.ts:29-47</a></p>
+<pre>export function sweepDataFor(spec: Spec, bundle: SweepData): SweepData {
+  const ids = new Set(spec.sliders.map((s) =&gt; s.id));
+  return {
+    parts: bundle.parts.map(({ name, faces }) =&gt; ({ name, faces })),
+    baseline: {
+      faces: bundle.baseline.faces.map(({ body, name, points, triangles }) =&gt; ({ body, name, points, triangles })),
+    },
+    sweeps: bundle.sweeps
+      .filter((s) =&gt; ids.has(s.parameter))
+      .map(({ parameter, samples }) =&gt; ({
+        parameter,
+        samples: samples.map(({ value, status, faces }) =&gt; ({
+          value,
+          status,
+          faces: faces.map(({ body, name, points }) =&gt; ({ body, name, points })),
+        })),
+      })),
+  };
+}</pre>
+<p>코어가 데이터를 번들에 넣지 않고 JSON으로 따로 불러오는 이유를 티켓은 이렇게 적었다. 고정 코어를 상품마다 같은 바이트로 두기 위해서다(ADR-0001). 대가로 <code>file://</code>에서는 동작하지 않고 http로 서비스해야 한다. 쇼핑몰 페이지에는 div 한 줄과 script 한 줄만 붙인다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/dcf3e6c3b33ae4dc55bae7fd82bce9d22ad68951/configurator/scripts/build.ts#L57-L59"><code>configurator/scripts/build.ts:57-59</code></a>).</p>
+
+<h3>2. 고정 코어: 페이지에서 붙이기</h3>
+<p>번들이 불려 오면 페이지의 <code>data-configurator</code> div마다 <code>data-spec</code>과 <code>data-sweeps</code>의 주소에서 JSON을 불러와 <code>mount</code>를 부른다. DOM이 없는 곳(Node)에서 번들을 읽으면 이 자동 붙이기는 건너뛴다. 덕분에 같은 번들 안의 엔진을 Node 시험이 그대로 쓸 수 있다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/dcf3e6c3b33ae4dc55bae7fd82bce9d22ad68951/configurator/src/core.ts#L163-L184">configurator/src/core.ts:163-184</a></p>
+<pre>export async function mountAll(root: ParentNode = document): Promise&lt;Configurator[]&gt; {
+  const divs = [...root.querySelectorAll&lt;HTMLElement&gt;("[data-configurator]")];
+  return Promise.all(
+    divs.map(async (div) =&gt; {
+      const load = async (attr: string) =&gt; {
+        const url = div.getAttribute(attr);
+        if (!url) throw new Error(`구성기 div에 ${attr} 속성이 없습니다`);
+        const response = await fetch(new URL(url, document.baseURI));
+        if (!response.ok) throw new Error(`${url}을 불러오지 못했습니다(${response.status})`);
+        return response.json();
+      };
+      const [spec, sweeps] = await Promise.all([load("data-spec"), load("data-sweeps")]);
+      return mount(div, spec, sweeps);
+    }),
+  );
+}
+
+// 번들을 Node 등 DOM 없는 곳에서 불러오면 엔진만 쓴다
+if (typeof document !== "undefined") {
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () =&gt; void mountAll());
+  else void mountAll();
+}</pre>
+
+<h3>3. 변형 엔진: 이동량 준비</h3>
+<p><code>createMorph</code>가 엔진의 중심이다. 먼저 기본 형상의 모든 면을 한 줄로 이어 붙여 꼭짓점 위치 하나의 배열(<code>basePositions</code>)과 연결(<code>triangles</code>)을 만든다. 면마다 시작 번호(<code>start</code>)와 점 수(<code>count</code>)를 기억하고, 면은 <code>바디/이름</code>으로 찾는다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/dcf3e6c3b33ae4dc55bae7fd82bce9d22ad68951/configurator/src/engine.ts#L77-L92">configurator/src/engine.ts:77-92</a></p>
+<pre>export function createMorph(spec: Spec, data: SweepData): Morph {
+  const baseline = data.baseline.faces;
+  const partOf = new Map&lt;number, string&gt;();
+  for (const part of data.parts) for (const i of part.faces) partOf.set(i, part.name);
+
+  const faces: MorphFace[] = [];
+  const base: number[] = [];
+  const triangles: number[] = [];
+  baseline.forEach((face, i) =&gt; {
+    const start = base.length / 3;
+    faces.push({ body: face.body, name: face.name, part: partOf.get(i) ?? face.body, start, count: face.points.length });
+    for (const p of face.points) base.push(...p);
+    for (const t of face.triangles) triangles.push(start + t[0], start + t[1], start + t[2]);
+  });
+  const basePositions = Float64Array.from(base);
+  const faceIndex = new Map(baseline.map((f, i) =&gt; [key(f), i]));</pre>
+<p>슬라이더마다 트랙을 만든다. 트랙은 재계산에 성공한 샘플을 값 순으로 정렬한 것과, 샘플별 이동량(샘플 점 − 기본 형상 점)이다. 샘플이 2개보다 적거나, 면 개수나 면 이름, 점 수가 기본 형상과 어긋나면 오류를 낸다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/dcf3e6c3b33ae4dc55bae7fd82bce9d22ad68951/configurator/src/engine.ts#L94-L117">configurator/src/engine.ts:94-117</a></p>
+<pre>  const tracks: Track[] = spec.sliders.map((slider) =&gt; {
+    const sweep = data.sweeps.find((s) =&gt; s.parameter === slider.id);
+    if (!sweep) throw new Error(`슬라이더 ${slider.id}: 스윕 데이터에 이 파라미터의 단독 스윕이 없습니다`);
+    const samples = sweep.samples.filter((s) =&gt; s.status === "ok").sort((a, b) =&gt; a.value - b.value);
+    if (samples.length &lt; 2) throw new Error(`슬라이더 ${slider.id}: 재계산에 성공한 샘플이 2개보다 적습니다`);
+    return {
+      id: slider.id,
+      defaultValue: slider.default,
+      values: samples.map((s) =&gt; s.value),
+      deltas: samples.map((s) =&gt; {
+        const delta = new Float64Array(basePositions.length);
+        if (s.faces.length !== baseline.length) throw topologyChanged(slider.id, s.value);
+        for (const face of s.faces) {
+          const i = faceIndex.get(key(face));
+          if (i === undefined || face.points.length !== faces[i].count) throw topologyChanged(slider.id, s.value);
+          const offset = faces[i].start * 3;
+          face.points.forEach((p, j) =&gt; {
+            for (let c = 0; c &lt; 3; c++) delta[offset + j * 3 + c] = p[c] - basePositions[offset + j * 3 + c];
+          });
+        }
+        return delta;
+      }),
+    };
+  });</pre>
+
+<h3>4. 변형 엔진: 슬라이더 값에서 위치 만들기</h3>
+<p><code>positions</code>는 기본 위치를 복사한 뒤 슬라이더마다 <code>addDelta</code>로 이동량을 더한다. 값이 없으면 명세의 <code>default</code>를 쓴다. 슬라이더가 둘 이상이면 이동량이 더해지는데, 이 덧셈이 맞는지는 ADR-0004가 교차 검증으로 확인하도록 한 부분이고 이 티켓에서는 시험하지 않는다.</p>
+<p><code>addDelta</code>는 값을 감싸는 두 샘플을 찾는다. 샘플 범위 밖의 값은 끝 샘플에 붙인다(비율 t를 0과 1 사이로 자른다).</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/dcf3e6c3b33ae4dc55bae7fd82bce9d22ad68951/configurator/src/engine.ts#L130-L141">configurator/src/engine.ts:130-141</a></p>
+<pre>/** 값을 감싸는 두 샘플의 이동량을 선형으로 섞어 더한다. 샘플 범위 밖의 값은 끝 샘플에 붙인다. */
+function addDelta(out: Float64Array, track: Track, value: number) {
+  const { values, deltas } = track;
+  let hi = values.findIndex((v) =&gt; v &gt;= value);
+  if (hi === -1) hi = values.length - 1;
+  if (hi === 0) hi = 1;
+  const lo = hi - 1;
+  const t = Math.min(1, Math.max(0, (value - values[lo]) / (values[hi] - values[lo])));
+  const a = deltas[lo];
+  const b = deltas[hi];
+  for (let i = 0; i &lt; out.length; i++) out[i] += a[i] + (b[i] - a[i]) * t;
+}</pre>
+<p>면 구성이 다른 샘플에 대한 오류 메시지는 위상 묶음이 아직 지원되지 않음을 알려 준다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/dcf3e6c3b33ae4dc55bae7fd82bce9d22ad68951/configurator/src/engine.ts#L143-L146"><code>configurator/src/engine.ts:143-146</code></a>). 이 엔진 파일은 DOM이나 three.js에 기대지 않는다고 첫 주석이 밝히며, 구성기와 검증기가 같은 파일을 쓴다는 것이 이유다(<a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/dcf3e6c3b33ae4dc55bae7fd82bce9d22ad68951/configurator/src/engine.ts#L1-L2"><code>configurator/src/engine.ts:1-2</code></a>).</p>
+
+<h3>5. 고정 코어: 화면 만들기와 갱신</h3>
+<p><code>mount</code>는 엔진으로 처음 위치를 얻고, 부품마다 메쉬 하나를 만든다. 모든 메쉬가 하나의 위치 버퍼를 공유하고, 부품별 인덱스만 다르다. 그래서 슬라이더를 움직일 때 버퍼 하나만 갱신하면 모든 부품이 따라 움직인다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/dcf3e6c3b33ae4dc55bae7fd82bce9d22ad68951/configurator/src/core.ts#L51-L73">configurator/src/core.ts:51-73</a></p>
+<pre>  // 부품마다 메쉬 하나. 꼭짓점 위치는 모든 부품이 한 버퍼를 같이 쓴다.
+  const position = new THREE.BufferAttribute(new Float32Array(morph.positions(values)), 3);
+  position.setUsage(THREE.DynamicDrawUsage);
+  const geometries: THREE.BufferGeometry[] = [];
+  const parts = [...new Set(morph.faces.map((f) =&gt; f.part))];
+  const partOfVertex = new Uint32Array(position.count);
+  for (const face of morph.faces) partOfVertex.fill(parts.indexOf(face.part), face.start, face.start + face.count);
+  parts.forEach((_, n) =&gt; {
+    const index: number[] = [];
+    const t = morph.triangles;
+    for (let i = 0; i &lt; t.length; i += 3) if (partOfVertex[t[i]] === n) index.push(t[i], t[i + 1], t[i + 2]);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", position);
+    geometry.setIndex(index);
+    geometry.computeVertexNormals();
+    geometries.push(geometry);
+    const material = new THREE.MeshStandardMaterial({
+      color: PART_COLORS[n % PART_COLORS.length],
+      roughness: 0.8,
+      side: THREE.DoubleSide,
+    });
+    scene.add(new THREE.Mesh(geometry, material));
+  });</pre>
+<p>슬라이더 UI는 명세에서 자동으로 만든다. 슬라이더마다 <code>min</code>, <code>max</code>, <code>step</code>, <code>default</code>를 명세에서 읽는다. 값이 바뀌면 <code>set</code>이 범위로 자르고 <code>update</code>가 새 위치를 버퍼에 쓴 뒤 법선을 다시 계산해 그린다.</p>
+<p class="filename"><a class="srcref" href="https://github.com/jun-1993-p/threejs-configurator-ai/blob/dcf3e6c3b33ae4dc55bae7fd82bce9d22ad68951/configurator/src/core.ts#L115-L120">configurator/src/core.ts:115-120</a></p>
+<pre>  const update = () =&gt; {
+    (position.array as Float32Array).set(morph.positions(values));
+    position.needsUpdate = true;
+    for (const g of geometries) g.computeVertexNormals();
+    render();
+  };</pre>
+
+<h3>6. 시험</h3>
+<p>엔진 시험(<code>configurator/test/engine.test.ts</code>) 세 개는 서랍장 합성 녹화본을 입력으로 쓴다. 샘플 값에서 녹화된 형상과 1e-9 안에서 일치하는지, 525에서 몸통이 ±262.5이고 서랍이 ±242.5로 폭만 바뀌는지, 값을 주지 않으면 기본 600(몸통 ±300)을 쓰는지를 본다. 서랍이 ±242.5인 것은 이 모델에서 서랍 폭이 몸통 폭에서 40을 뺀 값이기 때문이다(시험 주석).</p>
+<p>번들 시험(<code>configurator/test/bundle.test.ts</code>) 세 개는 결과물이 네 파일로 이루어지는지, 번들 안의 엔진이 Node 엔진과 같은 꼭짓점을 내는지(400, 433.3, 600, 777, 800에서 비교), 스윕 데이터에 명세의 슬라이더 스윕만 남는지를 본다. 번들은 브라우저 대신 Node의 <code>vm</code>에서 실행해 비교한다. 티켓은 실제 브라우저(Chrome)에서 손으로 같은 값을 확인했다고 기록했다.</p>
+</section>
+
+<section id="quiz">
+<h2>퀴즈</h2>
+<div class="quiz-question">
+<p class="q">코어는 명세와 스윕 데이터를 번들에 넣지 않고 페이지에서 JSON으로 따로 불러온다. 이 구조의 이유로 가장 알맞은 것은?</p>
+<button class="quiz-option">file://로 열어도 동작하게 하려고</button>
+<button class="quiz-option" data-correct>코어를 상품마다 같은 바이트로 두려고</button>
+<button class="quiz-option">번들이 커서 esbuild가 실패하기 때문에</button>
+<div class="quiz-feedback" role="status">상품마다 달라지는 것은 명세와 스윕 데이터뿐이어야 한다(ADR-0001). 데이터를 번들에 넣으면 코어가 상품마다 달라진다. 오히려 fetch를 쓰므로 file://에서는 동작하지 않고 http로 서비스해야 한다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">슬라이더 body_w의 샘플이 300, 450, 600, 750, 900이다. 엔진에 body_w = 1000을 넘기면 몸통 폭은 얼마가 될까?</p>
+<button class="quiz-option" data-correct>900 mm</button>
+<button class="quiz-option">1000 mm</button>
+<button class="quiz-option">오류가 난다</button>
+<div class="quiz-feedback" role="status"><code>addDelta</code>는 샘플 범위 밖의 값을 끝 샘플에 붙인다. 비율 t를 0과 1 사이로 자르기 때문에 이동량이 900 샘플의 것에서 더 늘지 않는다. 화면의 슬라이더는 어차피 min과 max로 한 번 더 자른다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">슬라이더에 연결된 스윕의 샘플 하나에서 면 이름 하나가 기본 형상에 없다. 이 티켓의 <code>createMorph</code>는 어떻게 할까?</p>
+<button class="quiz-option">그 샘플만 건너뛰고 나머지로 계속한다</button>
+<button class="quiz-option">이름이 가장 비슷한 면에 억지로 짝짓는다</button>
+<button class="quiz-option" data-correct>위상 묶음이 아직 없다는 오류를 낸다</button>
+<div class="quiz-feedback" role="status">건너뛰는 것은 <code>recompute_failed</code>인 샘플뿐이다. 면 구성이 다른 샘플은 위상 묶음(티켓 10, 11)이 있어야 다룰 수 있어서, 그 전까지는 조용히 틀린 형상을 내는 대신 오류로 알린다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">슬라이더는 body_w 하나뿐인데 525에서 서랍 폭도 함께 줄어든다(±242.5). 엔진의 어떤 성질 때문일까?</p>
+<button class="quiz-option">코어가 모든 부품에 같은 배율을 곱해서</button>
+<button class="quiz-option" data-correct>단독 스윕이 서랍 꼭짓점의 움직임까지 담아서</button>
+<button class="quiz-option">엔진이 서랍 폭을 규칙으로 따로 계산해서</button>
+<div class="quiz-feedback" role="status">이동량은 모든 부품의 모든 꼭짓점에 대해 기록된다. 모델에서 서랍 폭이 몸통 폭 − 40으로 수식으로 묶여 있으면(ADR-0003) body_w를 바꿀 때 Fusion이 서랍도 움직여 그 결과가 샘플에 들어간다. 엔진은 수식을 모른다.</div>
+</div>
+<div class="quiz-question">
+<p class="q">엔진 파일은 DOM이나 three.js를 가져오지 않는다. 이 제약에서 직접 얻는 이점은?</p>
+<button class="quiz-option" data-correct>검증기와 구성기가 같은 파일을 쓴다</button>
+<button class="quiz-option">렌더링 속도가 눈에 띄게 빨라진다</button>
+<button class="quiz-option">위상 묶음을 곧바로 쓸 수 있다</button>
+<div class="quiz-feedback" role="status">엔진이 순수 계산이라 브라우저 번들에도, Node 시험에도 그대로 들어간다. 번들 시험이 번들 안의 엔진과 Node 엔진의 꼭짓점이 완전히 같은지 보는 것이 이 이점을 이용한다. 렌더링 속도나 위상 묶음과는 무관하다.</div>
+</div>
+</section>
+
+      </main>
+
+      <footer class="colophon">
+        Generated with
+        <a href="https://github.com/malav2110/explain-diff-html"
+          >explain-diff-html</a
+        >
+      </footer>
+    </div>
+
+    <script>
+      document.querySelectorAll(".quiz-question").forEach(function (question) {
+        var feedback = question.querySelector(".quiz-feedback");
+
+        // Shuffle the options on every load, so the correct answer's position is
+        // random and a reader cannot fall into answering by position. Each option
+        // is re-inserted before the feedback block, which has to stay last.
+        var shuffled = Array.prototype.slice.call(
+          question.querySelectorAll(".quiz-option"),
+        );
+        for (var i = shuffled.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var swap = shuffled[i];
+          shuffled[i] = shuffled[j];
+          shuffled[j] = swap;
+        }
+        shuffled.forEach(function (option) {
+          question.insertBefore(option, feedback);
+        });
+
+        var options = question.querySelectorAll(".quiz-option");
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            var isCorrect = option.hasAttribute("data-correct");
+            options.forEach(function (other) {
+              other.disabled = true;
+              if (other.hasAttribute("data-correct"))
+                other.classList.add("correct");
+            });
+            if (!isCorrect) option.classList.add("incorrect");
+            feedback.classList.add("show", isCorrect ? "ok" : "bad");
+            feedback.insertBefore(
+              document.createTextNode(isCorrect ? "Correct. " : "Not quite. "),
+              feedback.firstChild,
+            );
+          });
+        });
+      });
+    </script>
+    <script>
+      // Mermaid loads without blocking: the page scripts above run first, and a slow
+      // or blocked CDN never holds up the quiz or the rest of the page. This is the
+      // only permitted external request, and it fires only when a .mermaid block is
+      // present. Leave it in place; it is a no-op on pages without a diagram.
+      (function () {
+        var blocks = document.querySelectorAll(".mermaid");
+        if (!blocks.length) return;
+
+        // mermaid.run() replaces each block's text with an SVG, so the source is
+        // gone after the first render. Stash it, because a theme change has to
+        // parse it again.
+        blocks.forEach(function (block) {
+          block.dataset.source = block.textContent;
+        });
+
+        var darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+        function render() {
+          blocks.forEach(function (block) {
+            block.removeAttribute("data-processed");
+            block.textContent = block.dataset.source;
+          });
+          try {
+            window.mermaid.initialize({
+              startOnLoad: false,
+              theme: darkQuery.matches ? "dark" : "default",
+            });
+          } catch (e) {}
+          Promise.resolve(window.mermaid.run({ nodes: blocks })).catch(
+            function () {},
+          );
+        }
+
+        var s = document.createElement("script");
+        s.src =
+          "https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js";
+        s.integrity =
+          "sha384-T/0lMUdJpd2S1ZHtRiofG3htU3xPCrFVeAQ1UUE2TJwlEJSV5NUwn30kP28n238E";
+        s.crossOrigin = "anonymous";
+        s.onload = function () {
+          render();
+          // Re-render when the reader switches system theme, so the diagram does
+          // not stay light on a dark page.
+          if (darkQuery.addEventListener)
+            darkQuery.addEventListener("change", render);
+        };
+        document.head.appendChild(s);
+      })();
+    </script>
+  </body>
+</html>
